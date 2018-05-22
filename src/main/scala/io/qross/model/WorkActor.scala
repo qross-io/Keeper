@@ -1,0 +1,38 @@
+package io.qross.model
+
+import akka.actor.Actor
+import io.qross.util.{DataRow, DateTime}
+import io.qross.util.Output.writeMessage
+
+class WorkActor extends Actor {
+    
+    val actorName: String = this.getClass.getSimpleName
+    var tick: DateTime = _
+    
+    def setup(): Unit = {}
+    def beat(tick: String): Unit = Beats.beat(actorName, DateTime(tick))
+    def execute(taskId: Long, taskStatus: String): Unit = {}
+    def run(taskCommand: DataRow): Unit = {}
+    def cleanup(): Unit = {}
+    
+    override def preStart(): Unit = {
+        Beats.start(actorName, self.path.toString)
+        setup()
+    }
+    
+    override def postStop(): Unit = {
+        Beats.quit(actorName)
+        cleanup()
+    }
+    
+    override def receive: Receive = {
+        case Tick(minute) => beat(minute)
+        case Task(taskId, status) =>
+                writeMessage(s"$actorName receive ${status.toUpperCase()} TASK $taskId")
+                execute(taskId, status)
+        case TaskCommand(row) =>
+                writeMessage(s" $actorName receive runnable COMMAND $row")
+                run(row)
+        case _ => writeMessage(s"$actorName receive INVALID MESSAGE")
+    }
+}

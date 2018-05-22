@@ -1,0 +1,69 @@
+
+apply plugin: 'scala'
+apply plugin: 'idea'
+apply plugin: "com.github.johnrengelman.shadow"
+
+group = 'io.qross'
+version = '0.5.2'
+sourceCompatibility = 1.8
+
+archivesBaseName = "qross-keeper"
+jar {
+    manifest {
+        attributes 'Main-Class': 'io.qross.keeper.Keeper'
+    }
+}
+
+buildscript {
+    repositories {
+        maven { url "https://plugins.gradle.org/m2/" }
+    }
+    dependencies {
+        classpath "com.github.jengelman.gradle.plugins:shadow:1.2.3"
+    }
+}
+
+repositories {
+	maven {
+        url "http://maven.aliyun.com/nexus/content/groups/public/"
+    }
+	mavenCentral()
+    jcenter()
+}
+
+dependencies {
+	compile group: 'org.scala-lang', name: 'scala-library', version: '2.12.4'
+
+    compile group: 'com.typesafe.akka', name: 'akka-actor_2.12', version: '2.5.12'
+    //compile group: 'com.typesafe.akka', name: 'akka-remote_2.12', version: '2.5.12'
+
+    compile group: 'org.apache.hive', name: 'hive-jdbc', version: '2.0.0'
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.9.4'
+    compile group: 'commons-configuration', name: 'commons-configuration', version: '1.10'
+    compile group: 'mysql', name: 'mysql-connector-java', version: '5.1.37'
+    compile group: 'org.xerial', name: 'sqlite-jdbc', version: '3.20.0'
+    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.9.4'
+
+    compile group: 'org.apache.hadoop', name: 'hadoop-common', version: '2.7.1'
+    compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.1'
+    compile group: 'org.apache.hadoop', name: 'hadoop-auth', version: '2.7.1'
+
+    compile group: 'javax.mail', name: 'mail', version: '1.4.7'
+
+    //libraryDependencies += "com.github.noraui" % "ojdbc8" % "12.2.0.1" //oracle
+    //libraryDependencies += "ojdbc" % "ojdbc" % "14" //oracle
+
+    //libraryDependencies += "org.apache.poi" % "poi-ooxml" % "3.17" //for office 2017
+}
+
+shadowJar {
+    zip64 true
+    //mergeServiceFiles('META-INF/spring.*')
+    archiveName = "qross-keeper-0.5.2.jar"
+}
+
+artifacts {
+    shadowJar
+}
+
+build.dependsOn(shadowJar)
