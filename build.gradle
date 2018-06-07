@@ -4,7 +4,7 @@ apply plugin: 'idea'
 apply plugin: "com.github.johnrengelman.shadow"
 
 group = 'io.qross'
-version = '0.5.2'
+version = '0.5.3'
 sourceCompatibility = 1.8
 
 archivesBaseName = "qross-keeper"
@@ -59,7 +59,7 @@ dependencies {
 shadowJar {
     zip64 true
     //mergeServiceFiles('META-INF/spring.*')
-    archiveName = "qross-keeper-0.5.2.jar"
+    archiveName = "qross-keeper-0.5.3.jar"
 }
 
 artifacts {

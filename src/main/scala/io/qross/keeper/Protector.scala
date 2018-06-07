@@ -10,7 +10,7 @@ object Protector {
         val command = "hadoop jar io.qross.keeper-0.5.jar io.qross.keeper.Keeper"
     
         var exitValue = 1
-        val logger = new KeeperLogger()
+        val logger = new Logger()
         while(exitValue != 0) {
             exitValue = command.!(ProcessLogger(out => {
                 //logger.log(out)

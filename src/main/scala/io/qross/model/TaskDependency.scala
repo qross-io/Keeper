@@ -24,6 +24,10 @@ object TaskDependency {
         var content = dependencyValue
         content = content.replace("${jobId}", jobId)
         content = content.replace("${taskId}", taskId)
+    
+        content = content.replace("%QROSS_VERSION", Global.QROSS_VERSION)
+        content = content.replace("%JAVA_BIN_HOME", Global.JAVA_BIN_HOME)
+        content = content.replace("%QROSS_HOME", Global.QROSS_HOME)
         
         if (content.contains("${") && content.contains("}")) {
             val values = new mutable.TreeSet[String]()
@@ -71,18 +75,17 @@ object TaskDependency {
              */
             case "SQL" =>
                     val dh = new DataHub(conf.getString("dataSource"))
-                    val table = dh.executeDataTable(conf.getString("selectSQL"))
-                    if (table.nonEmpty) {
+                    dh.get(conf.getString("selectSQL"))
+                    if (dh.nonEmpty) {
                         ready = "yes"
                         if (conf.contains("updateSQL") && conf.getString("updateSQL") != "") {
-                            dh.buffer(table).put(conf.getString("updateSQL"))
+                            dh.put(conf.getString("updateSQL"))
                         }
-                        conf.set("SELECT", table.count())
+                        conf.set("SELECT", dh.count())
                     }
                     else {
                         conf.set("SELECT", "EMPTY")
                     }
-                    table.clear()
                     dh.close()
             /*
             {

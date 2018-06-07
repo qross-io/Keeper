@@ -1,0 +1,25 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Qross Keeper Notification Mail for Timeout Task</title>
+    <style type="text/css">
+        body { margin:0px; }
+        #title { font-family: "Microsoft YaHei", Consolas; font-size: 20px; padding: 10px 10px 0px 10px; }
+        #details { font-family: "Microsoft YaHei", Consolas; color: #666666; font-size: 14px; line-height: 150%; padding: 10px 10px 10px 10px; font-weight:bold; }
+        #details span { font-size:12px; color: #006699; font-weight:normal; }
+        #title span { color: #7F00FF; }
+    </style>
+</head>
+<body>
+<div id="title">${title} ${task_time} <span>TIMEOUT</span> </div>
+<div id="details">
+        <span>JobID</span> &nbsp; ${job_id} <br/>
+        <span>TaskID</span> &nbsp; ${task_id} <br/>
+        <span>CommandID</span>  ${command_id} <br/>
+        <span>ActionID</span> ${action_id} <br/>
+        <span>Overtime</span> ${overtime} <br/>
+        <span>CommandText</span> ${command_text}
+</div>
+</body>
+</html>

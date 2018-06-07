@@ -1,9 +1,8 @@
 package io.qross.util
 
-import java.sql.{CallableStatement, Connection, DriverManager, PreparedStatement, ResultSet, ResultSetMetaData, SQLException}
+import java.sql._
 import java.util.regex.Pattern
 
-import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 object DataSource {
@@ -524,29 +523,6 @@ class DataSource (connectionName: String = DataSource.DEFAULT) {
     
     def tableDelete(SQL: String, table: DataTable): Int = {
         tableUpdate(SQL, table)
-    }
-    
-    // ---------- storeproceure ----------
-    
-    // {call storedprocedure(?,?)}
-    def processUpdate(storedProcedure: String, values: Any*): Int = {
-        var row: Int = -1
-        try {
-            val calst: CallableStatement = this.connection.get.prepareCall("{call " + storedProcedure + "}")
-            for (i <- 0 until values.length) {
-                calst.setObject(i + 1, values(i))
-            }
-            row = calst.executeUpdate
-            calst.close()
-        } catch {
-            case e: SQLException => e.printStackTrace()
-        }
-        
-        row
-    }
-    
-    def processResult(storedProcedure: String, values: Any*): Unit = {
-    
     }
     
     // --------- other ----------

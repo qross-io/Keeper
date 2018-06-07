@@ -1,5 +1,5 @@
 package io.qross.keeper
 
-class KeeperLogger {
+class Logger {
     
 }

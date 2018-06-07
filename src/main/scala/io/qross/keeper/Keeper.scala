@@ -17,6 +17,7 @@ object Keeper {
         
         //check properties
         Properties.loadAll(args: _*)
+        Global.recordStart()
         
         val actorName: String = "Keeper"
         Beats.start(actorName)
@@ -25,8 +26,7 @@ object Keeper {
         val actors = List(
             system.actorOf(Props[Messager], "messager"),
             system.actorOf(Props[TaskProducer], "producer"),
-            system.actorOf(Props[TaskStarter], "starter"),
-            system.actorOf(Props[GlobalController], "controller")
+            system.actorOf(Props[TaskStarter], "starter")
         )
         
         while (!Global.QUIT_ON_NEXT_BEAT) {

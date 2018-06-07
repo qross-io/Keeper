@@ -23,7 +23,7 @@ object Beats {
     def toHtml(table: DataTable): String = {
         val str = new StringBuilder()
         table.foreach(row => {
-            str.append(row.getString("actor_name") + " - " + row.getString("last_beat_time") + "<br/>")
+            str.append(row.getString("actor_name") + " - " +  row.getString("status") + " - " + row.getString("last_beat_time") + "<br/>")
         }).clear()
         str.toString()
     }

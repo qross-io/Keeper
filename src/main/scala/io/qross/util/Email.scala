@@ -68,85 +68,95 @@ class Email(private var title: String) {
     }
     
     def to(receivers: String): Email = {
-        this.toReceivers ++= parseReceivers(receivers)
+        if (receivers != "") {
+            this.toReceivers ++= parseReceivers(receivers)
+        }
         this
     }
     
     def cc(receivers: String): Email = {
-        this.ccReceivers ++= parseReceivers(receivers)
+        if (receivers != "") {
+            this.ccReceivers ++= parseReceivers(receivers)
+        }
         this
     }
     
     def bcc(receivers: String): Email = {
-        this.ccReceivers ++= parseReceivers(receivers)
+        if (receivers != "") {
+            this.ccReceivers ++= parseReceivers(receivers)
+        }
         this
     }
     
     def send(): Unit = {
-        val props = new java.util.Properties()
-        props.setProperty("mail.transport.protocol", "smtp")
-        props.setProperty("mail.smtp.host", Email.EMAIL_SMTP_HOST)
-        props.setProperty("mail.smtp.auth", "true")
-        if (Email.EMAIL_SSL_AUTH_ENABLED) {
-            props.setProperty("mail.smtp.socketFactory.port", Email.EMAIL_SMTP_PORT)
-            props.setProperty("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory")
-        }
-        else {
-            props.setProperty("mail.smtp.port", Email.EMAIL_SMTP_PORT)
-        }
+        //must setup one receiver as least
+        if (toReceivers.nonEmpty) {
     
-        val session = Session.getInstance(props)
-        session.setDebug(false)
-    
-        val message = new MimeMessage(session)
-    
-        message.setFrom(new InternetAddress(Email.EMAIL_SENDER_ACCOUNT, Email.EMAIL_SENDER_PERSONAL, "UTF-8"))
-        for((address, personal) <- toReceivers) {
-            message.addRecipient(Message.RecipientType.TO, new InternetAddress(address, personal, "UTF-8"))
-        }
-        for((address, personal) <- ccReceivers) {
-            message.addRecipient(Message.RecipientType.CC, new InternetAddress(address, personal, "UTF-8"))
-        }
-        for((address, personal) <- bccReceivers) {
-            message.addRecipient(Message.RecipientType.BCC, new InternetAddress(address, personal, "UTF-8"))
-        }
-        message.setSubject(title, "UTF-8")
-        
-        if (attachments.isEmpty) {
-            message.setContent(content, "text/html;charset=UTF-8")
-        }
-        else {
-            val mixedContent = new MimeMultipart()
-            
-            val contentBody = new MimeBodyPart()
-            contentBody.setContent(content, "text/html;charset=UTF-8")
-            mixedContent.addBodyPart(contentBody)
-            for (file <- attachments) {
-                val attachmentBody = new MimeBodyPart()
-                val dh = new DataHandler(new FileDataSource(file))
-                attachmentBody.setDataHandler(dh)
-                attachmentBody.setFileName(MimeUtility.encodeText(dh.getName, "UTF-8", "B")) //B = base64
-                mixedContent.addBodyPart(attachmentBody)
+            val props = new java.util.Properties()
+            props.setProperty("mail.transport.protocol", "smtp")
+            props.setProperty("mail.smtp.host", Email.EMAIL_SMTP_HOST)
+            props.setProperty("mail.smtp.auth", "true")
+            if (Email.EMAIL_SSL_AUTH_ENABLED) {
+                props.setProperty("mail.smtp.socketFactory.port", Email.EMAIL_SMTP_PORT)
+                props.setProperty("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory")
             }
-            mixedContent.setSubType("mixed")
-            
-            message.setContent(mixedContent)
+            else {
+                props.setProperty("mail.smtp.port", Email.EMAIL_SMTP_PORT)
+            }
+    
+            val session = Session.getInstance(props)
+            session.setDebug(false)
+    
+            val message = new MimeMessage(session)
+    
+            message.setFrom(new InternetAddress(Email.EMAIL_SENDER_ACCOUNT, Email.EMAIL_SENDER_PERSONAL, "UTF-8"))
+            for ((address, personal) <- toReceivers) {
+                message.addRecipient(Message.RecipientType.TO, new InternetAddress(address, personal, "UTF-8"))
+            }
+            for ((address, personal) <- ccReceivers) {
+                message.addRecipient(Message.RecipientType.CC, new InternetAddress(address, personal, "UTF-8"))
+            }
+            for ((address, personal) <- bccReceivers) {
+                message.addRecipient(Message.RecipientType.BCC, new InternetAddress(address, personal, "UTF-8"))
+            }
+            message.setSubject(title, "UTF-8")
+    
+            if (attachments.isEmpty) {
+                message.setContent(content, "text/html;charset=UTF-8")
+            }
+            else {
+                val mixedContent = new MimeMultipart()
+        
+                val contentBody = new MimeBodyPart()
+                contentBody.setContent(content, "text/html;charset=UTF-8")
+                mixedContent.addBodyPart(contentBody)
+                for (file <- attachments) {
+                    val attachmentBody = new MimeBodyPart()
+                    val dh = new DataHandler(new FileDataSource(file))
+                    attachmentBody.setDataHandler(dh)
+                    attachmentBody.setFileName(MimeUtility.encodeText(dh.getName, "UTF-8", "B")) //B = base64
+                    mixedContent.addBodyPart(attachmentBody)
+                }
+                mixedContent.setSubType("mixed")
+        
+                message.setContent(mixedContent)
+            }
+    
+            message.setSentDate(new java.util.Date())
+            message.saveChanges()
+    
+            val transport: Transport = session.getTransport
+            transport.connect(Email.EMAIL_SENDER_ACCOUNT, Email.EMAIL_SENDER_PASSWORD)
+            transport.sendMessage(message, message.getAllRecipients)
+            transport.close()
+    
+            title = ""
+            content = ""
+            toReceivers.clear()
+            ccReceivers.clear()
+            bccReceivers.clear()
+            attachments.clear()
         }
-        
-        message.setSentDate(new java.util.Date())
-        message.saveChanges()
-   
-        val transport: Transport = session.getTransport
-        transport.connect(Email.EMAIL_SENDER_ACCOUNT, Email.EMAIL_SENDER_PASSWORD)
-        transport.sendMessage(message, message.getAllRecipients)
-        transport.close()
-        
-        title = ""
-        content = ""
-        toReceivers.clear()
-        ccReceivers.clear()
-        bccReceivers.clear()
-        attachments.clear()
     }
 }
 
