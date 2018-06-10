@@ -17,7 +17,7 @@ object Keeper {
         
         //check properties
         Properties.loadAll(args: _*)
-        Global.recordStart()
+        //Global.recordStart()
         
         val actorName: String = "Keeper"
         Beats.start(actorName)

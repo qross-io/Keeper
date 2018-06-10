@@ -10,13 +10,15 @@ import scala.util.{Success, Try}
 object Properties {
     
     private val props = new java.util.Properties()
-    private val externalPath = new File(Properties.getClass.getProtectionDomain.getCodeSource.getLocation.getPath).getParentFile.getAbsolutePath.replace("\\", "/") + "/io.qross.ds.properties"
-    private val internalPath = Properties.getClass.getResource("/conf.properties").toString
+    private val externalPath = new File(Properties.getClass.getProtectionDomain.getCodeSource.getLocation.getPath).getParentFile.getAbsolutePath.replace("\\", "/") + "/qross.ds.properties"
+    //private val internalPath = Properties.getClass.getResource("/conf.properties").toString
     //private lazy val externalOutput = new FileOutputStream(internalPath)
     
+    props.load(new BufferedReader(new InputStreamReader(Properties.getClass.getResourceAsStream("/conf.properties"))))
+    load(externalPath)
+    
     def loadAll(files: String*): Unit = {
-        if (!load(internalPath)
-             && !load(externalPath)
+        if (!load(externalPath)
              && files.isEmpty) {
             Output.writeExceptions("Please assign at lest one properties file which contains database connections.")
             System.exit(1)
@@ -27,12 +29,12 @@ object Properties {
             })
         }
         
-        if (!props.containsKey("mysql.qross")) {
-            Output.writeExceptions("Can't find properties key mysql.qross, it must be set in conf.properties in resources directory.")
+        if (!props.containsKey(DataSource.DEFAULT)) {
+            Output.writeExceptions(s"Can't find properties key ${DataSource.DEFAULT}, it must be set in conf.properties, qross.ds.properties or other properties files you loaded.")
             System.exit(1)
         }
         else if (!DataSource.testConnection()) {
-            Output.writeExceptions("Can't open database, please check your connection string of mysql.qross.")
+            Output.writeExceptions(s"Can't open database, please check your connection string of ${DataSource.DEFAULT}.")
             System.exit(1)
         }
         else {

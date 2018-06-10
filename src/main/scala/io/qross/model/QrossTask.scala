@@ -305,7 +305,7 @@ object QrossTask {
         
         //check dependencies
         dh.openDefault()
-            .get(s"SELECT A.id, A.task_id, A.dependency_type, A.dependency_value, A.ready, B.task_time FROM qross_tasks_dependencies A INNER JOIN qross_tasks B ON A.job_id=B.job_id INNER JOIN qross_jobs C ON A.job_id=C.id AND C.enabled='true' WHERE A.task_id=$taskId AND A.dependency_moment='before' AND A.ready='no'")
+            .get(s"SELECT A.id, A.task_id, A.dependency_type, A.dependency_value, A.ready, B.task_time FROM qross_tasks_dependencies A INNER JOIN qross_tasks B ON A.task_id=B.id INNER JOIN qross_jobs C ON A.job_id=C.id AND C.enabled='true' WHERE A.task_id=$taskId AND A.dependency_moment='before' AND A.ready='no'")
             .foreach(row => {
                 val result = TaskDependency.check(row.getString("dependency_type"), row.getString("dependency_value"))
                 row.set("ready", result._1)
@@ -375,9 +375,9 @@ object QrossTask {
         val minute = DateTime(tick)
         val dh = new DataHub()
         
-        dh.get("SELECT A.id AS action_id, A.job_id, A.task_id, A.command_id, B.command_text, B.overtime, C.title, C.owner, C.mail_notification, C.mail_master_on_exception, D.task_time FROM qross_tasks_dags A INNER JOIN qross_jobs_dags ON A.status='running' AND A.job_id=B.job_id AND B.overtime>0 AND TIMESTAMPDIFF(SECOND, A.update_time, NOW())>B.overtime INNER JOIN qross_jobs C ON A.job_id=C.id AND C.enabled='yes' INNER JOIN qross_tasks D ON A.task_id=D.id")
+        dh.get("SELECT A.id AS action_id, A.job_id, A.task_id, A.command_id, B.command_text, B.overtime, C.title, C.owner, C.mail_notification, C.mail_master_on_exception, D.task_time FROM qross_tasks_dags A INNER JOIN qross_jobs_dags B ON A.status='running' AND A.job_id=B.job_id AND B.overtime>0 AND TIMESTAMPDIFF(SECOND, A.update_time, NOW())>B.overtime INNER JOIN qross_jobs C ON A.job_id=C.id AND C.enabled='true' INNER JOIN qross_tasks D ON A.task_id=D.id")
         if (dh.nonEmpty) {
-            dh.put("UPDATE qross_tasks_dags SET status='timeout', update_time=NOW() WHERE id=#id")
+            dh.put("UPDATE qross_tasks_dags SET status='timeout', update_time=NOW() WHERE id=#action_id")
                 .put("UPDATE qross_tasks SET status='timeout', checked='no', update_time=NOW() WHERE id=#task_id")
     
             if (Global.EMAIL_NOTIFICATION) {

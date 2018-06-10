@@ -77,10 +77,10 @@ class DataSource (connectionName: String = DataSource.DEFAULT) {
     private val driver = dataSourceType match {
         case "sqlite" => "org.sqlite.JDBC"
         case "mysql" => "com.mysql.jdbc.Driver"
-        case "sqlserver" => "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-        case "hive" => "org.apache.hive.jdbc.HiveDriver"
-        case "impala" => "org.apache.hive.jdbc.HiveDriver"
-        case "oracle" => "oracle.jdbc.driver.OracleDriver"
+        //case "sqlserver" => "com.microsoft.sqlserver.jdbc.SQLServerDriver"
+        //case "hive" => "org.apache.hive.jdbc.HiveDriver"
+        //case "impala" => "org.apache.hive.jdbc.HiveDriver"
+        //case "oracle" => "oracle.jdbc.driver.OracleDriver"
         //case "impala" => "com.cloudera.impala.jdbc4.Driver"
         //case "h2" => "org.h2.Driver"
         case _ => ""
@@ -96,17 +96,7 @@ class DataSource (connectionName: String = DataSource.DEFAULT) {
     def open(): Unit = {
         try {
             Class.forName(driver).newInstance
-            if (!connectionName.startsWith("oracle.")) {
-                this.connection = Some(DriverManager.getConnection(connectionString))
-            }
-            else {
-                //oracle
-                val password = connectionString.substring(connectionString.lastIndexOf(":") + 1)
-                var thin = connectionString.substring(0, connectionString.lastIndexOf(":"))
-                val userName = thin.substring(thin.lastIndexOf(":") + 1)
-                thin = thin.substring(0, thin.lastIndexOf(":"))
-                this.connection = Some(DriverManager.getConnection(thin, userName, password))
-            }
+            this.connection = Some(DriverManager.getConnection(connectionString))
         } catch {
             case e: InstantiationException => System.err.println(s"Open database $connectionName InstantiationException: " + e.getMessage)
             case e: IllegalAccessException => System.err.println(s"Open database $connectionName IllegalAccessException: " + e.getMessage)

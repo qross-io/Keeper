@@ -48,8 +48,9 @@ object Global {
     def clearTaskRecords(): Unit = {
         val dh = new DataHub()
         dh.openDefault().saveAsDefault()
-            .get(s"SELECT id AS task_id, job_id FROM qross_tasks WHERE job_id IN (SELECT job_id FROM qross_tasks GROUP BY job_id HAVING COUNT(0)>$KEEP_X_TASK_RECORDS) ORDER BY id DESC LIMIT $KEEP_X_TASK_RECORDS,1")
-            .put("DELETE FROM qross_tasks WHERE job_id=#job_id AND task_id<=#task_id")
+            .get(s"SELECT job_id FROM qross_tasks GROUP BY job_id HAVING COUNT(0)>$KEEP_X_TASK_RECORDS")
+            .pass(s"SELECT id AS task_id, job_id FROM qross_tasks WHERE job_id=#job_id ORDER BY id DESC LIMIT $KEEP_X_TASK_RECORDS,1")
+            .put("DELETE FROM qross_tasks WHERE job_id=#job_id AND id<=#task_id")
             .put("DELETE FROM qross_tasks_logs WHERE job_id=#job_id AND task_id<=#task_id")
             .put("DELETE FROM qross_tasks_dependencies WHERE job_id=#job_id AND task_id<=#task_id")
             .put("DELETE FROM qross_tasks_dags WHERE job_id=#job_id AND task_id<=#task_id")
@@ -62,13 +63,13 @@ object Global {
         val ds = new DataSource()
         val tick = DateTime.now.getString("yyyy-MM-dd HH:mm:ss")
         
-        if (Global.KEEPER_USER_GROUP != "") {
+        if (Global.KEEPER_USER_GROUP != "" || Global.MASTER_USER_GROUP != "") {
             OpenResourceFile("/templates/beats.html")
                 .replace("${tick}", tick)
                 .replace("${beats}", Beats.toHtml(ds.executeDataTable("SELECT actor_name, status, last_beat_time FROM qross_keeper_beats WHERE status<>'disabled' ORDER BY id DESC")))
                 .writeEmail(s"NOTIFICATION: Keeper Beats at $tick")
-                .to(Global.KEEPER_USER_GROUP)
-                .cc(Global.MASTER_USER_GROUP)
+                .to(if (Global.KEEPER_USER_GROUP != "") Global.KEEPER_USER_GROUP else Global.MASTER_USER_GROUP)
+                .cc(if (Global.KEEPER_USER_GROUP != "" ) Global.MASTER_USER_GROUP else "")
                 .send()
         }
         ds.close()
@@ -89,7 +90,7 @@ object Global {
         ds.executeNonQuery(s"INSERT INTO qross_keeper_start_records (method) VALUES ('$method')")
        
         if (method != "manual" && Global.MASTER_USER_GROUP != "") {
-            Email.write(s"NOTIFICATION: Keeper start by $method at " + DateTime.now.toString).to(Global.MASTER_USER_GROUP).send()
+            Email.write(s"NOTIFICATION: Keeper start by <$method> at " + DateTime.now.getString("yyyy-MM-dd HH:mm:ss")).to(Global.MASTER_USER_GROUP).send()
         }
         
         ds.close()

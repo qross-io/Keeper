@@ -127,8 +127,10 @@ CREATE TABLE IF NOT EXISTS qross_jobs_dags (
 );
 ALTER TABLE qross_jobs_dags ADD INDEX ix_qross_jobs_dags_job_id (job_id);
 
-INSERT INTO qross_jobs_dags (job_id, title, command_text) VALUES (1, 'Clean', '%JAVA_BIN_HOMEjava -cp %QROSS_HOMEqross-keeper-%QROSS_VERSION.jar io.qross.keeper.Cleaner');
-INSERT INTO qross_jobs_dags (job_id, title, command_text) VALUES (2, 'Notify', '%JAVA_BIN_HOMEjava -cp %QROSS_HOMEqross-keeper-%QROSS_VERSION.jar io.qross.keeper.Notifier');
+INSERT INTO qross_jobs_dags (job_id, title, command_text) VALUES (157, 'Clean', '%JAVA_BIN_HOMEjava -cp %QROSS_HOMEqross-keeper-%QROSS_VERSION.jar io.qross.keeper.Cleaner');
+INSERT INTO qross_jobs_dags (job_id, title, command_text) VALUES (158, 'Notify', '%JAVA_BIN_HOMEjava -cp %QROSS_HOMEqross-keeper-%QROSS_VERSION.jar io.qross.keeper.Notifier');
+UPDATE qross_jobs SET enabled='true' WHERE id=157;
+UPDATE qross_jobs SET enabled='true' WHERE id=158;
 
 CREATE TABLE IF NOT EXISTS qross_tasks (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'task id',
