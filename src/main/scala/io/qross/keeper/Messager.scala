@@ -1,5 +1,6 @@
 package io.qross.keeper
 
+import io.qross.model.User
 import io.qross.model._
 import io.qross.util.{DateTime, Output, Timer}
 
@@ -16,8 +17,8 @@ class Messager extends WorkActor {
             MessageBox.check().foreach(row => {
                 val messageType = row.getString("message_type").toUpperCase
                 val messageKey = row.getString("message_key").toUpperCase
-                val messageText = row.getString("message_text").toUpperCase
-                Output.writeMessage(s"Got A Message # $messageType # $messageKey # $messageText}")
+                val messageText = row.getString("message_text")
+                Output.writeMessage(s"Got A Message # $messageType # $messageKey # $messageText")
                 messageType match {
                     case "GLOBAL" => Global.CONFIG.set(messageKey, messageText)
                     case "TASK" =>
@@ -29,6 +30,20 @@ class Messager extends WorkActor {
                             case "RESTART" => producer ! Task(messageText.substring(messageText.indexOf("@") + 1).toLong, messageText.substring(0, messageText.indexOf("@")))
                             case _ =>
                         }
+                    case "USER" =>
+                        //USER - INSERT - role:name<email@doman.com>#password
+                        //USER - UPDATE - name:name#id / mail:email@doman.com#id / role:role_name#id / password:password#id
+                        //USER - DELETE - name:name / id:id
+                        //USER - SELECT - only refresh keeper and master
+                        messageKey match {
+                            case "INSERT" => User.create(messageText)
+                            case "UPDATE" => User.update(messageText)
+                            case "DELETE" => User.remove(messageText)
+                            case "SELECT" =>
+                            case _ =>
+                        }
+                        Global.CONFIG.set("KEEPER_USER_GROUP", User.getUsers("keeper"))
+                        Global.CONFIG.set("MASTER_USER_GROUP", User.getUsers("master"))
                     case _ =>
                 }
             }).clear()

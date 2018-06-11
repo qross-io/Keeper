@@ -216,11 +216,11 @@ object QrossTask {
         val EXCEPTIONAL = 3
         val ANY = 4
         
-        val restartMode = if (option == "WHOLE") {
+        val restartMode = if (option.toUpperCase() == "WHOLE") {
             WHOLE
         }
         else if (option.startsWith("^")) {
-            if (option == "^EXCEPTIONAL") {
+            if (option.toUpperCase() == "^EXCEPTIONAL") {
                 EXCEPTIONAL
             }
             else {

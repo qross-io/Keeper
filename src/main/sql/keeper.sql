@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS qross_users (
 );
 
 CREATE INDEX ix_qross_users_role ON qross_users (role);
+CREATE UNIQUE INDEX ix_qross_users_email ON qross_users (email);
 
 CREATE TABLE IF NOT EXISTS qross_connections (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,

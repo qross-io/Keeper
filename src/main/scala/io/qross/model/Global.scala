@@ -12,8 +12,8 @@ object Global {
         .foreach(row => {
             CONFIG.set(row.getString("conf_key"), row.getString("conf_value"))
         }).clear()
-    CONFIG.set("MASTER_USER_GROUP", DataSource.queryDataTable("SELECT CONCAT(username, '<', email, '>') AS user FROM qross_users WHERE role='master'").mkString(";", "user"))
-    CONFIG.set("KEEPER_USER_GROUP", DataSource.queryDataTable("SELECT CONCAT(username, '<', email, '>') AS user FROM qross_users WHERE role='keeper'").mkString(";", "user"))
+    CONFIG.set("MASTER_USER_GROUP", User.getUsers("master"))
+    CONFIG.set("KEEPER_USER_GROUP", User.getUsers("keeper"))
     
     def QROSS_VERSION: String = CONFIG.getString("QROSS_VERSION", "")
     val CORES: Int = Runtime.getRuntime.availableProcessors

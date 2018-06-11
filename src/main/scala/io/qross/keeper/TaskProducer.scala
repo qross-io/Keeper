@@ -24,8 +24,8 @@ class TaskProducer extends WorkActor {
             }).clear()
     }
     
-    override def execute(taskId: Long, taskStatus: String): Unit = {
-        QrossTask.restartTask(taskId, taskStatus) match {
+    override def execute(taskId: Long, option: String): Unit = {
+        QrossTask.restartTask(taskId, option) match {
             case TaskStatus.INITIALIZED => checker ! Task(taskId).INITIALIZED
             case TaskStatus.READY => starter ! Task(taskId).READY
             case _ =>
