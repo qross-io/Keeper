@@ -13,11 +13,8 @@ object CronExp {
     def parse(expression: String = "0 * * * * ? *") = new CronExp(expression)
     
     def main(args: Array[String]): Unit = {
-        val dateTime = DateTime.now
         writeMessage("NEXT TICK: " + CronExp.parse("0 0/20 * * * ? *").getNextTick("20180509114200"))
         writeMessage("NEXT TICK: " + CronExp.parse("0 0/20 * * * ? *").getNextTick("20180509110500"))
-        //getTicks("0 0/20 * * * ? *", "20180320001500", "20180320050000").foreach(println)
-        //println("1.0342343".toDouble.toInt)
     }
     
     def getTicks(cronExp: String, begin: String, end: String): List[String] = {

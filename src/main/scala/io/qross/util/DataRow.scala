@@ -153,6 +153,8 @@ case class DataRow(private val items: (String, Any)*) {
     def contains(fieldName: String): Boolean = this.columns.contains(fieldName)
     def contains(fieldName: String, value: Any): Boolean = this.columns.contains(fieldName) && this.getString(fieldName) == value.toString
     def size: Int = this.columns.size
+    def isEmpty: Boolean = this.fields.isEmpty
+    def nonEmpty: Boolean = this.fields.nonEmpty
     
     def join(delimiter: String): String = {
         val values = new mutable.StringBuilder()

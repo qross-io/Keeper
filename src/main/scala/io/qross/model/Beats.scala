@@ -1,6 +1,6 @@
 package io.qross.model
 
-import io.qross.util.Output.writeMessage
+import io.qross.util.Output._
 import io.qross.util.{DataSource, DataTable, DateTime}
 
 object Beats {
@@ -11,12 +11,12 @@ object Beats {
     }
     
     def start(actor: String, message: String = ""): Int = {
-        writeMessage(actor + " start! " + message)
+        writeDebugging(actor + " start! " + message)
         DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET status='running',start_time=NOW() WHERE actor_name='$actor';")
     }
     
     def quit(actor: String): Int = {
-        writeMessage(actor + " quit!")
+        writeDebugging(actor + " quit!")
         DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET status='rest',quit_time=NOW() WHERE actor_name='$actor';")
     }
     

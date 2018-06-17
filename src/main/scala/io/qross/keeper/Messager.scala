@@ -1,6 +1,5 @@
 package io.qross.keeper
 
-import io.qross.model.User
 import io.qross.model._
 import io.qross.util.{DateTime, Output, Timer}
 
@@ -18,7 +17,7 @@ class Messager extends WorkActor {
                 val messageType = row.getString("message_type").toUpperCase
                 val messageKey = row.getString("message_key").toUpperCase
                 val messageText = row.getString("message_text")
-                Output.writeMessage(s"Got A Message # $messageType # $messageKey # $messageText")
+                Output.writeDebugging(s"Got A Message # $messageType # $messageKey # $messageText")
                 messageType match {
                     case "GLOBAL" => Global.CONFIG.set(messageKey, messageText)
                     case "TASK" =>
@@ -44,6 +43,16 @@ class Messager extends WorkActor {
                         }
                         Global.CONFIG.set("KEEPER_USER_GROUP", User.getUsers("keeper"))
                         Global.CONFIG.set("MASTER_USER_GROUP", User.getUsers("master"))
+                    case "CONNECTION" =>
+                        //CONNECTION - INSERT - connection_name=connection_string, user_name, password
+                        //CONNECTION - UPDATE -
+                        //CONNECTION - DELETE -
+                        messageKey match {
+                            case "INSERT" => JDBCConnection.create(messageText);
+                            case "UPDATE" => JDBCConnection.update(messageText);
+                            case "DELETE" => JDBCConnection.remove(messageText);
+                            case _ =>
+                        }
                     case _ =>
                 }
             }).clear()

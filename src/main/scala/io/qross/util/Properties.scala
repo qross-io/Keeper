@@ -20,7 +20,7 @@ object Properties {
     def loadAll(files: String*): Unit = {
         if (!load(externalPath)
              && files.isEmpty) {
-            Output.writeExceptions("Please assign at lest one properties file which contains database connections.")
+            Output.writeException("Please assign at lest one properties file which contains database connections.")
             System.exit(1)
         }
         else {
@@ -30,11 +30,11 @@ object Properties {
         }
         
         if (!props.containsKey(DataSource.DEFAULT)) {
-            Output.writeExceptions(s"Can't find properties key ${DataSource.DEFAULT}, it must be set in conf.properties, qross.ds.properties or other properties files you loaded.")
+            Output.writeException(s"Can't find properties key ${DataSource.DEFAULT}, it must be set in conf.properties, qross.ds.properties or other properties files you loaded.")
             System.exit(1)
         }
         else if (!DataSource.testConnection()) {
-            Output.writeExceptions(s"Can't open database, please check your connection string of ${DataSource.DEFAULT}.")
+            Output.writeException(s"Can't open database, please check your connection string of ${DataSource.DEFAULT}.")
             System.exit(1)
         }
         else {
@@ -50,7 +50,7 @@ object Properties {
                 Output.writeMessage("Welcome to QROSS Keeper v" + version)
             }
             else {
-                Output.writeExceptions("Can't find Qross system, please create your qross system use Qross Master.")
+                Output.writeException("Can't find Qross system, please create your qross system use Qross Master.")
                 System.exit(1)
             }
         }

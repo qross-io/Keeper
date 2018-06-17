@@ -1,6 +1,6 @@
 package io.qross.model
 
-import io.qross.util.{DataRow, DateTime}
+import io.qross.util.{DataRow, DateTime, Output}
 
 //case class Message(value: Any)
 
@@ -37,3 +37,5 @@ case class Task(id: Long, var status: String = TaskStatus.INITIALIZED) {
 }
 
 case class TaskCommand(row: DataRow)
+
+

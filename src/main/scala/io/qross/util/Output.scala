@@ -29,7 +29,13 @@ object Output {
         }
     }
     
-    def writeExceptions(messages: Any*): Unit = {
+    def writeDebugging(messages: Any*): Unit = {
+        for (message <- messages) {
+            println(DateTime.now.getString("yyyy-MM-dd HH:mm:ss") + " [DEBUG] " + message)
+        }
+    }
+    
+    def writeException(messages: Any*): Unit = {
         for (message <- messages) {
             System.err.println(DateTime.now.getString("yyyy-MM-dd HH:mm:ss") + " [ERROR] " + message)
         }

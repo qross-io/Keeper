@@ -1,7 +1,7 @@
 package io.qross.keeper
 
 import akka.actor.{ActorSystem, PoisonPill, Props}
-import io.qross.model.{Beats, Global, Tick}
+import io.qross.model.{Beats, Global, TaskRecord, Tick}
 import io.qross.util.{DateTime, Properties, Timer}
 
 import scala.collection.immutable.List
@@ -26,7 +26,8 @@ object Keeper {
         val actors = List(
             system.actorOf(Props[Messager], "messager"),
             system.actorOf(Props[TaskProducer], "producer"),
-            system.actorOf(Props[TaskStarter], "starter")
+            system.actorOf(Props[TaskStarter], "starter"),
+            system.actorOf(Props[TaskLogger], "logger")
         )
         
         while (!Global.QUIT_ON_NEXT_BEAT) {
@@ -52,6 +53,10 @@ object Keeper {
             actor ! PoisonPill
         }
         
-        system.terminate().onComplete(_ => Beats.quit(actorName))
+        system.terminate().onComplete(_ => {
+            //save left logs
+            TaskRecord.save()
+            Beats.quit(actorName)
+        })
     }
 }

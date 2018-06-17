@@ -1,15 +1,16 @@
 package io.qross.keeper
-import akka.actor.{ActorRef, Props}
+import akka.actor.Props
 import akka.routing.BalancingPool
-import io.qross.model.{Global, QrossTask, TaskCommand, WorkActor}
-import io.qross.util.DateTime
+import io.qross.model._
 
 class TaskStarter extends WorkActor {
     
-    private val executor = context.actorOf(Props[TaskExecutor].withRouter(new BalancingPool(Global.CORES * 2)), "executor")
+    private val executor = context.actorOf(Props[TaskExecutor].withRouter(new BalancingPool(Global.CORES * 4)), "executor")
     
     override def beat(tick: String): Unit = {
-        QrossTask.checkOvertimeOfActions(tick)
+        super.beat(tick)
+        executor ! Tick(tick)
+        //QrossTask.checkOvertimeOfActions(tick)
     }
     
     override def execute(taskId: Long, taskStatus: String): Unit = {

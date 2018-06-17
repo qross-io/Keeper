@@ -1,29 +1,25 @@
 package io.qross.keeper
 
-import io.qross.model.Global
+import io.qross.model.{Global, KeeperLogger}
+import io.qross.util.DateTime
 
 import scala.sys.process._
 
 object Protector {
     def main(args: Array[String]): Unit = {
     
-        val command = "hadoop jar io.qross.keeper-0.5.jar io.qross.keeper.Keeper"
-    
-        var exitValue = 1
-        val logger = new Logger()
-        while(exitValue != 0) {
-            exitValue = command.!(ProcessLogger(out => {
-                //logger.log(out)
+        val command = s"hadoop jar ${Global.QROSS_HOME}qross-keeper-${Global.QROSS_VERSION}.jar io.qross.keeper.Keeper /data/config/qinling/databases.properties"
+        
+        val logger = new KeeperLogger()
+        logger.debug(s"${DateTime.now.getString("yyyy-MM-dd HH:mm:ss")} [INFO] Qross Keeper starting.")
+        val exitValue = command.!(ProcessLogger(out => {
+                if (out.contains("[DEBUG]")) {
+                    logger.debug(out)
+                }
             }, err => {
-                //logger.err(err)
+                logger.debug(err)
             }))
-            
-            if (exitValue != 0) {
-                //send mail
-            }
-        }
-        //start/restart keeper
-        //record error
-        //send mail to keeper admin : errors, restart, beats
+        logger.debug(s"${DateTime.now.getString("yyyy-MM-dd HH:mm:ss")} [INFO] Qross Keeper quit with exitValue $exitValue")
+        logger.close()
     }
 }

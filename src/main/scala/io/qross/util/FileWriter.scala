@@ -2,6 +2,8 @@ package io.qross.util
 
 import java.io._
 
+import scala.collection.mutable.ArrayBuffer
+
 case class FileWriter(filePath: String, deleteFileIfExists: Boolean = true) {
     
     private var delimiter = "," //default delimiter when you write a collection
@@ -35,6 +37,13 @@ case class FileWriter(filePath: String, deleteFileIfExists: Boolean = true) {
         table.foreach(row => {
             writeLine(row.getValues.mkString(delimiter))
         })
+        this
+    }
+    
+    def writeLines(lines: ArrayBuffer[String]): FileWriter = {
+        for (line <- lines) {
+            output.append(line + System.getProperty("line.separator"))
+        }
         this
     }
     

@@ -22,6 +22,8 @@ class TaskProducer extends WorkActor {
                 case TaskStatus.READY => starter ! Task(row.getLong("task_id")).READY
                 case _ =>
             }).clear()
+        
+        checker ! Tick(tick)
     }
     
     override def execute(taskId: Long, option: String): Unit = {
