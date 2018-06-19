@@ -9,33 +9,84 @@ import scala.collection.mutable.ArrayBuffer
 
 object TaskRecord {
     
-    private val logs = new ConcurrentHashMap[Long, ArrayBuffer[TaskLog]]()
-    private var count = 0
+    // Map<taskId, new TaskRecord>
+    val loggers = new mutable.HashMap[Long, TaskRecord]()
+    
+    def of(jobId: Int, taskId: Long): TaskRecord = {
+        if (!loggers.contains(taskId)) {
+            loggers += (taskId -> new TaskRecord(jobId, taskId))
+        }
+        loggers(taskId)
+    }
+    
+    def dispose(taskId: Long): Unit = {
+        if (loggers.contains(taskId)) {
+            loggers(taskId).save()
+            loggers -= taskId
+        }
+    }
+    
+    def saveAll(): Unit = {
+        loggers.keySet.foreach(taskId => {
+            loggers(taskId).save()
+        })
+    }
+}
+
+class TaskRecord(jobId: Int, taskId: Long) {
+    
+    var commandId = 0
+    var actionId = 0L
+    
+    private val logs = new ArrayBuffer[TaskLog]()
     private var tick = System.currentTimeMillis()
     
-    def +=(log: TaskLog): Unit = {
-        if (!logs.contains(log.taskId)) {
-            logs.put(log.taskId, new ArrayBuffer[TaskLog]())
-        }
-        logs.get(log.taskId) += log
-        count += 1
+    def overtime: Boolean = System.currentTimeMillis() - tick > 2000
     
-        if (count >= 200 || System.currentTimeMillis() - tick >= 5000) {
+    def run(commandId: Int, actionId: Long): TaskRecord = {
+        this.commandId = commandId
+        this.actionId = actionId
+        this
+    }
+    
+    def out(info: String): Unit = {
+        record("INFO", info)
+    }
+    
+    def err(error: String): Unit = {
+        record("ERROR", error)
+    }
+    
+    def log(info: String): Unit = {
+        record("LOG", info)
+    }
+    
+    def warn(warning: String): Unit = {
+        record("WARN", warning)
+    }
+    
+    def debug(message: String): Unit = {
+        Output.writeDebugging(message)
+        record("DEBUG", message)
+    }
+    
+    private def record(seal: String, text: String): Unit = {
+        logs += new TaskLog(jobId, taskId, commandId, actionId, seal, text)
+    
+        if (overtime) {
             save()
         }
     }
-   
+    
     def save(): Unit = {
-        if (count > 0 && !logs.isEmpty) {
-            val log = new TaskLog(0L)
+        if (logs.nonEmpty) {
+            val log = new TaskLog(0, 0)
             val ds = new DataSource()
             ds.setBatchCommand(s"INSERT INTO qross_tasks_logs (job_id, task_id, command_id, action_id, log_type, log_text, create_time) VALUES (?, ?, ?, ?, ?, ?, ?)")
-            logs.keySet().forEach(taskId => {
-                for (line <- logs.get(taskId)) {
-                    if (!log.merge(line)) {
-                        ds.addBatch(log.jobId, taskId, log.commandId, log.actionId, log.logType, log.logText, log.logTime)
-                        log.copy(line)
-                    }
+            logs.foreach(line => {
+                if (!log.merge(line)) {
+                    ds.addBatch(log.jobId, log.taskId, log.commandId, log.actionId, log.logType, log.logText, log.logTime)
+                    log.copy(line)
                 }
             })
             if (log.taskId > 0) {
@@ -45,60 +96,19 @@ object TaskRecord {
             ds.close()
             
             logs.clear()
-            tick = System.currentTimeMillis()
-            count = 0
         }
+        tick = System.currentTimeMillis()
     }
 }
 
-case class TaskRecord(jobId: Int, taskId: Long, var commandId: Int = 0, var actionId: Long = 0L) {
+class TaskLog(var jobId: Int, var taskId: Long, var commandId: Int = 0, var actionId: Long = 0L, var logType: String = "INFO", var logText: String = "", var logTime: String = DateTime.now.getString("yyyy-MM-dd HH:mm:ss")) {
     
-    def run(commandId: Int, actionId: Long): TaskRecord = {
-        this.commandId = commandId
-        this.actionId = actionId
-        this
+    if (logType != "INFO" && logType != "ERROR") {
+        logText = s"$logTime [$logType] $logText"
+        logType = "INFO"
     }
+    if (logText.length > 65535) logText = logText.take(65535)
     
-    def out(info: String): Unit = {
-        TaskRecord += new TaskLog(taskId).make(jobId, commandId, actionId, "INFO", info)
-    }
-    
-    def err(error: String): Unit = {
-        TaskRecord += new TaskLog(taskId).make(jobId, commandId, actionId, "ERROR", error)
-    }
-    
-    def log(info: String): Unit = {
-        TaskRecord += new TaskLog(taskId).make(jobId, commandId, actionId, "INFO", DateTime.now.getString("yyyy-MM-dd HH:mm:ss") + " [INFO] " + info)
-    }
-    
-    def warn(warning: String): Unit = {
-        TaskRecord += new TaskLog(taskId).make(jobId, commandId, actionId, "INFO", DateTime.now.getString("yyyy-MM-dd HH:mm:ss") + " [WARN] " + warning)
-    }
-    
-    def debug(message: String): Unit = {
-        Output.writeDebugging(message)
-        TaskRecord += new TaskLog(taskId).make(jobId, commandId, actionId, "INFO", DateTime.now.getString("yyyy-MM-dd HH:mm:ss") + " [DEBUG] " + message)
-    }
-}
-
-class TaskLog(var taskId: Long) {
-    
-    var jobId: Int = 0
-    var commandId: Int = 0
-    var actionId: Long = 0
-    var logType: String = ""
-    var logText: String = ""
-    var logTime: String = ""
-    
-    def make(jobId: Int, commandId: Int = 0, actionId: Long = 0L, logType: String = "INFO", logText: String = ""): TaskLog = {
-        this.jobId = jobId
-        this.commandId = commandId
-        this.actionId = actionId
-        this.logType = logType
-        this.logText = if (logText.length < 65535) logText else logText.take(65535)
-        this.logTime = DateTime.now.getString("yyyy-MM-dd HH:mm:ss")
-        this
-    }
     
     def merge(line: TaskLog): Boolean = {
         var merged = false
@@ -124,5 +134,9 @@ class TaskLog(var taskId: Long) {
         this.logType = line.logType
         this.logText = line.logText
         this.logTime = line.logTime
+    }
+    
+    override def toString: String = {
+        s"Job: $jobId, Task: $taskId, Command: $commandId, Action: $actionId - $logTime [$logType] ${logText.replace("\r", "\\r")}"
     }
 }

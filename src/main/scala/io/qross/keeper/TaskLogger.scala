@@ -7,7 +7,7 @@ import io.qross.util.DateTime
 class TaskLogger extends WorkActor {
     
     override def beat(tick: String): Unit = {
-        TaskRecord.save()
+        TaskRecord.saveAll()
         super.beat(tick)
     }
 }

@@ -55,7 +55,7 @@ object Keeper {
         
         system.terminate().onComplete(_ => {
             //save left logs
-            TaskRecord.save()
+            TaskRecord.saveAll()
             Beats.quit(actorName)
         })
     }

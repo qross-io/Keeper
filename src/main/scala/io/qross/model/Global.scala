@@ -19,19 +19,21 @@ object Global {
     val CORES: Int = Runtime.getRuntime.availableProcessors
     def USER_HOME: String = System.getProperty("user.dir")
     def QROSS_HOME: String = {
-        CONFIG.getString("QROSS_HOME").replace("\\", "/").replace("%USER_HOME_DIR", USER_HOME).replace("//", "/")
+        CONFIG.getString("QROSS_HOME").replace("\\", "/").replace("%USER_HOME", USER_HOME).replace("//", "/")
     }
     def QROSS_WORKER_HOME: String = {
-        CONFIG.getString("QROSS_WORKER_HOME").replace("\\", "/").replace("%QROSS_HOME", QROSS_HOME).replace("%USER_HOME_DIR", USER_HOME).replace("//", "/")
+        CONFIG.getString("QROSS_WORKER_HOME").replace("\\", "/").replace("%QROSS_HOME", QROSS_HOME).replace("%USER_HOME", USER_HOME).replace("//", "/")
     }
     def QROSS_KEEPER_HOME: String = {
-        CONFIG.getString("QROSS_KEEPER_HOME").replace("\\", "/").replace("%QROSS_HOME", QROSS_HOME).replace("%USER_HOME_DIR", USER_HOME).replace("//", "/")
+        CONFIG.getString("QROSS_KEEPER_HOME").replace("\\", "/").replace("%QROSS_HOME", QROSS_HOME).replace("%USER_HOME", USER_HOME).replace("//", "/")
     }
     def JAVA_BIN_HOME: String = CONFIG.getString("JAVA_BIN_HOME")
     def EMAIL_NOTIFICATION: Boolean = CONFIG.getBoolean("EMAIL_NOTIFICATION")
     def QUIT_ON_NEXT_BEAT: Boolean = CONFIG.getBoolean("QUIT_ON_NEXT_BEAT")
     def MASTER_USER_GROUP: String = CONFIG.getString("MASTER_USER_GROUP")
     def KEEPER_USER_GROUP: String = CONFIG.getString("KEEPER_USER_GROUP")
+    
+    val CHARSET = "utf-8"
     //def CLEAN_TASK_RECORDS_FREQUENCY: String = CONFIG.getString("CLEAN_TASK_RECORDS_FREQUENCY")
     //def BEATS_MAILING_FREQUENCY: String = CONFIG.getString("BEATS_MAILING_FREQUENCY")
    
@@ -56,9 +58,9 @@ object Global {
     def clearTaskRecords(): Unit = {
         val dh = new DataHub()
         dh.openDefault().saveAsDefault()
-            .get("SELECT id, keep_x_task_records AS job_id FROM qross_jobs WHERE keep_x_task_records>0")
-            .pass("SELECT job_id, #keeper_x_task_records AS keeper_x_task_records FROM qross_tasks WHERE job_id=#id GROUP BY job_id HAVING COUNT(0)>#keeper_x_task_records")
-            .pass("SELECT id AS task_id, job_id FROM qross_tasks WHERE job_id=#job_id ORDER BY id DESC LIMIT #keeper_x_task_records,1")
+            .get("SELECT id, keep_x_task_records FROM qross_jobs WHERE keep_x_task_records>0")
+            .pass("SELECT job_id, #keep_x_task_records AS keep_x_task_records FROM qross_tasks WHERE job_id=#id GROUP BY job_id HAVING COUNT(0)>#keep_x_task_records")
+            .pass("SELECT id AS task_id, job_id FROM qross_tasks WHERE job_id=#job_id ORDER BY id DESC LIMIT #keep_x_task_records,1")
             .put("DELETE FROM qross_tasks WHERE job_id=#job_id AND id<=#task_id")
             .put("DELETE FROM qross_tasks_logs WHERE job_id=#job_id AND task_id<=#task_id")
             .put("DELETE FROM qross_tasks_dependencies WHERE job_id=#job_id AND task_id<=#task_id")

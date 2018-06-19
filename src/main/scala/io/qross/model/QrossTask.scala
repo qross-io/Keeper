@@ -299,7 +299,7 @@ object QrossTask {
         
         dh.close()
         
-        TaskRecord(jobId, taskId).debug(s"Task $taskId of job $jobId restart with option $option.")
+        TaskRecord.of(jobId, taskId).debug(s"Task $taskId of job $jobId restart with option $option.")
         
         status
     }
@@ -322,7 +322,7 @@ object QrossTask {
                 val result = TaskDependency.check(row.getString("dependency_type"), row.getString("dependency_value"))
                 row.set("ready", result._1)
                 row.set("dependency_value", result._2)
-                TaskRecord(row.getInt("job_id"), taskId).log(s"Task $taskId dependency ${row.getLong("id")} of job ${row.getInt("job_id")} ready status is ${result._1}")
+                TaskRecord.of(row.getInt("job_id"), taskId).log(s"Task $taskId dependency ${row.getLong("id")} of job ${row.getInt("job_id")} is ${if (result._1 == "no") "not " else ""}ready.")
             }).cache("tasks")
             
         //update status and others after checking
@@ -356,14 +356,14 @@ object QrossTask {
                 }
             }
             
-            TaskRecord(limit.getInt("job_id"), taskId).warn(s"Task $taskId of job ${limit.getInt("job_id")} reached upper limit of checking limit.")
+            TaskRecord.of(limit.getInt("job_id"), taskId).warn(s"Task $taskId of job ${limit.getInt("job_id")} reached upper limit of checking limit.")
         }
         
         val result = dh.executeDataRow(s"SELECT job_id, status FROM qross_tasks WHERE id=$taskId")
         
         dh.close()
         
-        TaskRecord(result.getInt("job_id"), taskId).log(s"Task $taskId of job ${result.getInt("job_id")} status is ${result.getString("status")} after pre-dependencies checking.")
+        TaskRecord.of(result.getInt("job_id"), taskId).log(s"Task $taskId of job ${result.getInt("job_id")} status is ${if (result.getString("status") == "initialized") "not" else ""} ready after pre-dependencies checking.")
         
         result.getString("status") == "ready"
     }
@@ -430,10 +430,10 @@ object QrossTask {
                 val jobId = job.getInt("job_id")
                 if (concurrentLimit == 0 || ds.executeDataRow(s"SELECT COUNT(0) AS concurrent FROM qross_tasks WHERE job_id=$jobId AND status='executing'").getInt("concurrent") < concurrentLimit) {
                     ds.executeNonQuery(s"UPDATE qross_tasks SET status='executing', start_time=NOW(), update_time=NOW() WHERE id=$taskId AND status='ready'")
-                    TaskRecord(jobId, taskId).log(s"Task $taskId of job $jobId is executing.")
+                    TaskRecord.of(jobId, taskId).log(s"Task $taskId of job $jobId is executing.")
                 }
                 else {
-                    TaskRecord(jobId, taskId).warn(s"Concurrent reach upper limit of Job $jobId for Task $taskId")
+                    TaskRecord.of(jobId, taskId).warn(s"Concurrent reach upper limit of Job $jobId for Task $taskId")
                 }
             }
         }
@@ -496,11 +496,11 @@ object QrossTask {
         var next = false
         
         //LET's GO!
-        val logger = TaskRecord(jobId, taskId).run(commandId, actionId)
+        val logger = TaskRecord.of(jobId, taskId).run(commandId, actionId)
         logger.debug(s"START action $actionId - command $commandId of task $taskId - job $jobId: $commandText")
         
         do {
-            if (retry > 0) logger.log(s"Retry $retry of limit $retryLimit")
+            if (retry > 0) logger.debug(s"Action $actionId - command $commandId of task $taskId - job $jobId: retry $retry of limit $retryLimit")
             val start = System.currentTimeMillis()
             var timeout = false
             
@@ -529,7 +529,7 @@ object QrossTask {
         }
         while (retry < retryLimit && exitValue != 0)
     
-        logger.log(s"FINISH action $actionId - command $commandId of task $taskId - job $jobId with exitValue $exitValue and status ${if (exitValue == 0) "SUCCESS" else if (exitValue > 0)  "FAILURE" else "TIMEOUT or INTERRUPTED" }")
+        logger.debug(s"FINISH action $actionId - command $commandId of task $taskId - job $jobId with exitValue $exitValue and status ${if (exitValue == 0) "SUCCESS" else if (exitValue > 0)  "FAILURE" else "TIMEOUT/INTERRUPTED" }")
     
         exitValue match {
             //finished
@@ -592,6 +592,14 @@ object QrossTask {
         
         dh.close()
     
-        if (next) taskId else 0
+        if (next) {
+            //return
+            taskId
+        } else {
+            //clear logger
+            TaskRecord.dispose(taskId)
+            //return
+            0
+        }
     }
 }
