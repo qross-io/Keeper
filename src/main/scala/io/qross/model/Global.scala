@@ -17,16 +17,10 @@ object Global {
     
     def QROSS_VERSION: String = CONFIG.getString("QROSS_VERSION", "")
     val CORES: Int = Runtime.getRuntime.availableProcessors
-    def USER_HOME: String = System.getProperty("user.dir")
-    def QROSS_HOME: String = {
-        CONFIG.getString("QROSS_HOME").replace("\\", "/").replace("%USER_HOME", USER_HOME).replace("//", "/")
-    }
-    def QROSS_WORKER_HOME: String = {
-        CONFIG.getString("QROSS_WORKER_HOME").replace("\\", "/").replace("%QROSS_HOME", QROSS_HOME).replace("%USER_HOME", USER_HOME).replace("//", "/")
-    }
-    def QROSS_KEEPER_HOME: String = {
-        CONFIG.getString("QROSS_KEEPER_HOME").replace("\\", "/").replace("%QROSS_HOME", QROSS_HOME).replace("%USER_HOME", USER_HOME).replace("//", "/")
-    }
+    def USER_HOME: String = FilePath.format(System.getProperty("user.dir"))
+    def QROSS_HOME: String = FilePath.format(CONFIG.getString("QROSS_HOME")).replace("%USER_HOME", USER_HOME).replace("//", "/")
+    def QROSS_WORKER_HOME: String = FilePath.format(CONFIG.getString("QROSS_WORKER_HOME")).replace("%QROSS_HOME", QROSS_HOME).replace("%USER_HOME", USER_HOME).replace("//", "/")
+    def QROSS_KEEPER_HOME: String = FilePath.format(CONFIG.getString("QROSS_KEEPER_HOME")).replace("%QROSS_HOME", QROSS_HOME).replace("%USER_HOME", USER_HOME).replace("//", "/")
     def JAVA_BIN_HOME: String = CONFIG.getString("JAVA_BIN_HOME")
     def EMAIL_NOTIFICATION: Boolean = CONFIG.getBoolean("EMAIL_NOTIFICATION")
     def QUIT_ON_NEXT_BEAT: Boolean = CONFIG.getBoolean("QUIT_ON_NEXT_BEAT")

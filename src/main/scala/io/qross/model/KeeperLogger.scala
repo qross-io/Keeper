@@ -1,34 +1,37 @@
 package io.qross.model
 
-import io.qross.util.{DateTime, FileWriter}
+import io.qross.util.{DateTime, FileWriter, Output}
 
 import scala.collection.mutable
 
 class KeeperLogger {
     
-    private val box = new mutable.ArrayBuffer[String]()
-    private var count = 0
+    private val logs = new mutable.ArrayBuffer[String]()
+    private var tick = System.currentTimeMillis()
     
     def debug(info: String): Unit = {
-        box += info
-        count += 1
+        logs += info
+        println(info)
         
-        if (count >= 100) {
+        if (System.currentTimeMillis() - tick > 2000) {
             save()
         }
     }
     
     private def save(): Unit = {
-        FileWriter(Global.QROSS_KEEPER_HOME + "logs/" + DateTime.now.getString("yyyyMMddHH") + ".log", deleteFileIfExists = false)
-            .writeLines(box)
-                .close()
-        box.clear()
-        count = 0
+        if (logs.nonEmpty) {
+            FileWriter(Global.QROSS_KEEPER_HOME + "logs/" + DateTime.now.getString("yyyyMMdd/HH") + ".log", deleteFileIfExists = false)
+                .writeLines(logs)
+                    .close()
+            
+            Output.writeMessage(s"Record ${logs.size} lines info log file.")
+            logs.clear()
+        }
+        
+        tick = System.currentTimeMillis()
     }
     
     def close(): Unit = {
-        if (count > 0) {
-            save()
-        }
+        save()
     }
 }

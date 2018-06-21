@@ -8,8 +8,8 @@ CREATE TABLE IF NOT EXISTS qross_conf (
 INSERT INTO qross_conf (conf_key, conf_value) VALUES
     ('QROSS_VERSION', '0.5.3'),
     ('QROSS_HOME', 'C:/io.Qross/Keeper/build/libs/'),
-    ('QROSS_WORKER_HOME', '%USER_HOME/qross/worker/'),
-    ('QROSS_KEEPER_HOME', '%USER_HOME/qross/keeper/'),
+    ('QROSS_WORKER_HOME', '%QROSS_HOME/worker/'),
+    ('QROSS_KEEPER_HOME', '%QROSS_HOME/keeper/'),
     ('JAVA_BIN_HOME', ''),
     ('QUIT_ON_NEXT_BEAT', 'no'),
     ('EMAIL_NOTIFICATION', 'no'),
@@ -76,7 +76,8 @@ CREATE TABLE IF NOT EXISTS qross_keeper_beats (
     last_beat_time DATETIME
 );
 
-INSERT INTO qross_keeper_beats (actor_name) VALUES ('Keeper'), ('Messager'), ('TaskProducer'), ('TaskStarter'), ('TaskChecker'), ('TaskExecutor');
+INSERT INTO qross_keeper_beats (actor_name) VALUES ('Keeper'), ('Messager'), ('TaskProducer'), ('TaskStarter'), ('TaskChecker'), ('TaskExecutor'), ('TaskLogger');
+
 CREATE UNIQUE INDEX ix_qross_keeper_beats_actor_name ON qross_keeper_beats (actor_name);
 
 CREATE TABLE IF NOT EXISTS qross_jobs (
@@ -179,7 +180,7 @@ CREATE TABLE IF NOT EXISTS qross_tasks_dags (
     task_id BIGINT,
     upstream_ids VARCHAR(1000) DEFAULT '' COMMENT 'format (x)(y)(z), current upstreamids, will update after every command finish',
     command_id INT,
-    status VARCHAR(100) DEFAULT 'waiting' COMMENT 'waiting/running/exceptional/overtime/done',
+    status VARCHAR(100) DEFAULT 'waiting' COMMENT 'waiting/queuing/running/exceptional/overtime/done',
     start_time DATETIME COMMENT 'start time of exeuting, maybe delay in queue',
     run_time DATETIME COMMENT 'run time of executing',
     finish_time DATETIME COMMENT 'end time of executing if done',

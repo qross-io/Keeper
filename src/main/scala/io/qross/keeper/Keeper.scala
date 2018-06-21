@@ -2,7 +2,7 @@ package io.qross.keeper
 
 import akka.actor.{ActorSystem, PoisonPill, Props}
 import io.qross.model.{Beats, Global, TaskRecord, Tick}
-import io.qross.util.{DateTime, Properties, Timer}
+import io.qross.util.{DateTime, Output, Properties, Timer}
 
 import scala.collection.immutable.List
 import scala.collection.mutable
@@ -55,7 +55,6 @@ object Keeper {
         
         system.terminate().onComplete(_ => {
             //save left logs
-            TaskRecord.saveAll()
             Beats.quit(actorName)
         })
     }

@@ -413,7 +413,7 @@ object QrossTask {
     */
     
     //TaskStarter - execute()
-    def getTaskCommandsToExecute(taskId: Long, status: String): DataTable = {
+    def getTaskCommandsToExecute(taskId: Long, status: String): DataTable = synchronized {
         val ds = new DataSource()
         
         //get
@@ -446,7 +446,7 @@ object QrossTask {
                          INNER JOIN qross_jobs_dags C ON A.command_id=C.id
                          INNER JOIN qross_jobs D ON A.job_id=D.id""")
         //prepare to run command - start time point
-        ds.tableUpdate("UPDATE qross_tasks_dags SET start_time=NOW(), update_time=NOW() WHERE id=#action_id", executable)
+        ds.tableUpdate("UPDATE qross_tasks_dags SET start_time=NOW(), status='queuing', update_time=NOW() WHERE id=#action_id", executable)
         
         ds.close()
         
@@ -571,23 +571,23 @@ object QrossTask {
                 dh.executeNonQuery(s"UPDATE qross_tasks SET finish_time=NOW(), status='failed', checked='no', update_time=NOW(), duration=TIMESTAMPDIFF(SECOND, create_time, NOW()) WHERE id=$taskId")
         }
 
+        val status = dh.executeSingleValue(s"SELECT status FROM qross_tasks WHERE id=$taskId").getOrElse("miss")
         //send notification mail if failed or timeout or incorrect
         if (Global.EMAIL_NOTIFICATION && taskCommand.getBoolean("mail_notification") && owner != "") {
-            dh.executeSingleValue(s"SELECT status FROM qross_tasks WHERE id=$taskId AND (status='failed' OR status='timeout' OR status='incorrect')") match {
-                case Some(status) =>
-                    OpenResourceFile("/templates/exception.html")
-                        .replace("${status}", status.toUpperCase())
-                        .replaceWith(taskCommand)
-                        .replace("${logs}", TaskLogger.toHTML(dh.executeDataTable(s"SELECT CAST(create_time AS CHAR) AS create_time, log_type, log_text FROM qross_tasks_logs WHERE task_id=$taskId AND command_id=$commandId ORDER BY create_time ASC")))
-                        .writeEmail(s"${status.toUpperCase()}: ${taskCommand.getString("title")} $taskTime - TaskID: $taskId")
-                        .to(owner)
-                        .cc(if (taskCommand.getBoolean("mail_master_on_exception")) Global.MASTER_USER_GROUP else "")
-                        .send()
-                    if (status == "incorrect") {
-                        logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId is INCORRECT: $commandText")
-                    }
-                case None =>
+            if (status == "failed" || status == "timeout" || status == "incorrect") {
+                OpenResourceFile("/templates/exception.html")
+                    .replace("${status}", status.toUpperCase())
+                    .replaceWith(taskCommand)
+                    .replace("${logs}", TaskLogger.toHTML(dh.executeDataTable(s"SELECT CAST(create_time AS CHAR) AS create_time, log_type, log_text FROM qross_tasks_logs WHERE task_id=$taskId AND command_id=$commandId ORDER BY create_time ASC")))
+                    .writeEmail(s"${status.toUpperCase()}: ${taskCommand.getString("title")} $taskTime - TaskID: $taskId")
+                    .to(owner)
+                    .cc(if (taskCommand.getBoolean("mail_master_on_exception")) Global.MASTER_USER_GROUP else "")
+                    .send()
             }
+        }
+        //incorrect
+        if (status == "incorrect") {
+            logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId is INCORRECT: $commandText")
         }
         
         dh.close()
@@ -596,6 +596,7 @@ object QrossTask {
             //return
             taskId
         } else {
+            TaskRecord.of(jobId, taskId).debug(s"Task $taskId of job $jobId finish with status ${status.toUpperCase}.")
             //clear logger
             TaskRecord.dispose(taskId)
             //return

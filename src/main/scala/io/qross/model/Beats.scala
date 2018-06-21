@@ -16,7 +16,7 @@ object Beats {
     }
     
     def quit(actor: String): Int = {
-        writeDebugging(actor + " quit!")
+        writeDebugging(if (actor != "Keeper") s"$actor quit!" else "Qross Keeper shut down!")
         DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET status='rest',quit_time=NOW() WHERE actor_name='$actor';")
     }
     

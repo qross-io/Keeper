@@ -1,5 +1,7 @@
 package io.qross.util
 
+import io.qross.model.Global.{CONFIG, USER_HOME}
+
 object FilePath {
     
     def locate(path: String): String = {
@@ -12,4 +14,11 @@ object FilePath {
         }
     }
     
+    def format(path: String): String = {
+        var dir = path.replace("\\", "/")
+        if (!path.endsWith("/") && !path.endsWith("\\")) {
+            dir += "/"
+        }
+        dir
+    }
 }

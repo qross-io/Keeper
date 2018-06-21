@@ -28,7 +28,9 @@ object TaskRecord {
     
     def saveAll(): Unit = {
         loggers.keySet.foreach(taskId => {
-            loggers(taskId).save()
+            if (loggers(taskId).overtime) {
+                loggers(taskId).save()
+            }
         })
     }
 }
@@ -66,19 +68,17 @@ class TaskRecord(jobId: Int, taskId: Long) {
     }
     
     def debug(message: String): Unit = {
-        Output.writeDebugging(message)
         record("DEBUG", message)
     }
     
     private def record(seal: String, text: String): Unit = {
         logs += new TaskLog(jobId, taskId, commandId, actionId, seal, text)
-    
         if (overtime) {
             save()
         }
     }
     
-    def save(): Unit = {
+    def save(): Unit = synchronized {
         if (logs.nonEmpty) {
             val log = new TaskLog(0, 0)
             val ds = new DataSource()
