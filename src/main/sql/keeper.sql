@@ -14,6 +14,7 @@ INSERT INTO qross_conf (conf_key, conf_value) VALUES
     ('JAVA_BIN_HOME', ''),
     ('QUIT_ON_NEXT_BEAT', 'no'),
     ('EMAIL_NOTIFICATION', 'no'),
+    ('BEATS_MAILING_FREQUENCY', '0 0 3,9,12,15,18,20,23 * * ? *'),
     ('HADOOP_AND_HIVE_ENABLED', 'yes'),
     ('LOGS_LEVEL', 'DEBUG'),  -- DEBUG or ERROR
     ('EMAIL_SMTP_HOST', 'smtp.domain.com'),

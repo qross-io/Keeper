@@ -65,7 +65,7 @@ object QrossTask {
         
         //restart executing tasks when Keeper exit exceptionally.
         dh.openDefault()
-            .get("SELECT A.task_id FROM (SELECT id As task_id FROM qross_tasks WHERE status='executing') A INNER JOIN qross_jobs B ON A.job_id=B.id AND B.enabled='true'")
+            .get("SELECT A.task_id FROM (SELECT id As task_id, job_id FROM qross_tasks WHERE status='executing') A INNER JOIN qross_jobs B ON A.job_id=B.id AND B.enabled='true'")
             .put("UPDATE qross_tasks_dags SET status='exceptional' WHERE task_id=#task_id AND status IN ('queuing', 'running')")
             .put("UPDATE qross_tasks SET status='restarting',start_time=NULL,finish_time=NULL,spent=NULL,update_time=NOW() WHERE id=#task_id;")
             .put("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '^EXCEPTIONAL@#task_id')")

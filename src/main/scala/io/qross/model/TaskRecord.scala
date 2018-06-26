@@ -28,7 +28,7 @@ object TaskRecord {
     
     def saveAll(): Unit = {
         loggers.keySet.foreach(taskId => {
-            if (loggers(taskId).overtime) {
+            if (loggers.contains(taskId) && loggers(taskId).overtime) {
                 loggers(taskId).save()
             }
         })

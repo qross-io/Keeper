@@ -13,7 +13,6 @@ object Properties {
     private val externalPath = new File(Properties.getClass.getProtectionDomain.getCodeSource.getLocation.getPath).getParentFile.getAbsolutePath.replace("\\", "/") + "/qross.properties"
     //private val internalPath = Properties.getClass.getResource("/conf.properties").toString
     //private lazy val externalOutput = new FileOutputStream(internalPath)
-    println(new File(externalPath).exists())
     
     private def loadPrimary(): Unit = {
         if (!loadLocalFile(externalPath) && !loadResourcesFile("/conf.properties")) {

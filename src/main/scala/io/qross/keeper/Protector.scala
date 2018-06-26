@@ -14,16 +14,17 @@ object Protector {
         
         val logger = new KeeperLogger()
         logger.debug(s"${DateTime.now.getString("yyyy-MM-dd HH:mm:ss")} [DEBUG] Qross Keeper starting.")
-        val exitValue = command.!(ProcessLogger(out => {
+        val exitValue = command.!(ProcessLogger(
+            out => {
+                println(out)
                 if (Global.LOGS_LEVEL == "DEBUG" && out.contains("[DEBUG]")) {
                     logger.debug(out)
                 }
-                else {
-                    println(out)
-                }
-            
+    
                 if (logger.overtime) logger.store()
-            }, err => {
+            },
+            err => {
+                System.err.println(err)
                 logger.err(err)
             }))
         logger.debug(s"${DateTime.now.getString("yyyy-MM-dd HH:mm:ss")} [DEBUG] Qross Keeper quit with exitValue $exitValue")

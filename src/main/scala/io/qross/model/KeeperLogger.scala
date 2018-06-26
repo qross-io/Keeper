@@ -13,21 +13,20 @@ class KeeperLogger {
     
     def debug(info: String): Unit = {
         logs += info
-        println(info)
-        
-        if (System.currentTimeMillis() - tick > 5000) {
+        if (System.currentTimeMillis() - tick > 5000 || logs.size >= 100) {
             save()
         }
     }
     
     def err(exception: String): Unit = {
+        debug(exception)
+        
         exceptions += new KeeperException(exception)
         timer = System.currentTimeMillis()
-        System.err.println(exception)
     }
 
     def overtime: Boolean = {
-        timer > 0 && System.currentTimeMillis() - timer > 10000
+        timer > 0 && System.currentTimeMillis() - timer > 5000
     }
     
     private def save(): Unit = {
@@ -45,7 +44,6 @@ class KeeperLogger {
     
     def store(): Unit = {
         if (exceptions.nonEmpty) {
-            
             //save to database
             val error = new KeeperException()
             val ds = new DataSource()

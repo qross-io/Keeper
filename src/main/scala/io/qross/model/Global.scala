@@ -81,9 +81,9 @@ object Global {
                 ds.executeNonQuery("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('GLOBAL', 'QUIT_ON_NEXT_BEAT', 'yes');")
                 //mail info
                 error = "Keeper will restart on next tick."
-                title = s"Beats Exception ${actors.mkString(", ", "actor_name")} $tick"
+                title = s"Beats Exception: ${actors.mkString(", ", "actor_name")} at $tick"
             }
-            else if (DateTime.now.setSecond(0).matches("0 0 3,9,12,15,18,20,23 * * ? *")) {
+            else if (DateTime.now.setSecond(0).matches(Global.BEATS_MAILING_FREQUENCY)) {
                 //regular
                 title = s"Beats regularly at $tick"
             }
@@ -91,11 +91,11 @@ object Global {
                 doSend = false
             }
     
-            if (doSend && Global.KEEPER_USER_GROUP != "" || Global.MASTER_USER_GROUP != "") {
+            if (doSend && (Global.KEEPER_USER_GROUP != "" || Global.MASTER_USER_GROUP != "")) {
                 OpenResourceFile("/templates/beats.html")
                     .replace("${tick}", tick)
                     .replace("${error}", error)
-                    .replace("${beats}", Beats.toHtml(ds.executeDataTable("SELECT actor_name, status, last_beat_time FROM qross_keeper_beats WHERE actor_name IN ('Keeper', 'Messager', 'TaskProducer', 'TaskStarter', 'TaskChecker', 'TaskExecutor', 'TaskLogger') ORDER BY id DESC")))
+                    .replace("${beats}", Beats.toHtml(ds.executeDataTable("SELECT actor_name, status, last_beat_time FROM qross_keeper_beats WHERE status<>'disbaled' ORDER BY id DESC")))
                     .writeEmail(title)
                     .to(if (Global.KEEPER_USER_GROUP != "") Global.KEEPER_USER_GROUP else Global.MASTER_USER_GROUP)
                     .cc(if (Global.KEEPER_USER_GROUP != "" ) Global.MASTER_USER_GROUP else "")
