@@ -83,6 +83,7 @@ class DataSource (connectionName: String = DataSource.DEFAULT) {
         //case "oracle" => "oracle.jdbc.driver.OracleDriver"
         //case "impala" => "com.cloudera.impala.jdbc4.Driver"
         //case "h2" => "org.h2.Driver"
+        //case "postgresql" => ""
         case _ => ""
     }
     

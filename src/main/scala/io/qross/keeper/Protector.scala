@@ -7,38 +7,28 @@ import scala.sys.process._
 
 object Protector {
     def main(args: Array[String]): Unit = {
-    
-        var debug = false
-        var bash = s"hadoop jar"
-        var properties = ""
         
-        for (i <- args.indices) {
-            args(i).toLowerCase() match {
-                case "--debug" => debug = true
-                case "--client" => bash = s"${Global.JAVA_BIN_HOME}java -cp"
-                case "--properties" if i + 1 < args.length => properties = args(i+1)
-                case _ =>
-            }
-        }
-        
-        val command = s"$bash ${Global.QROSS_HOME}qross-keeper-${Global.QROSS_VERSION}.jar io.qross.keeper.Keeper $properties"
+        val bash = if (Global.HADOOP_AND_HIVE_ENABLED) "hadoop jar" else s"${Global.JAVA_BIN_HOME}java -cp"
+        val command = s"$bash ${Global.QROSS_HOME}qross-keeper-${Global.QROSS_VERSION}.jar io.qross.keeper.Keeper"
         Output.writeMessage("Run: " + command)
         
         val logger = new KeeperLogger()
         logger.debug(s"${DateTime.now.getString("yyyy-MM-dd HH:mm:ss")} [DEBUG] Qross Keeper starting.")
         val exitValue = command.!(ProcessLogger(out => {
-                if (debug && out.contains("[DEBUG]")) {
+                if (Global.LOGS_LEVEL == "DEBUG" && out.contains("[DEBUG]")) {
                     logger.debug(out)
                 }
                 else {
                     println(out)
                 }
+            
+                if (logger.overtime) logger.store()
             }, err => {
-                logger.debug(err)
+                logger.err(err)
             }))
         logger.debug(s"${DateTime.now.getString("yyyy-MM-dd HH:mm:ss")} [DEBUG] Qross Keeper quit with exitValue $exitValue")
-        Output.writeMessage("Exit: " + command)
-        
         logger.close()
+    
+        Output.writeMessage("Exit: " + command)
     }
 }

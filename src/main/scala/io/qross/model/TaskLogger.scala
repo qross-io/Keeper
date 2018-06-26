@@ -16,7 +16,6 @@ object TaskLogger {
             sb.append("</div>")
             sb.append("<div class='" + row.getString("log_type") + "'>")
             sb.append(row.getString("log_text").replace("\r", "<br/>").replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;"))
-            sb.append("</span>")
             sb.append("</div>")
         })
         sb.toString()

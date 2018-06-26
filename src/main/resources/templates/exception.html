@@ -6,28 +6,14 @@
     <style type="text/css">
         body { margin:0px; }
         #title { font-family: "Microsoft YaHei", Consolas; font-size: 20px; padding: 10px 10px 0px 10px; }
-        #details { font-family: "Microsoft YaHei", Consolas; color: #666666; font-size: 14px; line-height: 150%; padding: 10px 10px 10px 10px; font-weight:bold; }
-        #details span { font-size:12px; color: #006699; font-weight:normal; }
-        #logs { border-top: 1px solid #CCCCCC; padding-top:10px; margin: 0px 10px 10px 10px; }
-        .FAILED { color: #D90000; }
-        .INCORRECT { color: #FF7F00; }
-        .TIMEOUT { color: #00CCFF; }
-        .TIME { font-family: "Microsoft YaHei", Consolas; font-size: 14px; color:#808080; border-bottom: 1px dotted #CCCCCC; margin-top:10px; line-height:200%; }
-        .INFO { font-family: "Microsoft YaHei", Consolas; font-size: 14px; color:#333333; line-height:200%; }
+        #exceptions { border-top: 1px solid #CCCCCC; padding-top:10px; margin: 0px 10px 10px 10px; }
         .ERROR { font-family: "Microsoft YaHei", Consolas; font-size: 14px; color:#D00000; line-height:200%; }
     </style>
 </head>
 <body>
-<div id="title">${title} ${task_time} <span class="${status}">${status}</span> </div>
-<div id="details">
-        <span>JobID</span> &nbsp; ${job_id} &nbsp; &nbsp;
-        <span>TaskID</span> &nbsp; ${task_id} &nbsp; &nbsp;
-        <span>CommandID</span> &nbsp; ${command_id} &nbsp; &nbsp;
-        <span>ActionID</span> &nbsp; ${action_id} <br />
-        <span>CommandText</span> &nbsp; ${command_text}
+<div id="title">KEEPER EXCEPTIONS: ${companyName}</div>
+<div id="exceptions">
+    ${exceptions}
 </div>
-    <div id="logs">
-        ${logs}
-    </div>
 </body>
 </html>

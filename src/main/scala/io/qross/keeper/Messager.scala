@@ -1,7 +1,7 @@
 package io.qross.keeper
 
 import io.qross.model._
-import io.qross.util.{DateTime, Output, Timer}
+import io.qross.util.{DateTime, Output, Properties, Timer}
 
 class Messager extends WorkActor {
     
@@ -43,14 +43,26 @@ class Messager extends WorkActor {
                         }
                         Global.CONFIG.set("KEEPER_USER_GROUP", User.getUsers("keeper"))
                         Global.CONFIG.set("MASTER_USER_GROUP", User.getUsers("master"))
-                    case "CONNECTION" =>
-                        //CONNECTION - INSERT - connection_name=connection_string, user_name, password
-                        //CONNECTION - UPDATE -
-                        //CONNECTION - DELETE -
+                    case "PROPERTIES" =>
                         messageKey match {
-                            case "INSERT" => JDBCConnection.create(messageText);
-                            case "UPDATE" => JDBCConnection.update(messageText);
-                            case "DELETE" => JDBCConnection.remove(messageText);
+                            //PROPERTIES - ADD - absolute|resources:path
+                            //PROPERTIES - UPDATE - id#absolute|resources:path
+                            //PROPERTIES - REMOVE - id
+                            //PROPERTIES - REFRESH - absolute|resources:path
+                            case "ADD" => Properties.addFile(messageText.substring(0, messageText.indexOf(":")), messageText.substring(messageText.indexOf(":") + 1))
+                            case "UPDATE" => Properties.updateFile(messageText.substring(0, messageText.indexOf("#")).toInt, messageText.substring(messageText.indexOf("#") + 1, messageText.indexOf(":")), messageText.substring(messageText.indexOf(":") + 1))
+                            case "REMOVE" => Properties.removeFile(messageText.toInt)
+                            case "REFRESH" => Properties.refreshFile(messageText.toInt)
+                            case _ =>
+                        }
+                    case "CONNECTION" =>
+                        //CONNECTION - UPSERT - connection_type.connection_name=connection_string#&#user_name#&#password
+                        //CONNECTION - ENABLE/DISABLE/REMOVE - connection_name
+                        messageKey match {
+                            case "UPSERT" => JDBCConnection.upsert(messageText);
+                            case "ENABLE" => JDBCConnection.enable(messageText);
+                            case "DISABLE" => JDBCConnection.disable(messageText);
+                            case "REMOVE" => JDBCConnection.remove(messageText)
                             case _ =>
                         }
                     case _ =>

@@ -10,27 +10,19 @@ import scala.util.{Success, Try}
 object Properties {
     
     private val props = new java.util.Properties()
-    private val externalPath = new File(Properties.getClass.getProtectionDomain.getCodeSource.getLocation.getPath).getParentFile.getAbsolutePath.replace("\\", "/") + "/qross.ds.properties"
+    private val externalPath = new File(Properties.getClass.getProtectionDomain.getCodeSource.getLocation.getPath).getParentFile.getAbsolutePath.replace("\\", "/") + "/qross.properties"
     //private val internalPath = Properties.getClass.getResource("/conf.properties").toString
     //private lazy val externalOutput = new FileOutputStream(internalPath)
+    println(new File(externalPath).exists())
     
-    props.load(new BufferedReader(new InputStreamReader(Properties.getClass.getResourceAsStream("/conf.properties"))))
-    load(externalPath)
-    
-    def loadAll(files: String*): Unit = {
-        if (!load(externalPath)
-             && files.isEmpty) {
-            Output.writeException("Please assign at lest one properties file which contains database connections.")
+    private def loadPrimary(): Unit = {
+        if (!loadLocalFile(externalPath) && !loadResourcesFile("/conf.properties")) {
+            Output.writeException("Please put qross.properties at Qross home path.")
             System.exit(1)
         }
-        else {
-            files.foreach(path => {
-                load(path)
-            })
-        }
-        
+    
         if (!props.containsKey(DataSource.DEFAULT)) {
-            Output.writeException(s"Can't find properties key ${DataSource.DEFAULT}, it must be set in conf.properties, qross.ds.properties or other properties files you loaded.")
+            Output.writeException(s"Can't find properties key ${DataSource.DEFAULT}, it must be set in conf.properties, qross.properties or other properties files.")
             System.exit(1)
         }
         else if (!DataSource.testConnection()) {
@@ -40,14 +32,14 @@ object Properties {
         else {
             var version = ""
             try {
-                version = Global.QROSS_VERSION
+                version = DataSource.querySingleValue("SELECT conf_value FROM qross_conf WHERE conf_key='QROSS_VERSION'").getOrElse("")
             }
             catch {
                 case e: Exception =>
             }
-            
+        
             if (version != "") {
-                Output.writeMessage("Welcome to QROSS Keeper v" + version)
+                Output.writeMessage(s"Welcome to QROSS Keeper v$version")
             }
             else {
                 Output.writeException("Can't find Qross system, please create your qross system use Qross Master.")
@@ -55,13 +47,39 @@ object Properties {
             }
         }
     }
+    loadPrimary()
     
-    def load(path: String): Boolean = {
+    def loadAll(): Unit = {
+        DataSource.queryDataTable("SELECT id, properties_type, properties_path FROM qross_properties WHERE id>2").foreach(row => {
+            load(row.getString("properties_type"), row.getString("properties_path"))
+        }).clear()
+    }
+    
+    def load(propertiesType: String, propertiesPath: String): Boolean = {
+        if (propertiesType == "local") {
+            loadLocalFile(propertiesPath)
+        }
+        else {
+            loadResourcesFile(propertiesPath)
+        }
+    }
+    
+    def loadLocalFile(path: String): Boolean = {
         val file = new File(path)
         if (file.exists()) {
             props.load(new BufferedInputStream(new FileInputStream(file)))
         }
         file.exists()
+    }
+    
+    def loadResourcesFile(path: String): Boolean = {
+        try {
+            props.load(new BufferedReader(new InputStreamReader(Properties.getClass.getResourceAsStream(path))))
+            true
+        }
+        catch {
+            case _ : Exception => false
+        }
     }
     
     def get(key: String, defaultValue: String = ""): String = {
@@ -112,12 +130,31 @@ object Properties {
         sources
     }*/
     
-    def getDataExchangeDirectory: String = {
-        var directory = Properties.get("data_exchange_directory")
-        directory = directory.replace("\\", "/")
-        if (!directory.endsWith("/")) {
-            directory += "/"
-        }
-        directory
+    def addFile(propertiesType: String, propertiesPath: String): Unit = {
+        DataSource.queryUpdate("INSERT INTO qross_properties (properties_type, properties_path) SELECT ?, ? FROM dual WHERE NOT EXISTS (SELECT id FROM qross_properties WHERE properties_type=? AND properties_path=?)",
+            propertiesType, propertiesPath, propertiesType, propertiesPath)
+    
+        load(propertiesType, propertiesPath)
+    }
+    
+    def removeFile(propertiesId: Int): Unit = {
+        DataSource.queryUpdate("DELETE FROM qross_properties WHERE id=?", propertiesId)
+        
+        loadAll()
+    }
+    
+    def updateFile(propertiesId: Int, propertiesType: String, propertiesPath: String): Unit = {
+        DataSource.queryUpdate("UPDATE qross_properties SET properties_type=?, properties_path=? WHERE id=?", propertiesType, propertiesPath, propertiesId)
+    
+        load(propertiesType, propertiesPath)
+    }
+    
+    def refreshFile(propertiesId: Int): Unit = {
+        val ds = new DataSource()
+        ds.executeNonQuery("UPDATE qross_properties SET update_time=NOW() WHERE id=?", propertiesId)
+        val row = ds.executeDataRow("SELECT properties_type, properties_path FROM qross_properties WHERE id=?", propertiesId)
+        ds.close()
+        
+        load(row.getString("properties_type"), row.getString("properties_path"))
     }
 }

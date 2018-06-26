@@ -7,10 +7,12 @@
         body { margin:0px; }
         #title { font-family: "Microsoft YaHei", Consolas; font-size: 20px;  line-height: 200%; border-bottom: 1px dotted #666666; }
         #details { font-family: "Microsoft YaHei", Consolas; color: #666666; font-size: 14px; line-height: 200%; font-weight:bold; }
+        #error { font-family: "Microsoft YaHei", Consolas; color: #990000; font-size: 14px; line-height:200%; }
     </style>
 </head>
 <body>
-<div id="title">Keeper Beats at ${tick}</div>
+<div id="title">Beats Exception at ${tick}</div>
+<div id="error"${error}</div>
 <div id="details">
     ${beats}
 </div>

@@ -3,8 +3,6 @@ package io.qross.model
 import io.qross.util.Output._
 import io.qross.util._
 
-import scala.collection.mutable
-
 object Global {
     
     val CONFIG = DataRow()
@@ -15,7 +13,8 @@ object Global {
     CONFIG.set("MASTER_USER_GROUP", User.getUsers("master"))
     CONFIG.set("KEEPER_USER_GROUP", User.getUsers("keeper"))
     
-    def QROSS_VERSION: String = CONFIG.getString("QROSS_VERSION", "")
+    def QROSS_VERSION: String = CONFIG.getString("QROSS_VERSION")
+    def COMPANY_NAME: String = CONFIG.getString("COMPANY_NAME")
     val CORES: Int = Runtime.getRuntime.availableProcessors
     def USER_HOME: String = FilePath.format(System.getProperty("user.dir"))
     def QROSS_HOME: String = FilePath.format(CONFIG.getString("QROSS_HOME")).replace("%USER_HOME", USER_HOME).replace("//", "/")
@@ -23,13 +22,16 @@ object Global {
     def QROSS_KEEPER_HOME: String = FilePath.format(CONFIG.getString("QROSS_KEEPER_HOME")).replace("%QROSS_HOME", QROSS_HOME).replace("%USER_HOME", USER_HOME).replace("//", "/")
     def JAVA_BIN_HOME: String = CONFIG.getString("JAVA_BIN_HOME")
     def EMAIL_NOTIFICATION: Boolean = CONFIG.getBoolean("EMAIL_NOTIFICATION")
+    def HADOOP_AND_HIVE_ENABLED: Boolean = CONFIG.getBoolean("HADOOP_AND_HIVE_ENABLED")
+    def LOGS_LEVEL: String = CONFIG.getString("LOGS_LEVEL", "DEBUG").toUpperCase
+    def EMAIL_EXCEPTIONS_TO_DEVELOPER: Boolean = CONFIG.getBoolean("EMAIL_EXCEPTIONS_TO_DEVELOPER")
     def QUIT_ON_NEXT_BEAT: Boolean = CONFIG.getBoolean("QUIT_ON_NEXT_BEAT")
     def MASTER_USER_GROUP: String = CONFIG.getString("MASTER_USER_GROUP")
     def KEEPER_USER_GROUP: String = CONFIG.getString("KEEPER_USER_GROUP")
     
     val CHARSET = "utf-8"
     //def CLEAN_TASK_RECORDS_FREQUENCY: String = CONFIG.getString("CLEAN_TASK_RECORDS_FREQUENCY")
-    //def BEATS_MAILING_FREQUENCY: String = CONFIG.getString("BEATS_MAILING_FREQUENCY")
+    def BEATS_MAILING_FREQUENCY: String = CONFIG.getString("BEATS_MAILING_FREQUENCY")
    
     //var CLEAN_TASK_RECORDS_FREQUENCY = "0 5 0/6 * * ? *"
     //var BEATS_MAILING_FREQUENCY = "0 0 3,9,12,15,18 * * ? *"
@@ -64,28 +66,50 @@ object Global {
         writeMessage("Task records cleaned!")
     }
     
-    def sendBeatsMail(): Unit = {
-        val ds = new DataSource()
-        val tick = DateTime.now.getString("yyyy-MM-dd HH:mm:ss")
+    def checkBeats(): Unit = {
         
-        if (Global.KEEPER_USER_GROUP != "" || Global.MASTER_USER_GROUP != "") {
-            OpenResourceFile("/templates/beats.html")
-                .replace("${tick}", tick)
-                .replace("${beats}", Beats.toHtml(ds.executeDataTable("SELECT actor_name, status, last_beat_time FROM qross_keeper_beats WHERE status<>'disabled' ORDER BY id DESC")))
-                .writeEmail(s"Keeper Beats at $tick")
-                .to(if (Global.KEEPER_USER_GROUP != "") Global.KEEPER_USER_GROUP else Global.MASTER_USER_GROUP)
-                .cc(if (Global.KEEPER_USER_GROUP != "" ) Global.MASTER_USER_GROUP else "")
-                .send()
+        if (!Global.QUIT_ON_NEXT_BEAT) {
+            val ds = new DataSource()
+            val tick = DateTime.now.getString("yyyy-MM-dd HH:mm:ss")
+            var error = ""
+            var doSend = true
+            var title = ""
+            
+            val actors = ds.executeDataTable("SELECT actor_name FROM qross_keeper_beats WHERE actor_name IN ('Keeper', 'Messager', 'TaskProducer', 'TaskStarter', 'TaskChecker', 'TaskExecutor', 'TaskLogger') AND status='rest'")
+            if (actors.nonEmpty) {
+                //quit system and auto restart
+                ds.executeNonQuery("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('GLOBAL', 'QUIT_ON_NEXT_BEAT', 'yes');")
+                //mail info
+                error = "Keeper will restart on next tick."
+                title = s"Beats Exception ${actors.mkString(", ", "actor_name")} $tick"
+            }
+            else if (DateTime.now.setSecond(0).matches("0 0 3,9,12,15,18,20,23 * * ? *")) {
+                //regular
+                title = s"Beats regularly at $tick"
+            }
+            else {
+                doSend = false
+            }
+    
+            if (doSend && Global.KEEPER_USER_GROUP != "" || Global.MASTER_USER_GROUP != "") {
+                OpenResourceFile("/templates/beats.html")
+                    .replace("${tick}", tick)
+                    .replace("${error}", error)
+                    .replace("${beats}", Beats.toHtml(ds.executeDataTable("SELECT actor_name, status, last_beat_time FROM qross_keeper_beats WHERE actor_name IN ('Keeper', 'Messager', 'TaskProducer', 'TaskStarter', 'TaskChecker', 'TaskExecutor', 'TaskLogger') ORDER BY id DESC")))
+                    .writeEmail(title)
+                    .to(if (Global.KEEPER_USER_GROUP != "") Global.KEEPER_USER_GROUP else Global.MASTER_USER_GROUP)
+                    .cc(if (Global.KEEPER_USER_GROUP != "" ) Global.MASTER_USER_GROUP else "")
+                    .send()
+            }
+    
+            ds.close()
         }
-        ds.close()
-        
-        writeMessage("Beats mail sent!")
     }
     
     def recordStart(): Unit = {
         val ds = new DataSource()
         val method =
-            if (ds.executeExists("SELECT id FROM qross_keeper_beats WHERE actor_name='keeper' AND status='rest'")) {
+            if (ds.executeExists("SELECT id FROM qross_keeper_beats WHERE actor_name='Keeper' AND status='rest'")) {
                 "manual"
             }
             else {

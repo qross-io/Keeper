@@ -6,9 +6,18 @@ import io.qross.util.{DateTime, HDFS, HDFSReader, Properties}
 object Test {
     def main(args: Array[String]): Unit = {
     
+        //Properties.loadAll()
+    
+        println(Properties.get("hello1"))
+        println(Properties.get("hello"))
+        println(Properties.get("world"))
+        println(Properties.get("mysql.qross"))
+        println(Properties.get("testKey"))
+        println(Properties.get("mysql.oa"))
+        
+        
         /*println(DateTime.now.getString("yyyyMMdd/HH"))
         
-        Properties.loadAll(args(0))
         //QrossTask.checkTaskDependencies(542973L)
         //println(DateTime.of(2018, 3, 1).toEpochSecond)
         
@@ -25,5 +34,7 @@ object Test {
             println(hdfs.path + " # " + count)
         })
         */
+        
+        
     }
 }

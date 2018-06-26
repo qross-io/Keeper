@@ -5,6 +5,6 @@ import io.qross.util.DateTime
 
 object Notifier {
     def main(args: Array[String]): Unit = {
-        Global.sendBeatsMail()
+        Global.checkBeats()
     }
 }

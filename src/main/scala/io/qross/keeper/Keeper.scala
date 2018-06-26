@@ -16,8 +16,8 @@ object Keeper {
     def main(args: Array[String]): Unit = {
         
         //check properties
-        Properties.loadAll(args: _*)
-        //Global.recordStart()
+        Properties.loadAll()
+        Global.recordStart()
         
         val actorName: String = "Keeper"
         Beats.start(actorName)

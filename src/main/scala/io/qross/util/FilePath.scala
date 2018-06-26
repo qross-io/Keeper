@@ -1,6 +1,6 @@
 package io.qross.util
 
-import io.qross.model.Global.{CONFIG, USER_HOME}
+import io.qross.model.Global
 
 object FilePath {
     
@@ -10,15 +10,25 @@ object FilePath {
             full
         }
         else {
-            Properties.getDataExchangeDirectory + full
+            Global.QROSS_KEEPER_HOME + full
         }
     }
     
     def format(path: String): String = {
         var dir = path.replace("\\", "/")
-        if (!path.endsWith("/") && !path.endsWith("\\")) {
+        if (!path.endsWith("/")) {
             dir += "/"
         }
         dir
+    }
+    
+    def parse(path: String): String = {
+        var dir = path.replace("\\", "/")
+        dir.replace("%USER_HOME", Global.USER_HOME)
+            .replace("%JAVA_BIN_HOME", Global.JAVA_BIN_HOME)
+            .replace("%QROSS_HOME", Global.QROSS_HOME)
+            .replace("%QROSS_KEEPER_HOME", Global.QROSS_KEEPER_HOME)
+            .replace("%QROSS_WORKER_HOME", Global.QROSS_WORKER_HOME)
+            .replace("//", "/")
     }
 }
