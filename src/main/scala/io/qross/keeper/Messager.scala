@@ -45,10 +45,10 @@ class Messager extends WorkActor {
                         Global.CONFIG.set("MASTER_USER_GROUP", User.getUsers("master"))
                     case "PROPERTIES" =>
                         messageKey match {
-                            //PROPERTIES - ADD - absolute|resources:path
-                            //PROPERTIES - UPDATE - id#absolute|resources:path
+                            //PROPERTIES - ADD - local|resources:path
+                            //PROPERTIES - UPDATE - id#local|resources:path
                             //PROPERTIES - REMOVE - id
-                            //PROPERTIES - REFRESH - absolute|resources:path
+                            //PROPERTIES - REFRESH - local|resources:path
                             case "ADD" => Properties.addFile(messageText.substring(0, messageText.indexOf(":")), messageText.substring(messageText.indexOf(":") + 1))
                             case "UPDATE" => Properties.updateFile(messageText.substring(0, messageText.indexOf("#")).toInt, messageText.substring(messageText.indexOf("#") + 1, messageText.indexOf(":")), messageText.substring(messageText.indexOf(":") + 1))
                             case "REMOVE" => Properties.removeFile(messageText.toInt)

@@ -7,17 +7,17 @@ object Beats {
     
     def beat(actor: String, tick: DateTime = DateTime.now): Int = {
         writeMessage(actor + " beat!")
-        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET last_beat_time='${tick.getString("yyyy-MM-dd HH:mm:ss")}' WHERE actor_name='$actor';")
+        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET last_beat_time='${tick.getString("yyyy-MM-dd HH:mm:ss")}' WHERE actor_name='$actor'")
     }
     
     def start(actor: String, message: String = ""): Int = {
         writeDebugging(actor + " start! " + message)
-        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET status='running',start_time=NOW() WHERE actor_name='$actor';")
+        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET status='running',start_time=NOW() WHERE actor_name='$actor'")
     }
     
     def quit(actor: String): Int = {
-        writeDebugging(if (actor != "Keeper") s"$actor quit!" else "Qross Keeper shut down!")
-        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET status='rest',quit_time=NOW() WHERE actor_name='$actor';")
+        writeDebugging(s"$actor quit!")
+        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET status='rest',quit_time=NOW() WHERE actor_name='$actor'")
     }
     
     def toHtml(table: DataTable): String = {

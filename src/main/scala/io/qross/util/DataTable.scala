@@ -489,8 +489,12 @@ case class DataTable(private val items: DataRow*) {
         value.toString()
     }
     
-    def mkString(prefix: String, delimiter: String, fieldName: String, suffix: String): String = {
-        prefix + mkString(delimiter, fieldName) + suffix
+    def mkString(prefix: String, delimiter: String, suffix: String): String = {
+        val value = new StringBuilder()
+        for (row <- this.rows) {
+            value.append(prefix + row.join(delimiter) + suffix)
+        }
+        value.toString()
     }
     
     def show(limit: Int = 20): Unit = {

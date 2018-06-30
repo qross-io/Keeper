@@ -160,7 +160,7 @@ case class DataRow(private val items: (String, Any)*) {
         val values = new mutable.StringBuilder()
         for (field <- getFields) {
             if (values.nonEmpty) {
-                values.append(", ")
+                values.append(delimiter)
             }
             values.append(this.getString(field, "null"))
         }

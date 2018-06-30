@@ -10,18 +10,21 @@ import scala.util.{Success, Try}
 object Properties {
     
     private val props = new java.util.Properties()
-    private val externalPath = new File(Properties.getClass.getProtectionDomain.getCodeSource.getLocation.getPath).getParentFile.getAbsolutePath.replace("\\", "/") + "/qross.properties"
-    //private val internalPath = Properties.getClass.getResource("/conf.properties").toString
+    private var externalPath = new File(Properties.getClass.getProtectionDomain.getCodeSource.getLocation.getPath).getParentFile.getAbsolutePath.replace("\\", "/") + "/qross.properties"
     //private lazy val externalOutput = new FileOutputStream(internalPath)
     
-    private def loadPrimary(): Unit = {
-        if (!loadLocalFile(externalPath) && !loadResourcesFile("/conf.properties")) {
-            Output.writeException("Please put qross.properties at Qross home path.")
-            System.exit(1)
-        }
+    if (!loadLocalFile(externalPath)) {
+        loadResourcesFile("/conf.properties")
+    }
     
+    def loadAll(files: String*): Unit = {
+        //load all files specified at args
+        files.foreach(path => {
+            loadLocalFile(path)
+        })
+        
         if (!props.containsKey(DataSource.DEFAULT)) {
-            Output.writeException(s"Can't find properties key ${DataSource.DEFAULT}, it must be set in conf.properties, qross.properties or other properties files.")
+            Output.writeException(s"Can't find properties key ${DataSource.DEFAULT}, it must be set in conf.properties or qross.properties.")
             System.exit(1)
         }
         else if (!DataSource.testConnection()) {
@@ -31,24 +34,21 @@ object Properties {
         else {
             var version = ""
             try {
-                version = DataSource.querySingleValue("SELECT conf_value FROM qross_conf WHERE conf_key='QROSS_VERSION'").getOrElse("")
+                version = Global.QROSS_VERSION
             }
             catch {
                 case e: Exception =>
             }
-        
+            
             if (version != "") {
-                Output.writeMessage(s"Welcome to QROSS Keeper v$version")
+                Output.writeMessage("Welcome to QROSS Keeper v" + version)
             }
             else {
                 Output.writeException("Can't find Qross system, please create your qross system use Qross Master.")
                 System.exit(1)
             }
         }
-    }
-    loadPrimary()
     
-    def loadAll(): Unit = {
         DataSource.queryDataTable("SELECT id, properties_type, properties_path FROM qross_properties WHERE id>2").foreach(row => {
             load(row.getString("properties_type"), row.getString("properties_path"))
         }).clear()
@@ -67,8 +67,11 @@ object Properties {
         val file = new File(path)
         if (file.exists()) {
             props.load(new BufferedInputStream(new FileInputStream(file)))
+            true
         }
-        file.exists()
+        else {
+            false
+        }
     }
     
     def loadResourcesFile(path: String): Boolean = {

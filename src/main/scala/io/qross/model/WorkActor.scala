@@ -10,18 +10,18 @@ class WorkActor extends Actor {
     var tick: DateTime = _
     
     def setup(): Unit = {}
-    def beat(tick: String): Unit = Beats.beat(actorName, DateTime(tick))
+    def beat(tick: String): Unit = Qross.beat(actorName)
     def execute(taskId: Long, taskStatus: String): Unit = {}
     def run(taskCommand: DataRow): Unit = {}
     def cleanup(): Unit = {}
     
     override def preStart(): Unit = {
-        Beats.start(actorName, self.path.toString)
+        Qross.run(actorName, self.path.toString)
         setup()
     }
     
     override def postStop(): Unit = {
-        Beats.quit(actorName)
+        Qross.quit(actorName)
         cleanup()
     }
     

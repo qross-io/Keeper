@@ -1,8 +1,8 @@
 package io.qross.keeper
 
 import akka.actor.{ActorSystem, PoisonPill, Props}
-import io.qross.model.{Beats, Global, TaskRecord, Tick}
-import io.qross.util.{DateTime, Output, Properties, Timer}
+import io.qross.model.{Global, Qross, Tick}
+import io.qross.util.{DateTime, Properties, Timer}
 
 import scala.collection.immutable.List
 import scala.collection.mutable
@@ -16,13 +16,11 @@ object Keeper {
     def main(args: Array[String]): Unit = {
         
         //check properties
-        Properties.loadAll()
-        Global.recordStart()
+        Properties.loadAll(args: _*)
         
-        val actorName: String = "Keeper"
-        Beats.start(actorName)
+        Qross.start()
         
-        val system = ActorSystem(actorName.toLowerCase())
+        val system = ActorSystem("keeper")
         val actors = List(
             system.actorOf(Props[Messager], "messager"),
             system.actorOf(Props[TaskProducer], "producer"),
@@ -33,7 +31,7 @@ object Keeper {
         while (!Global.QUIT_ON_NEXT_BEAT) {
             // mm:00
             Timer.sleep()
-            Beats.beat(actorName)
+            Qross.beat("Keeper")
     
             //retransmission if producer hasn't received tick
             TO_BE_ACK.foreach(minute => {
@@ -49,13 +47,12 @@ object Keeper {
             })
         }
         
+        Qross.stop()
+        
         for(actor <- actors) {
             actor ! PoisonPill
         }
         
-        system.terminate().onComplete(_ => {
-            //save left logs
-            Beats.quit(actorName)
-        })
+        system.terminate().onComplete(_ => Qross.quit("Keeper"))
     }
 }

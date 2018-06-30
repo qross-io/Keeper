@@ -1,10 +1,9 @@
 package io.qross.keeper
 
-import io.qross.model.Global
-import io.qross.util.DateTime
+import io.qross.model.Qross
 
 object Notifier {
     def main(args: Array[String]): Unit = {
-        Global.checkBeats()
+        Qross.checkBeats()
     }
 }

@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS qross_conf (
 );
 
 INSERT INTO qross_conf (conf_key, conf_value) VALUES
-    ('QROSS_VERSION', '0.5.4'),
-    ('COMPANY_NAME', 'YourCompanyName')
+    ('QROSS_VERSION', '0.5.5'),
+    ('COMPANY_NAME', 'YourCompanyName'),
     ('QROSS_HOME', 'C:/io.Qross/Keeper/build/libs/'),
     ('QROSS_WORKER_HOME', '%QROSS_HOME/worker/'),
     ('QROSS_KEEPER_HOME', '%QROSS_HOME/keeper/'),
@@ -23,7 +23,6 @@ INSERT INTO qross_conf (conf_key, conf_value) VALUES
     ('EMAIL_SENDER_ACCOUNT', 'user@domain.com'),
     ('EMAIL_SENDER_PASSWORD', 'password'),
     ('EMAIL_SSL_AUTH_ENABLED', 'no'),
-    ('EMAIL_MASTER_ACCOUNT', 'none'),
     ('EMAIL_EXCEPTIONS_TO_DEVELOPER', 'yes'),
     ('KERBEROS_AUTH', 'no'),
     ('KRB_USER_PRINCIPAL', 'username'),
@@ -53,6 +52,7 @@ CREATE TABLE IF NOT EXISTS qross_properties (
     update_time DATETIME DEFAULT NOW()
 );
 
+INSERT INTO qross_properties (properties_type, properties_path) VALUES ('local', '%QROSS_HOME/qross.properties'), ('resources', 'conf.properties');
 
 CREATE TABLE IF NOT EXISTS qross_connections (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -78,10 +78,13 @@ CREATE TABLE IF NOT EXISTS qross_message_box (
     create_time DATETIME DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS qross_keeper_start_records (
+CREATE TABLE IF NOT EXISTS qross_keeper_running_records (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     method VARCHAR(100) DEFAULT 'manual' COMMENT 'manual/crontab',
-    start_time DATETIME DEFAULT NOW()
+    status VARCHAR(100) DEFAULT 'running' COMMENT 'running/stopping',
+    start_time DATETIME DEFAULT NOW(),
+    stop_time DATETIME,
+    duration INT COMMENT 'seconds'
 );
 
 CREATE TABLE IF NOT EXISTS qross_keeper_beats (
@@ -217,7 +220,7 @@ CREATE TABLE IF NOT EXISTS qross_tasks_logs (
     command_id INT,
     action_id BIGINT,
     log_type VARCHAR(100) DEFAULT 'INFO' COMMENT 'INFO,ERROR',
-    log_text TEXT,
+    log_text MEDIUMTEXT,
     create_time DATETIME DEFAULT NOW()
 );
 
@@ -229,9 +232,9 @@ CREATE INDEX ix_qross_tasks_logs_action_id ON qross_tasks_logs (action_id);
 CREATE TABLE IF NOT EXISTS qross_keeper_exceptions (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     exception TEXT,
+    checked VARCHAR(100) DEFAULT 'no',
     create_date VARCHAR(100),
-    create_time DATETIME DEFAULT NOW(),
-    checked VARCHAR(100) DEFAULT 'no'
+    create_time DATETIME DEFAULT NOW()
 );
 
-CREATE INDEX ix_qross_keeper_exceptions_log_date ON qross_keeper_exceptions (create_date);
+CREATE INDEX ix_qross_keeper_exceptions_create_date ON qross_keeper_exceptions (create_date);
