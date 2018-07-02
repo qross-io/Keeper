@@ -8,7 +8,6 @@ target/
 *.project
 *.epoch
 *.lck
-*.log
 .settings/
 *.pyc
 *.idea/

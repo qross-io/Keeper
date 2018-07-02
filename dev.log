@@ -1,0 +1,95 @@
+
+2018/07/02 0.5.5 Running.
+2018/06/30 0.5.5 Bug fixed of logText. (too long)
+2018/06/29 0.5.5 Rewrite Beats and fix bugs.
+2018/06/27 0.5.5 Debug Finished. not yet...
+2018/06/26 0.5.5 Code Finished.
+    1) add qross properties management.
+        a. rename qross.ds.properties to qross.properties.
+        b. all properties now stored at qross_properties.
+        c. Messager now supports properties commands.
+    2) rewrite beats checking.
+        a. running or exceptional beats mail.
+        b. move it from system job to deamon.
+        c. auto restart system on actor rest.
+    3) Protector now send mail to master on Keeper exception
+        a. store error logs at qross_keeper_exceptions
+        b. send mail to developer
+    4) restart interuputed executing tasks on system restart.
+    5) new global variables
+        a. HADOOP_AND_HIVE_ENABLED
+        b. LOGS_LEVEL
+        c. COMPANY_NAME
+        d. SEND_EXCEPTIONS_TO_DEVELOPER
+        e. BEATS_MAIL_FREQUENCY
+     6) use bytes length to count log text length.
+     7) remove Recorder and restore it in Keeper.
+     8) remove duration of task.
+
+
+2018/06/21 0.5.4 Run.
+2018/06/21 0.5.4 Debug Finished.
+2018/06/17 0.5.4 Code Finished.
+    1) Timeout rewrite. Try to kill action of task if timeout. Remove beat method of TaskStarter and relative method.
+    2) Record every time point of task in more detail.
+        a. duration of task, span of create time and update time. - removed at 26 Jun
+        b. start time of action.
+        c. run time of action.
+        d. finish time of action.
+        e. waiting of action, span of start time and run time.
+        f. elapsed of action, span of run time and finish time.
+    3) Finish Protector, create KeeperLogger and keep global logs in files now.
+    4) TaskLogger now is a actor, rewrite all code and add TaskRecord and TaskLog class.
+        Record logs before and after task executing.
+    5) Rewrite beat method of TaskChecker/TaskExecutor, and beats every minutely tick only.
+    6) Record retry times of running action.
+    7) Keep x task records now is a job configuration.
+    8) Messager supports Qross users commands
+    9) Remove checking_retry_limit from job configuration, now it is a dependency configuration.
+    10) Remove exeucting_retry_limit from job configuration, now it is a command configuration.
+    other) Notification mail now highlight task status at title.
+
+2018/06/10 0.5.3 Run.
+2018/06/08 0.5.3 Debug Finished.
+2018/06/06 0.5.3 Code Finished.
+    1) Keeper beats mail now display actor status.
+    2) Display exitValue in logs on action finished.
+    3) HA: crontab, qross-keeper-start.sh, Recorder. OS will restart keeper when it quit exceptionally.
+    4) Remove GlobalController actor, then create Cleaner and Notifier.
+    5) Mail master on exception.
+    6) Dependency_value and command text supports parameter %QROSS_VERSION, %JAVA_BIN_HOME, %QROSS_HOME
+    7) Command now can set overtime. If time out, action and tasks status will be 'timeout'. TaskStarter beat comes back.
+    8) Checked flag for tasks, it will be 'no' on exception and be 'yes' when it has been checked.
+    9) Fix bug for TaskLogger, miss logs occasionally.
+    10) Fix bug for SQL dependency, updateSQL will update all relative records.
+
+2018/05/25 0.5.2 Run.
+2018/05/19 0.5.2 Debug Finished.
+2018/05/17 0.5.2 Code Finished.
+    1) Global and single job mail notification switch.
+    2) Fix bug for schedule time.
+    3) Keeper beats mail notification.
+    4) Clean tasks and logs periodly.
+    5) HDFS dependency supports last modified time span checking.
+    6) Restart immediately!
+        a. restart whole task.
+        b. restart one or more actions only.
+        c. restart from exceptional actions.
+        d. restart from one or more commands.
+     7) optimize codes of get task commands.
+     8) remove beat method of TaskStarter - getManualCommandsToExecute
+
+2018/05/11 0.5.1 Run. Some bug fixed.
+#removed 2018/05/11 Task status is miss_command if not set command for job yet.
+2018/05/11 Dependency supports params "jobId" and "taskId"
+2018/05/09 Fix bug of cron expression slash parser.
+2018/05/08 Update mail content format to fit mobile.
+2018/05/07 Set task status to "incorrect" if job has no commands. (I hope it never happend.)
+2018/05/06 Add mail notification for checking limit.
+2018/05/05 0.5.0 Running.
+2018/05/02 Prepare for release.
+2018/04/19 Add "action_id" in qross_tasks_logs.
+2018/03/28 0.5.0 Debug finished
+2018/03/13 0.5.0 Code finished.
+
+2018/01/01 0.5.0 Start Coding with Scala.
