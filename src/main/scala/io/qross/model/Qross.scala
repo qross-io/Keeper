@@ -5,11 +5,6 @@ import io.qross.util._
 
 object Qross {
     
-    def main(args: Array[String]): Unit = {
-        val x = new String("abc".getBytes())
-        println(x)
-    }
-
     def start(): Unit = {
         val ds = new DataSource()
         val method =
