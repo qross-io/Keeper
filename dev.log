@@ -1,4 +1,11 @@
 
+2018/07/05 0.5.6 Debug Finished.
+2018/07/05 0.5.6 Code Finished.
+    1) restart or finish task if exceptional commands exist or no commands to execute.
+    2) KeeperLogger: refresh configuration when send exception mail.
+    3) remove qross_jobs.dependencies
+    4) fix bugs of SQL.
+
 2018/07/02 0.5.5 Running.
 2018/06/30 0.5.5 Bug fixed of logText. (too long)
 2018/06/29 0.5.5 Rewrite Beats and fix bugs.
@@ -80,7 +87,7 @@
      8) remove beat method of TaskStarter - getManualCommandsToExecute
 
 2018/05/11 0.5.1 Run. Some bug fixed.
-#removed 2018/05/11 Task status is miss_command if not set command for job yet.
+2018/05/11 Task status is miss_commands if not set command for job yet.
 2018/05/11 Dependency supports params "jobId" and "taskId"
 2018/05/09 Fix bug of cron expression slash parser.
 2018/05/08 Update mail content format to fit mobile.

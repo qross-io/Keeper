@@ -19,7 +19,7 @@ object Protector {
         val exitValue = command.!(ProcessLogger(
             out => {
                 println(out)
-                if (Global.LOGS_LEVEL == "DEBUG" && out.contains("[DEBUG]")) {
+                if (Global.LOGS_LEVEL == "DEBUG") {
                     logger.debug(out)
                 }
     

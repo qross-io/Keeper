@@ -7,7 +7,11 @@ object Test {
     def main(args: Array[String]): Unit = {
     
         //Properties.loadAll()
-    
+        
+        val dh = new DataHub()
+        dh.get("SELECT * FROM tc").cache("tc")
+        dh.openCache().executeDataTable("SELECT (CASE WHEN status='waiting' THEN 1 ELSE 0 END) AS key FROM tc").show()
+        dh.close()
         /*println(DateTime.now.getString("yyyyMMdd/HH"))
         
         //QrossTask.checkTaskDependencies(542973L)

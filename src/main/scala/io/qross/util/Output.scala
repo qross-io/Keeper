@@ -29,10 +29,20 @@ object Output {
         }
     }
     
+    def writeWarning(messages: Any*): Unit = {
+        for (message <- messages) {
+            println(DateTime.now.getString("yyyy-MM-dd HH:mm:ss") + " [WARN] " + message)
+        }
+    }
+    
     def writeDebugging(messages: Any*): Unit = {
         for (message <- messages) {
             println(DateTime.now.getString("yyyy-MM-dd HH:mm:ss") + " [DEBUG] " + message)
         }
+    }
+    
+    def writeLineWithSeal(seal: String, message: String): Unit = {
+        println(s"${DateTime.now.getString("yyyy-MM-dd HH:mm:ss")} [$seal] $message")
     }
     
     def writeException(messages: Any*): Unit = {

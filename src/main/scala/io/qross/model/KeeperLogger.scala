@@ -35,7 +35,7 @@ class KeeperLogger {
                 .writeLines(logs)
                 .close()
     
-            Output.writeMessage(s"Record ${logs.size} lines info log file.")
+            Output.writeMessage(s"Record ${logs.size} lines into log file.")
             logs.clear()
         }
     
@@ -60,18 +60,21 @@ class KeeperLogger {
                 ds.addBatch(error.exception, error.createDate)
             }
             ds.executeBatchUpdate()
-            ds.close()
-            
+    
             //email
-            if (Global.EMAIL_NOTIFICATION && Global.EMAIL_EXCEPTIONS_TO_DEVELOPER) {
+            val map = ds.executeHashMap("SELECT conf_key, conf_value FROM qross_conf WHERE conf_key IN ('EMAIL_NOTIFICATION', 'COMPANY_NAME', 'EMAIL_EXCEPTIONS_TO_DEVELOPER')")
+            if (map("EMAIL_NOTIFICATION") == "yes") {
                 OpenResourceFile("/templates/exception.html")
-                    .replace("${companyName}", Global.COMPANY_NAME)
+                    .replace("${companyName}", map("COMPANY_NAME"))
                     .replace("${exceptions}", KeeperException.toHTML(exceptions))
-                    .writeEmail(s"KEEPER EXCEPTION: ${Global.COMPANY_NAME} ${DateTime.now.toString}")
-                    .to(Global.MASTER_USER_GROUP)
-                    .cc("garfi-wu@outlook.com")
+                    .writeEmail(s"KEEPER EXCEPTION: ${map("COMPANY_NAME")} ${DateTime.now.toString}")
+                    .to(User.getUsers("master"))
+                    .cc(if (map("EMAIL_EXCEPTIONS_TO_DEVELOPER") == "yes") "Developer<garfi-wu@outlook.com>" else "")
                     .send()
             }
+            map.clear()
+            
+            ds.close()
             
             timer = 0L
             exceptions.clear()

@@ -2,7 +2,7 @@ package io.qross.model
 
 import java.util.concurrent.ConcurrentHashMap
 
-import io.qross.util.{DataSource, DateTime, Output}
+import io.qross.util.{DataSource, DataTable, DateTime, Output}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -32,6 +32,24 @@ object TaskRecord {
                 loggers(taskId).save()
             }
         })
+    }
+    
+    def toHTML(logs: DataTable): String = {
+        val sb = new StringBuilder()
+        logs.foreach(row => {
+            var time = row.getString("create_time")
+            if (time.contains(".")) {
+                time = time.substring(0, time.indexOf("."))
+            }
+            
+            sb.append("<div class='TIME'>")
+            sb.append(time)
+            sb.append("</div>")
+            sb.append("<div class='" + row.getString("log_type") + "'>")
+            sb.append(row.getString("log_text").replace("\r", "<br/>").replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;"))
+            sb.append("</div>")
+        })
+        sb.toString()
     }
 }
 
@@ -64,10 +82,12 @@ class TaskRecord(jobId: Int, taskId: Long) {
     }
     
     def warn(warning: String): Unit = {
+        Output.writeWarning(warning)
         record("WARN", warning)
     }
     
     def debug(message: String): Unit = {
+        Output.writeDebugging(message)
         record("DEBUG", message)
     }
     

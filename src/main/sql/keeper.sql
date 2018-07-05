@@ -106,24 +106,24 @@ CREATE TABLE IF NOT EXISTS qross_jobs (
     job_type VARCHAR(100) DEFAULT 'user' COMMENT 'user/system',
     owner TEXT COMMENT 'name<email address>, e.g. FullName<username@domain.com>',
     description TEXT,
-    enabled VARCHAR(100) DEFAULT 'yes' COMMENT 'true/yes/no',
+    enabled VARCHAR(100) DEFAULT 'yes' COMMENT 'yes/no',
     cron_exp VARCHAR(1000) DEFAULT '' COMMENT 'simple cron expression, does not support letter C, empty means endless tasks',
     next_tick VARCHAR(1000) DEFAULT '' COMMENT 'next tick to create task, empty means not setup yet or can be empty, format is yyyyMMddHHmmss',
-    dependencies VARCHAR(100) DEFAULT 'no' COMMENT 'yes/no, has dependencies or not',
     mail_notification VARCHAR(100) DEFAULT 'yes',
     mail_master_on_exception VARCHAR(100) DEFAULT 'no',
     complement_missed_tasks VARCHAR(100) DEFAULT 'no' COMMENT 'yes/no, complement missed tasks on system starts up',
     concurrent_limit INT DEFAULT 3 COMMENT 'max quantity of concurrent',
-    keep_x_task_records INT DEFAULT 0 COMMENT 'keep all if set 0',
     create_time DATETIME DEFAULT NOW(),
     update_time DATETIME DEFAULT NOW()
 );
+
+--    dependencies VARCHAR(100) DEFAULT 'no' COMMENT 'yes/no, has dependencies or not',
+--    keep_x_task_records INT DEFAULT 0 COMMENT 'keep all if set 0',
 
 ALTER TABLE qross_jobs ADD INDEX ix_qross_jobs_enabled (enabled);
 ALTER TABLE qross_jobs ADD INDEX ix_qross_jobs_next_tick (next_tick);
 
 INSERT INTO qross_jobs (title, job_type, enabled, cron_exp, mail_notification) VALUES ('Task Cleaner', 'system', 'no', '0 10 0/6 * * ? *', 'no');
-INSERT INTO qross_jobs (title, job_type, enabled, cron_exp, mail_notification) VALUES ('Beats Mail Sender', 'system', 'no', '0 0 3,9,12,15,18 * * ? *', 'no');
 
 CREATE TABLE IF NOT EXISTS qross_jobs_dependencies (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'dependency_id',
@@ -152,15 +152,13 @@ CREATE TABLE IF NOT EXISTS qross_jobs_dags (
 ALTER TABLE qross_jobs_dags ADD INDEX ix_qross_jobs_dags_job_id (job_id);
 
 INSERT INTO qross_jobs_dags (job_id, title, command_text) VALUES (157, 'Clean', '%JAVA_BIN_HOMEjava -cp %QROSS_HOMEqross-keeper-%QROSS_VERSION.jar io.qross.keeper.Cleaner');
-INSERT INTO qross_jobs_dags (job_id, title, command_text) VALUES (158, 'Notify', '%JAVA_BIN_HOMEjava -cp %QROSS_HOMEqross-keeper-%QROSS_VERSION.jar io.qross.keeper.Notifier');
-UPDATE qross_jobs SET enabled='true' WHERE id=157;
-UPDATE qross_jobs SET enabled='true' WHERE id=158;
+UPDATE qross_jobs SET enabled='yes' WHERE id=1;
 
 CREATE TABLE IF NOT EXISTS qross_tasks (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'task id',
     job_id INT,
     task_time VARCHAR(100) COMMENT 'task time, e.g. yyyyMMddHHmm00',
-    status VARCHAR(100) DEFAULT 'new' COMMENT 'new/initialized=checking/miss_command/checking_limit/ready/executing/finished/incorrect/failed/timeout',
+    status VARCHAR(100) DEFAULT 'new' COMMENT 'new/initialized=checking/miss_commands/checking_limit/ready/executing/finished/incorrect/failed/timeout',
     checked VARCHAR(100) DEFAULT '' COMMENT 'will be yes/no on exception',
     start_time DATETIME COMMENT 'start time of executing',
     finish_time DATETIME COMMENT 'finish time of executing',

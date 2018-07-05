@@ -45,7 +45,7 @@ object Qross {
     def stop(): Unit = {
         val dh = new DataHub()
         dh.get("SELECT id FROM qross_keeper_running_records ORDER BY id DESC LIMIT 1")
-            .put("UPDATE qross_keeper_running_records SET status='stopping', stop_time=NOW(), duration=TIMESTAMPDIFF(SECOND, A.start_time, NOW()) WHERE id=#id")
+            .put("UPDATE qross_keeper_running_records SET status='stopping', stop_time=NOW(), duration=TIMESTAMPDIFF(SECOND, start_time, NOW()) WHERE id=#id")
         dh.close()
     }
     

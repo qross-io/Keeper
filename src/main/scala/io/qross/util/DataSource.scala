@@ -3,6 +3,7 @@ package io.qross.util
 import java.sql._
 import java.util.regex.Pattern
 
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 object DataSource {
@@ -197,6 +198,25 @@ class DataSource (connectionName: String = DataSource.DEFAULT) {
             case None =>
         }
         row
+    }
+    
+    def executeHashMap(SQL: String, values: Any*): mutable.HashMap[String, String] = {
+        val map = new mutable.HashMap[String, String]()
+        this.executeResultSet(SQL, values: _*) match {
+            case Some(rs) =>
+                try {
+                    while (rs.next) {
+                        map += (rs.getString(1) -> rs.getString(2))
+                    }
+                    rs.getStatement.close()
+                    rs.close()
+                } catch {
+                    case e: SQLException => e.printStackTrace()
+                }
+            case None =>
+        }
+        
+        map
     }
     
     def executeSingleList(SQL: String, values: Any*): List[String] = {
