@@ -5,7 +5,7 @@ import io.qross.model._
 
 class TaskStarter extends WorkActor {
     
-    private val executor = context.actorOf(Props[TaskExecutor].withRouter(new BalancingPool(Global.CORES * 4)), "executor")
+    private val executor = context.actorOf(Props[TaskExecutor].withRouter(new BalancingPool(Global.CORES * Global.CONCURRENT_BY_CPU_CORES)), "executor")
     
     override def beat(tick: String): Unit = {
         super.beat(tick)

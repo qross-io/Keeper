@@ -75,7 +75,7 @@ case class DataRow(private val items: (String, Any)*) {
         }
     }
     
-    def getString(fieldName: String, defaultValue: String = "NULL"): String = this.get(fieldName) match {
+    def getString(fieldName: String, defaultValue: String = ""): String = this.get(fieldName) match {
         case Some(value) => if (value != null) value.toString else defaultValue
         case None => defaultValue
     }

@@ -35,6 +35,8 @@ object Global {
     
     def LOGS_LEVEL: String = CONFIG.getString("LOGS_LEVEL", "DEBUG").toUpperCase
     
+    val CONCURRENT_BY_CPU_CORES: Int = CONFIG.getInt("CONCURRENT_BY_CPU_CORES", 4)
+    
     def EMAIL_EXCEPTIONS_TO_DEVELOPER: Boolean = CONFIG.getBoolean("EMAIL_EXCEPTIONS_TO_DEVELOPER")
     
     def QUIT_ON_NEXT_BEAT: Boolean = CONFIG.getBoolean("QUIT_ON_NEXT_BEAT")
@@ -43,7 +45,7 @@ object Global {
     
     def KEEPER_USER_GROUP: String = CONFIG.getString("KEEPER_USER_GROUP")
     
-    val CHARSET = "utf-8"
+    val CHARSET: String = CONFIG.getString("CHARSET")
     
     //def CLEAN_TASK_RECORDS_FREQUENCY: String = CONFIG.getString("CLEAN_TASK_RECORDS_FREQUENCY")
     def BEATS_MAILING_FREQUENCY: String = CONFIG.getString("BEATS_MAILING_FREQUENCY")
@@ -70,8 +72,8 @@ object Global {
         val dh = new DataHub()
         dh.openDefault().saveAsDefault()
             .get("SELECT id, keep_x_task_records FROM qross_jobs WHERE keep_x_task_records>0")
-            .pass("SELECT job_id, #keep_x_task_records AS keep_x_task_records FROM qross_tasks WHERE job_id=#id GROUP BY job_id HAVING COUNT(0)>#keep_x_task_records")
-            .pass("SELECT id AS task_id, job_id FROM qross_tasks WHERE job_id=#job_id ORDER BY id DESC LIMIT #keep_x_task_records,1")
+            .pass("SELECT job_id, #keep_x_task_records AS keep_x_task_records FROM qross_tasks WHERE job_id=#id GROUP BY job_id HAVING COUNT(0)>#keep_x_task_records", "id" -> 0, "keep_x_task_records" -> 100)
+            .pass("SELECT id AS task_id, job_id FROM qross_tasks WHERE job_id=#job_id ORDER BY id DESC LIMIT #keep_x_task_records,1", "job_id" -> 0, "keep_x_task_records" -> 100)
             .put("DELETE FROM qross_tasks WHERE job_id=#job_id AND id<=#task_id")
             .put("DELETE FROM qross_tasks_logs WHERE job_id=#job_id AND task_id<=#task_id")
             .put("DELETE FROM qross_tasks_dependencies WHERE job_id=#job_id AND task_id<=#task_id")

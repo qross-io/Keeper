@@ -174,7 +174,7 @@ object TaskDependency {
             */
             case "TASK" =>
                 if (DataSource.queryExists("SELECT id FROM qross_tasks WHERE job_id=? AND task_time=? AND status='finished'",
-                        conf.getIntOption("jobId").getOrElse(0),
+                        conf.getInt("jobId"),
                         conf.getString("taskTime"))) {
                     ready = "yes"
                 }

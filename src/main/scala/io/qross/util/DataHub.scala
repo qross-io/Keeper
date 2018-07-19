@@ -274,7 +274,7 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
                 TABLE.addRow(DataRow(default: _*))
             }
             else {
-                throw new Exception("No data to pass. Please ensure data exists or provide default value")
+                throw new Exception("No data to pass. Please ensure data exists or default value provided.")
             }
         }
         TABLE.cut(CURRENT.tableSelect(querySentence, TABLE))

@@ -37,7 +37,15 @@ object QrossTask {
                 .table("job_id" -> DataType.INTEGER, "next_tick" -> DataType.TEXT) (row => {
                     val table = DataTable()
                     val jobId = row.getInt("job_id")
-                    CronExp.getTicks(row.getString("cron_exp"), lastBeat.getTickValue, nextBeat.getTickValue).foreach(time => {
+                    val ticks = try {
+                        CronExp.getTicks(row.getString("cron_exp"), lastBeat.getTickValue, nextBeat.getTickValue)
+                    }
+                    catch {
+                        case e: Exception =>
+                            Output.writeException(e.getMessage)
+                            List[String]()
+                    }
+                    ticks.foreach(time => {
                         table.insertRow(
                             "job_id" -> jobId,
                             "next_tick" -> time
@@ -60,7 +68,12 @@ object QrossTask {
         dh.openCache()
             .get("SELECT job_id, cron_exp, next_tick FROM jobs")
                 .foreach(row => {
-                    row.set("next_tick", CronExp(row.getString("cron_exp")).getNextTickOrNone(nextBeat))
+                    try {
+                        row.set("next_tick", CronExp(row.getString("cron_exp")).getNextTickOrNone(nextBeat))
+                    }
+                    catch {
+                        case e: Exception => Output.writeException(e.getMessage)
+                    }
                 }).put("UPDATE qross_jobs SET next_tick=$next_tick WHERE id=$job_id")
         
         //restart executing tasks when Keeper exit exceptionally.
@@ -84,8 +97,14 @@ object QrossTask {
         //update outdated jobs - it will occur when you enable a job from disabled status
         dh.openDefault()
             .get(s"SELECT id AS job_id, cron_exp, '' AS next_tick FROM qross_jobs WHERE  cron_exp!='' AND (next_tick='' OR (next_tick!='NONE' AND next_tick<$tick))")
-                .foreach(row => row.set("next_tick", CronExp(row.getString("cron_exp")).getNextTickOrNone(minute)))
-                    .put("UPDATE qross_jobs SET next_tick=$next_tick WHERE id=$job_id")
+                .foreach(row =>
+                    try {
+                        row.set("next_tick", CronExp(row.getString("cron_exp")).getNextTickOrNone(minute))
+                    }
+                    catch {
+                        case e: Exception => Output.writeException(e.getMessage)
+                    }
+                ).put("UPDATE qross_jobs SET next_tick=$next_tick WHERE id=$job_id")
         
         //create tasks without cron_exp
         //excluding jobs with executing tasks
@@ -109,7 +128,12 @@ object QrossTask {
         dh.openCache()
             .get("SELECT job_id, cron_exp, '' AS next_tick FROM jobs")
                 .foreach(row => {
-                    row.set("next_tick", CronExp(row.getString("cron_exp")).getNextTickOrNone(minute))
+                    try {
+                        row.set("next_tick", CronExp(row.getString("cron_exp")).getNextTickOrNone(minute))
+                    }
+                    catch {
+                        case e: Exception => Output.writeException(e.getMessage)
+                    }
                 }).put("UPDATE qross_jobs SET next_tick=$next_tick WHERE id=$job_id")
         
         // ----- dependencies -----
@@ -507,7 +531,7 @@ object QrossTask {
         }
 
         dh.executeNonQuery(s"UPDATE qross_tasks_dags SET status='running', run_time=NOW(), waiting=TIMESTAMPDIFF(SECOND, start_time, NOW()), update_time=NOW() WHERE id=$actionId")
-        dh.executeNonQuery(s"DELETE FROM qross_tasks_logs WHERE task_id=$taskId AND action_id=$actionId") //clear logs of old actions too
+        dh.executeNonQuery(s"DELETE FROM qross_tasks_logs WHERE task_id=$taskId AND command_id=$commandId") //clear logs of old actions too
         
         var retry = -1
         var exitValue = 1

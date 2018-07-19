@@ -6,9 +6,9 @@ CREATE TABLE IF NOT EXISTS qross_conf (
 );
 
 INSERT INTO qross_conf (conf_key, conf_value) VALUES
-    ('QROSS_VERSION', '0.5.5'),
+    ('QROSS_VERSION', '0.5.6'),
     ('COMPANY_NAME', 'YourCompanyName'),
-    ('QROSS_HOME', 'C:/io.Qross/Keeper/build/libs/'),
+    ('QROSS_HOME', '/usr/qross/'),
     ('QROSS_WORKER_HOME', '%QROSS_HOME/worker/'),
     ('QROSS_KEEPER_HOME', '%QROSS_HOME/keeper/'),
     ('JAVA_BIN_HOME', ''),
@@ -16,6 +16,8 @@ INSERT INTO qross_conf (conf_key, conf_value) VALUES
     ('EMAIL_NOTIFICATION', 'no'),
     ('BEATS_MAILING_FREQUENCY', '0 0 3,9,12,15,18,20,23 * * ? *'),
     ('HADOOP_AND_HIVE_ENABLED', 'yes'),
+    ('CHARTSET', 'utf-8'),
+    ('CONCURRENT_BY_CPU_CORES', '8'),
     ('LOGS_LEVEL', 'DEBUG'),  -- DEBUG or ERROR
     ('EMAIL_SMTP_HOST', 'smtp.domain.com'),
     ('EMAIL_SMTP_PORT', '25'),
@@ -113,6 +115,7 @@ CREATE TABLE IF NOT EXISTS qross_jobs (
     mail_master_on_exception VARCHAR(100) DEFAULT 'no',
     complement_missed_tasks VARCHAR(100) DEFAULT 'no' COMMENT 'yes/no, complement missed tasks on system starts up',
     concurrent_limit INT DEFAULT 3 COMMENT 'max quantity of concurrent',
+    keep_x_task_records INT DEFAULT 0,
     create_time DATETIME DEFAULT NOW(),
     update_time DATETIME DEFAULT NOW()
 );
@@ -151,7 +154,7 @@ CREATE TABLE IF NOT EXISTS qross_jobs_dags (
 );
 ALTER TABLE qross_jobs_dags ADD INDEX ix_qross_jobs_dags_job_id (job_id);
 
-INSERT INTO qross_jobs_dags (job_id, title, command_text) VALUES (157, 'Clean', '%JAVA_BIN_HOMEjava -cp %QROSS_HOMEqross-keeper-%QROSS_VERSION.jar io.qross.keeper.Cleaner');
+INSERT INTO qross_jobs_dags (job_id, title, command_text) VALUES (1, 'Clean', '%JAVA_BIN_HOMEjava -cp %QROSS_HOMEqross-keeper-%QROSS_VERSION.jar io.qross.keeper.Cleaner');
 UPDATE qross_jobs SET enabled='yes' WHERE id=1;
 
 CREATE TABLE IF NOT EXISTS qross_tasks (
@@ -166,8 +169,6 @@ CREATE TABLE IF NOT EXISTS qross_tasks (
     create_time DATETIME DEFAULT NOW(),
     update_time DATETIME DEFAULT NOW()
 );
-
-
 
 ALTER TABLE qross_tasks ADD INDEX ix_qross_tasks_job_id (job_id);
 ALTER TABLE qross_tasks ADD INDEX ix_qross_tasks_status (status);

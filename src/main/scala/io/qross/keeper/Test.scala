@@ -7,11 +7,16 @@ object Test {
     def main(args: Array[String]): Unit = {
     
         //Properties.loadAll()
+
+        //val list = List[String]("1", "2", "3")
         
-        val dh = new DataHub()
-        dh.get("SELECT * FROM tc").cache("tc")
-        dh.openCache().executeDataTable("SELECT (CASE WHEN status='waiting' THEN 1 ELSE 0 END) AS key FROM tc").show()
-        dh.close()
+        //println(list.nonEmpty)
+        println(DateTime("20180717091000").getString("yyyyMMdd020000"));
+        
+//        val dh = new DataHub()
+//        dh.get("SELECT * FROM tc").cache("tc")
+//        dh.openCache().executeDataTable("SELECT (CASE WHEN status='waiting' THEN 1 ELSE 0 END) AS key FROM tc").show()
+//        dh.close()
         /*println(DateTime.now.getString("yyyyMMdd/HH"))
         
         //QrossTask.checkTaskDependencies(542973L)
