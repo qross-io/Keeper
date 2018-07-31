@@ -311,7 +311,7 @@ case class CronExp(expression: String = "0 * * * * ? *") {
             value = value.replace(LAST_WORK_DAY,
                 {
                     val date = this.nextTick.copy().plusMonths(1).setZeroOfMonth().plusDays(-1)
-                    while (date.getDayOfWeek == "Sat" || date.getDayOfWeek == "Sun") {
+                    while (date.getWeekName == "Sat" || date.getWeekName == "Sun") {
                         date.plusDays(-1)
                     }
                     date.getDayOfMonth.toString
@@ -522,7 +522,7 @@ case class CronExp(expression: String = "0 * * * * ? *") {
         
         var list = new ArrayBuffer[Int]
         while (day.beforeOrEquals(lastDay)) {
-            if (day.getDayOfWeek != "Sat" && day.getDayOfWeek != "Sun") {
+            if (day.getWeekName != "Sat" && day.getWeekName != "Sun") {
                 list += day.getDayOfMonth
             }
             day.plusDays(1)
@@ -537,7 +537,7 @@ case class CronExp(expression: String = "0 * * * * ? *") {
         var no = 1
         val date = this.nextTick.copy().plusMonths(1).setDayOfMonth(1).plusDays(-1)
         for (day <- 1 to date.getDayOfMonth) {
-            val week: Int = date.setDayOfMonth(day).getDayOfWeek match {
+            val week: Int = date.setDayOfMonth(day).getWeekName match {
                 case "Sun" => 1
                 case "Mon" => 2
                 case "Tue" => 3

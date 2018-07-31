@@ -6,12 +6,22 @@ import io.qross.util._
 object Test {
     def main(args: Array[String]): Unit = {
     
+        val date = DateTime.of(2018, 7, 3)
+        
+        val startDate: DateTime = DateTime.from(date).minusDays(8)
+        val endDate: DateTime = DateTime.from(date).minusDays(1)
+        while (startDate.getMonth != endDate.getMonth) {
+            startDate.plusDays(1)
+        }
+        
+        println(startDate)
+        println(endDate)
+        //day=1
+        //day>1
+        
         //Properties.loadAll()
 
         //val list = List[String]("1", "2", "3")
-        
-        //println(list.nonEmpty)
-        println(DateTime("20180717091000").getString("yyyyMMdd020000"));
         
 //        val dh = new DataHub()
 //        dh.get("SELECT * FROM tc").cache("tc")
