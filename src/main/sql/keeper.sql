@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS qross_properties (
     properties_type VARCHAR(100) DEFAULT 'local' COMMENT 'local/resources, support system variables, e.g. %QROSS_HOME',
     properties_path VARCHAR(1000) COMMENT 'e.g. /conf.properties',
     create_time DATETIME DEFAULT NOW(),
-    update_time DATETIME DEFAULT NOW()
+    update_time DATETIME DEFAULT NOW() ON UPDATE NOW()
 );
 
 INSERT INTO qross_properties (properties_type, properties_path) VALUES ('local', '%QROSS_HOME/qross.properties'), ('resources', 'conf.properties');
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS qross_connections (
     as_default VARCHAR(100) DEFAULT 'no' COMMENT 'yes/no',
     enabled VARCHAR(100) DEFAULT 'yes',
     create_time DATETIME DEFAULT NOW(),
-    update_time DATETIME DEFAULT NOW()
+    update_time DATETIME DEFAULT NOW() ON UPDATE NOW()
 );
 
 CREATE INDEX ix_qross_connections_connection_name ON qross_connections (connection_name);
@@ -102,22 +102,31 @@ INSERT INTO qross_keeper_beats (actor_name) VALUES ('Keeper'), ('Messager'), ('T
 
 CREATE UNIQUE INDEX ix_qross_keeper_beats_actor_name ON qross_keeper_beats (actor_name);
 
+CREATE TABLE IF NOT EXISTS qross_projects (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'project id',
+    project_name VARCHAR(100),
+    parent_project_id INT DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS qross_jobs (
     id INT NOT NULL AUTO_INCREMENT PRIMARY KEY COMMENT 'job id',
     title VARCHAR(1000),
+    project_id INT DEFAULT 0,
     job_type VARCHAR(100) DEFAULT 'user' COMMENT 'user/system',
     owner TEXT COMMENT 'name<email address>, e.g. FullName<username@domain.com>',
     description TEXT,
     enabled VARCHAR(100) DEFAULT 'yes' COMMENT 'yes/no',
     cron_exp VARCHAR(1000) DEFAULT '' COMMENT 'simple cron expression, does not support letter C, empty means endless tasks',
     next_tick VARCHAR(1000) DEFAULT '' COMMENT 'next tick to create task, empty means not setup yet or can be empty, format is yyyyMMddHHmmss',
+    recent_tasks_status VARCHAR(255) COMMENT 'format: id:status,id:status,id:status',
     mail_notification VARCHAR(100) DEFAULT 'yes',
     mail_master_on_exception VARCHAR(100) DEFAULT 'no',
+    retry_delay_on_exception INT DEFAULT 0 COMMENT '0 not retry, other means retry after n minutes',
     complement_missed_tasks VARCHAR(100) DEFAULT 'no' COMMENT 'yes/no, complement missed tasks on system starts up',
     concurrent_limit INT DEFAULT 3 COMMENT 'max quantity of concurrent',
     keep_x_task_records INT DEFAULT 0,
     create_time DATETIME DEFAULT NOW(),
-    update_time DATETIME DEFAULT NOW()
+    update_time DATETIME DEFAULT NOW() ON UPDATE NOW()
 );
 
 --    dependencies VARCHAR(100) DEFAULT 'no' COMMENT 'yes/no, has dependencies or not',
@@ -136,7 +145,7 @@ CREATE TABLE IF NOT EXISTS qross_jobs_dependencies (
     dependency_value TEXT COMMENT 'json format, see detail in code',
     retry_limit INT DEFAULT 100 COMMENT '0 means infinite',
     create_time DATETIME DEFAULT NOW(),
-    update_time DATETIME DEFAULT NOW()
+    update_time DATETIME DEFAULT NOW() ON UPDATE NOW()
 );
 ALTER TABLE qross_jobs_dependencies ADD INDEX ix_qross_jobs_dependencies_job_id (job_id);
 
@@ -150,7 +159,7 @@ CREATE TABLE IF NOT EXISTS qross_jobs_dags (
     overtime INT DEFAULT 0 COMMENT 'seconds',
     retry_limit INT DEFAULT 0 COMMENT 'retry times on failure or timeout',
     create_time DATETIME DEFAULT NOW(),
-    update_time DATETIME DEFAULT NOW()
+    update_time DATETIME DEFAULT NOW() ON UPDATE NOW()
 );
 ALTER TABLE qross_jobs_dags ADD INDEX ix_qross_jobs_dags_job_id (job_id);
 
@@ -167,7 +176,7 @@ CREATE TABLE IF NOT EXISTS qross_tasks (
     finish_time DATETIME COMMENT 'finish time of executing',
     spent INT COMMENT 'spent of executing, finish_time - start_time, seconds',
     create_time DATETIME DEFAULT NOW(),
-    update_time DATETIME DEFAULT NOW()
+    update_time DATETIME DEFAULT NOW() ON UPDATE NOW()
 );
 
 ALTER TABLE qross_tasks ADD INDEX ix_qross_tasks_job_id (job_id);
@@ -184,7 +193,7 @@ CREATE TABLE IF NOT EXISTS qross_tasks_dependencies (
     ready VARCHAR(100) DEFAULT 'no' COMMENT 'yes/no',
     retry_times INT DEFAULT 0,
     create_time DATETIME DEFAULT NOW(),
-    update_time DATETIME DEFAULT NOW()
+    update_time DATETIME DEFAULT NOW() ON UPDATE NOW()
 );
 
 ALTER TABLE qross_tasks_dependencies ADD INDEX ix_qross_tasks_dependencies_job_id (job_id);
@@ -204,7 +213,7 @@ CREATE TABLE IF NOT EXISTS qross_tasks_dags (
     waiting INT COMMENT 'waiting time of running, run_time - start_time, seconds',
     retry_times INT DEFAULT 0,
     create_time DATETIME DEFAULT NOW(),
-    update_time DATETIME DEFAULT NOW()
+    update_time DATETIME DEFAULT NOW() ON UPDATE NOW()
 );
 
 CREATE INDEX ix_qross_tasks_dags_job_id ON qross_tasks_dags (job_id);
