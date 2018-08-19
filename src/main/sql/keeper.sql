@@ -125,6 +125,7 @@ CREATE TABLE IF NOT EXISTS qross_jobs (
     complement_missed_tasks VARCHAR(100) DEFAULT 'no' COMMENT 'yes/no, complement missed tasks on system starts up',
     concurrent_limit INT DEFAULT 3 COMMENT 'max quantity of concurrent',
     keep_x_task_records INT DEFAULT 0,
+    switch_time DATETIME COMMENT 'enable/disable time',
     create_time DATETIME DEFAULT NOW(),
     update_time DATETIME DEFAULT NOW() ON UPDATE NOW()
 );

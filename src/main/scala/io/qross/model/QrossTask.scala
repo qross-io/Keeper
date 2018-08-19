@@ -8,8 +8,7 @@ import scala.util.{Success, Try}
 
 object QrossTask {
   
-    //TaskProducer
-    //on start up
+    //on keeper start up @ TaskProducer
     def complementTasks(): Unit = {
         
         /*

@@ -14,12 +14,19 @@ class Messager extends WorkActor {
         val nextMinute = DateTime(tick).plusMinutes(1).toEpochSecond
         do {
             MessageBox.check().foreach(row => {
+                val queryId = row.getString("query_id")
                 val messageType = row.getString("message_type").toUpperCase
                 val messageKey = row.getString("message_key").toUpperCase
                 val messageText = row.getString("message_text")
-                Output.writeDebugging(s"Got A Message # $messageType # $messageKey # $messageText")
+                Output.writeDebugging(s"Got A Message # $queryId # $messageType # $messageKey # $messageText")
                 messageType match {
                     case "GLOBAL" => Global.CONFIG.set(messageKey, messageText)
+                    case "JOB" =>
+                        //JOB - COMPLEMENT - job_id
+                        messageKey match {
+                            case "COMPLEMENT" => QrossJob.tickTasks(messageText.toInt, queryId)
+                            case _ =>
+                        }
                     case "TASK" =>
                         //TASK - RESTART - WHOLE@TaskID - WHOLE@123
                         //TASK - RESTART - ^CommandIDs@TaskID - ^1,2,3,4,5@123

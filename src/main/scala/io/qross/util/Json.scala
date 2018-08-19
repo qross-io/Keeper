@@ -11,6 +11,24 @@ import scala.util.{Failure, Success, Try}
 
 
 object Json {
+   
+    //add toJson method for List
+    implicit class ListExt[T](list: List[T]) {
+        def toJson: String = {
+            if (list.nonEmpty) {
+                if (list.head.isInstanceOf[String]) {
+                    "[\"" + list.mkString("\",\"") + "\"]"
+                }
+                else {
+                    "[" + list.mkString(",") + "]"
+                }
+            }
+            else {
+                "[]"
+            }
+        }
+    }
+    
     def fromText(text: String): Json = Json()
     def fromURL(url: String, post: String = ""): Json = Json().readURL(url, post)
     

@@ -143,11 +143,11 @@ object TaskDependency {
                 val compareValue = conf.getString("value")
                 if (conf.getString("operator").trim match {
                     case "=" | "==" => currentValue == compareValue
-                    case "!=" => currentValue != compareValue
+                    case "!=" | "<>" => currentValue != compareValue
                     case "^=" => currentValue.startsWith(compareValue)
                     case "$=" => currentValue.endsWith(compareValue)
-                    case "#=" => currentValue.contains(compareValue)
-                    case "*=" => Pattern.matches(compareValue, currentValue) //regex match
+                    case "*=" => currentValue.contains(compareValue)
+                    case "#=" => Pattern.matches(compareValue, currentValue) //regex match
                     //case "?=" => Pattern.matches(compareValue, currentValue) //regex match
                     //case "*=" => Pattern.compile(compareValue, Pattern.CASE_INSENSITIVE).matcher(currentValue).matches() //regex math
                     case operator =>
