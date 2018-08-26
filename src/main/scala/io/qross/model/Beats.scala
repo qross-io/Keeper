@@ -5,9 +5,9 @@ import io.qross.util.{DataSource, DataTable, DateTime}
 
 object Beats {
     
-    def beat(actor: String, tick: DateTime = DateTime.now): Int = {
+    def beat(actor: String): Int = {
         writeMessage(actor + " beat!")
-        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET last_beat_time='${tick.getString("yyyy-MM-dd HH:mm:ss")}' WHERE actor_name='$actor'")
+        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='$actor'")
     }
     
     def start(actor: String, message: String = ""): Int = {

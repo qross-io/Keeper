@@ -64,7 +64,7 @@ object Global {
             sendBeatsMail(minute)
         }
         
-        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET last_beat_time='${minute.getString("yyyy-MM-dd HH:mm:ss")}' WHERE actor_name='GlobalController';")
+        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='GlobalController';")
         writeMessage("GlobalController beat!")
     }*/
     

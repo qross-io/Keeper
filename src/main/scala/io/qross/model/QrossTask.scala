@@ -79,7 +79,7 @@ object QrossTask {
         dh.openDefault()
             .get("SELECT A.task_id FROM (SELECT id As task_id, job_id FROM qross_tasks WHERE status='executing') A INNER JOIN qross_jobs B ON A.job_id=B.id AND B.enabled='yes'")
             .put("UPDATE qross_tasks_dags SET status='exceptional' WHERE task_id=#task_id AND status IN ('queuing', 'running')")
-            .put("UPDATE qross_tasks SET status='restarting',start_time=NULL,finish_time=NULL,spent=NULL,update_time=NOW() WHERE id=#task_id;")
+            .put("UPDATE qross_tasks SET status='restarting',start_time=NULL,finish_time=NULL,spent=NULL WHERE id=#task_id")
             .put("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '^EXCEPTIONAL@#task_id')")
         
         dh.close()
@@ -191,11 +191,11 @@ object QrossTask {
         //update tasks status
         dh.openCache()
             .get("SELECT (CASE WHEN dependencies>0 THEN 'initialized' ELSE 'ready' END) AS status, task_id FROM tasks")
-                .put("UPDATE qross_tasks SET status=?, update_time=NOW() WHERE id=?")
+                .put("UPDATE qross_tasks SET status=? WHERE id=?")
         
         dh.openCache()
             .get("SELECT A.task_id FROM tasks A LEFT JOIN dags B ON A.job_id=B.job_id WHERE B.job_id IS NULL")
-                .put("UPDATE qross_tasks SET status='miss_commands', update_time=NOW() WHERE id=?")
+                .put("UPDATE qross_tasks SET status='miss_commands' WHERE id=?")
         
         //send initialized tasks to checker, and send ready tasks to starter
         val prepared = dh.openDefault().executeDataTable("SELECT A.task_id, A.status FROM (SELECT id AS task_id, job_id, status FROM qross_tasks WHERE status='initialized' or status='ready') A INNER JOIN (SELECT id FROM qross_jobs WHERE enabled='yes') B ON A.job_id=B.id")
@@ -215,7 +215,7 @@ object QrossTask {
         //Reset action status to WAITING
         //Return status: initialized or ready
     
-        //UPDATE qross_tasks SET status=''restarting'',start_time=NULL,finish_time=NULL,spent=NULL,update_time=NOW() WHERE id=#{taskId};
+        //UPDATE qross_tasks SET status=''restarting'',start_time=NULL,finish_time=NULL,spent=NULL WHERE id=#{taskId};
         
         //INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', 'WHOLE@69');
         //INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '3,4,5@69');
@@ -329,7 +329,7 @@ object QrossTask {
         val dh = new DataHub()
         
         //update task status to ready if all dependencies are ready
-        dh.executeNonQuery(s"UPDATE qross_tasks SET status='ready', update_time=NOW() WHERE id=$taskId AND NOT EXISTS (SELECT task_id FROM qross_tasks_dependencies WHERE task_id=$taskId AND dependency_moment='before' AND ready='no')")
+        dh.executeNonQuery(s"UPDATE qross_tasks SET status='ready' WHERE id=$taskId AND NOT EXISTS (SELECT task_id FROM qross_tasks_dependencies WHERE task_id=$taskId AND dependency_moment='before' AND ready='no')")
         
         //check dependencies
         dh.openDefault()
@@ -348,11 +348,11 @@ object QrossTask {
         //update status and others after checking
         dh.openCache().saveAsDefault()
             .get("SELECT id FROM tasks WHERE ready='yes'")
-                .put("UPDATE qross_tasks_dependencies SET ready='yes', update_time=NOW() WHERE id=#id")
+                .put("UPDATE qross_tasks_dependencies SET ready='yes' WHERE id=#id")
             .get("SELECT dependency_value, id FROM tasks WHERE ready='no'")
-                .put("UPDATE qross_tasks_dependencies SET dependency_value=?, retry_times=retry_times+1, update_time=NOW() WHERE id=?")
+                .put("UPDATE qross_tasks_dependencies SET dependency_value=?, retry_times=retry_times+1 WHERE id=?")
             .get("SELECT DISTINCT task_id FROM tasks WHERE NOT EXISTS (SELECT id FROM tasks WHERE ready='no')")
-                .put("UPDATE qross_tasks SET status='ready', update_time=NOW() WHERE id=?")
+                .put("UPDATE qross_tasks SET status='ready' WHERE id=?")
         
         //update status if retry reached upper limit
         val limit = dh.openDefault().executeDataRow(
@@ -361,9 +361,11 @@ object QrossTask {
                 INNER JOIN qross_jobs_dependencies B ON A.dependency_id=B.id AND B.retry_limit>0 AND A.retry_times>=B.retry_limit
                 INNER JOIN (SELECT id, task_time FROM qross_tasks WHERE id=$taskId AND status='initialized') C ON A.task_id=C.id
                 INNER JOIN qross_jobs D ON A.job_id=D.id""")
+
+        //SELECT job_id, GROUP_CONCAT(owner SEPARATOR ';') AS owner FROM (SELECT A.job_id, CONCAT(B.username, '<', B.email, '>') AS owner FROM qross_jobs_owners A INNER JOIN qross_users B ON A.user_id=B.id AND B.enabled='yes') OWNER
                 
         if (limit.nonEmpty) {
-            dh.executeNonQuery(s"UPDATE qross_tasks SET status='checking_limit', checked='no', update_time=NOW() WHERE id=$taskId")
+            dh.executeNonQuery(s"UPDATE qross_tasks SET status='checking_limit', checked='no' WHERE id=$taskId")
             if (Global.EMAIL_NOTIFICATION) {
                 if (limit.getBoolean("mail_notification") && limit.getString("owner") != "") {
                     OpenResourceFile("/templates/checking_limit.html")
@@ -387,7 +389,27 @@ object QrossTask {
         
         result.getString("status") == "ready"
     }
-    
+
+    def checkTasksToRestart(tick: String): Unit = {
+        val dh = new DataHub()
+
+        //tasks to be restart
+        dh.get(s"SELECT id AS task_id FROM qross_tasks WHERE restart_time='$tick'")
+            .put("UPDATE qross_tasks SET status='restarting', start_time=NULL, finish_time=NULL, spent=NULL, restart_time=NULL WHERE id=#task_id")
+            .put("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '^EXCEPTIONAL@#task_id')")
+
+        //recent tasks status
+        dh.get(s"""SELECT job_id FROM qross_tasks WHERE update_time>='${DateTime(tick).minusMinutes(1).getString("yyyy-MM-dd HH:mm:ss")}'
+                UNION SELECT id AS job_id FROM qross_jobs WHERE recent_tasks_status IS NULL""")
+                .pass("SELECT #job_id AS job_id, GROUP_CONCAT(CONCAT(id, ':', status) ORDER BY id ASC SEPARATOR ',') AS status FROM (SELECT id, status FROM qross_tasks WHERE job_id=#job_id ORDER BY id DESC LIMIT 3) T")
+                .put("UPDATE qross_jobs SET recent_tasks_status='#status' WHERE id=#job_id")
+
+        writeMessage("TaskStarter beat!")
+        dh.executeNonQuery(s"UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='TaskStarter'")
+
+        dh.close()
+    }
+
     //TaskStarter - beat()
     /*
     def getManualCommandsToExecute(tick: String): DataTable = {
@@ -398,7 +420,7 @@ object QrossTask {
             + " WHERE B.status IN ('finished', 'failed', 'incorrect') AND A.status IN ('restarting', 'manual')")
     
         writeMessage("TaskStarter beat!")
-        ds.executeNonQuery(s"UPDATE qross_keeper_beats SET last_beat_time='${minute.getString("yyyy-MM-dd HH:mm:ss")}' WHERE actor_name='TaskStarter';")
+        ds.executeNonQuery(s"UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='TaskStarter';")
         ds.close()
     
         executable
@@ -409,8 +431,8 @@ object QrossTask {
         
         dh.get("SELECT A.id AS action_id, A.job_id, A.task_id, A.command_id, B.command_text, B.overtime, C.title, C.owner, C.mail_notification, C.mail_master_on_exception, D.task_time FROM qross_tasks_dags A INNER JOIN qross_jobs_dags B ON A.status='running' AND A.job_id=B.job_id AND B.overtime>0 AND TIMESTAMPDIFF(SECOND, A.update_time, NOW())>B.overtime INNER JOIN qross_jobs C ON A.job_id=C.id AND C.enabled='yes' INNER JOIN qross_tasks D ON A.task_id=D.id")
         if (dh.nonEmpty) {
-            dh.put("UPDATE qross_tasks_dags SET status='timeout', update_time=NOW() WHERE id=#action_id")
-                .put("UPDATE qross_tasks SET status='timeout', checked='no', update_time=NOW() WHERE id=#task_id")
+            dh.put("UPDATE qross_tasks_dags SET status='timeout' WHERE id=#action_id")
+                .put("UPDATE qross_tasks SET status='timeout', checked='no' WHERE id=#task_id")
     
             if (Global.EMAIL_NOTIFICATION) {
                 dh.foreach(row => {
@@ -427,221 +449,9 @@ object QrossTask {
         }
     
         writeMessage("TaskStarter beat!")
-        dh.executeNonQuery(s"UPDATE qross_keeper_beats SET last_beat_time='${minute.getString("yyyy-MM-dd HH:mm:ss")}' WHERE actor_name='TaskStarter';")
+        dh.executeNonQuery(s"UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='TaskStarter';")
         dh.close()
     }
     */
-    
-    //TaskStarter - execute()
-    def getTaskCommandsToExecute(taskId: Long, status: String): DataTable = synchronized {
-        val ds = new DataSource()
-        
-        //get
-        if (status == TaskStatus.READY) {
-            //job enabled = true
-            //get job id
-            //get job concurrent_limit by job id
-            //get concurrent task count by job id
-            //update tasks if meet the condition - concurrent_limit=0 OR concurrent < concurrent_limit
-            
-            //no commands -> miss_commands -> SELECT id FROM qross_tasks_dags WHERE task_id=$taskId LIMIT 1
-            //all done -> finished -> SELECT id FROM qross_tasks_dags WHERE task_id=$taskId AND status<>'done'
-            //exceptional exists -> failed -> SELECT id FROM qross_tasks_dags WHERE task_id=$taskId AND status='exceptional' LIMIT 1
-            //waiting exists -> running -> SELECT id FROM qross_tasks_dags WHERE task_id=$taskId AND status='running'
-            
-            val job = ds.executeDataRow(s"SELECT id AS job_id, concurrent_limit, enabled FROM qross_jobs WHERE id=(SELECT job_id FROM qross_tasks WHERE id=$taskId)")
-            if (job.getBoolean("enabled")) {
-                val concurrentLimit = job.getInt("concurrent_limit")
-                val jobId = job.getInt("job_id")
-                if (concurrentLimit == 0 || ds.executeDataRow(s"SELECT COUNT(0) AS concurrent FROM qross_tasks WHERE job_id=$jobId AND status='executing'").getInt("concurrent") < concurrentLimit) {
-                    val map = ds.executeHashMap(s"SELECT status, COUNT(0) AS amount FROM qross_tasks_dags WHERE task_id=$taskId GROUP BY status")
-                    if (map.isEmpty || map.contains("exceptional") || map.contains("overtime")) {
-                        //restart task
-                        ds.executeNonQuery(s"UPDATE qross_tasks SET status='restarting',start_time=NULL,finish_time=NULL,spent=NULL,update_time=NOW() WHERE id=$taskId;")
-                        ds.executeNonQuery(s"INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '${if (map.isEmpty) "WHOLE" else "^EXCEPTIONAL"}@$taskId')")
-                        TaskRecord.of(jobId, taskId).warn(s"Task $taskId of job $jobId restart because of exception on ready.")
-                    }
-                    else if (map.contains("waiting") || map.contains("queuing")) {
-                        //executing
-                        ds.executeNonQuery(s"UPDATE qross_tasks SET status='executing', start_time=NOW(), update_time=NOW() WHERE id=$taskId")
-                        TaskRecord.of(jobId, taskId).log(s"Task $taskId of job $jobId start executing on ready.")
-                    }
-                    else {
-                        //finished
-                        ds.executeNonQuery(s"UPDATE qross_tasks SET status='finished', update_time=NOW() WHERE id=$taskId")
-                        TaskRecord.of(jobId, taskId).warn(s"Task $taskId of job $jobId changes status to 'finished' because of no commands to be execute on ready.")
-                    }
-                }
-                else {
-                    TaskRecord.of(jobId, taskId).warn(s"Concurrent reach upper limit of Job $jobId for Task $taskId on ready.")
-                }
-            }
-        }
-    
-        val executable = ds.executeDataTable(
-            s"""SELECT A.action_id, A.job_id, A.task_id, A.command_id, B.task_time, C.command_type, C.command_text,
-                         C.overtime, D.title, D.owner, D.mail_notification, D.mail_master_on_exception, C.retry_limit
-                         FROM (SELECT id AS action_id, job_id, task_id, command_id FROM qross_tasks_dags WHERE task_id=$taskId AND status='waiting' AND upstream_ids='') A
-                         INNER JOIN (SELECT id, task_time FROM qross_tasks WHERE id=$taskId AND status='executing') B ON A.task_id=B.id
-                         INNER JOIN qross_jobs_dags C ON A.command_id=C.id
-                         INNER JOIN qross_jobs D ON A.job_id=D.id""")
-        
-        //prepare to run command - start time point
-        ds.tableUpdate("UPDATE qross_tasks_dags SET start_time=NOW(), status='queuing', update_time=NOW() WHERE id=#action_id", executable)
-        
-        ds.close()
-        
-        executable
-    }
-    
-    //TaskExecutor
-    def executeTaskCommand(taskCommand: DataRow): Long = {
-    
-        val dh = new DataHub()
-        
-        val actionId = taskCommand.getLong("action_id")
-        val jobId = taskCommand.getInt("job_id")
-        val taskId = taskCommand.getLong("task_id")
-        val taskTime = taskCommand.getString("task_time")
-        val commandId = taskCommand.getInt("command_id")
-        val retryLimit = taskCommand.getInt("retry_limit")
-        val overtime = taskCommand.getInt("overtime")
-        val title = taskCommand.getString("title")
-        val mailNotifaction = taskCommand.getBoolean("mail_notification")
-        val owner = taskCommand.getString("owner")
-        
-        var commandText = taskCommand.getString("command_text")
-        commandText = commandText.replace("${jobId}", s"$jobId")
-        commandText = commandText.replace("${taskId}", s"$taskId")
-        commandText = commandText.replace("${taskTime}", taskTime)
-        commandText = commandText.replace("${commandId}", s"$commandId")
-        commandText = commandText.replace("${actionId}", s"$actionId")
-        commandText = commandText.replace("%QROSS_VERSION", Global.QROSS_VERSION)
-        commandText = commandText.replace("%JAVA_BIN_HOME", Global.JAVA_BIN_HOME)
-        commandText = commandText.replace("%QROSS_HOME", Global.QROSS_HOME)
-        
-        //replace datetime format
-        while (commandText.contains("${") && commandText.contains("}")) {
-            val ahead = commandText.substring(0, commandText.indexOf("${"))
-            var format = commandText.substring(commandText.indexOf("${") + 2)
-            val latter = format.substring(format.indexOf("}") + 1)
-            format = format.substring(0, format.indexOf("}"))
-            commandText = ahead + DateTime(taskTime).sharp(format).mkString(",") + latter
-        }
 
-        dh.executeNonQuery(s"UPDATE qross_tasks_dags SET status='running', run_time=NOW(), waiting=TIMESTAMPDIFF(SECOND, start_time, NOW()), update_time=NOW() WHERE id=$actionId")
-        dh.executeNonQuery(s"DELETE FROM qross_tasks_logs WHERE task_id=$taskId AND command_id=$commandId") //clear logs of old actions too
-        
-        var retry = -1
-        var exitValue = 1
-        var next = false
-        
-        //LET's GO!
-        val logger = TaskRecord.of(jobId, taskId).run(commandId, actionId)
-        logger.debug(s"START action $actionId - command $commandId of task $taskId - job $jobId: $commandText")
-        
-        do {
-            if (retry > 0) logger.debug(s"Action $actionId - command $commandId of task $taskId - job $jobId: retry $retry of limit $retryLimit")
-            val start = System.currentTimeMillis()
-            var timeout = false
-            
-            val process = commandText.run(ProcessLogger(out => {
-                logger.out(out)
-            }, err => {
-                logger.err(err)
-            }))
-    
-            while (process.isAlive()) {
-                //if timeout
-                if (overtime > 0 && (System.currentTimeMillis() - start) / 1000 > overtime) {
-                    process.destroy() //kill it
-                    timeout = true
-                    
-                    logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId is TIMEOUT: $commandText")
-                }
-                
-                Timer.sleep(1)
-            }
-    
-            exitValue = process.exitValue()
-            if (timeout) exitValue = -1
-            
-            retry += 1
-        }
-        while (retry < retryLimit && exitValue != 0)
-    
-        logger.debug(s"FINISH action $actionId - command $commandId of task $taskId - job $jobId with exitValue $exitValue and status ${if (exitValue == 0) "SUCCESS" else if (exitValue > 0)  "FAILURE" else "TIMEOUT/INTERRUPTED" }")
-    
-        exitValue match {
-            //finished
-            case 0 =>
-                //update DAG status
-                dh.executeNonQuery(s"UPDATE qross_tasks_dags SET status='done', elapsed=TIMESTAMPDIFF(SECOND, run_time, NOW()), finish_time=NOW(), retry_times=$retry, update_time=NOW() WHERE id=$actionId")
-                //update DAG dependencies
-                dh.executeNonQuery(s"UPDATE qross_tasks_dags SET upstream_ids=REPLACE(upstream_ids, '($commandId)', ''), update_time=NOW() WHERE task_id=$taskId AND status='waiting' AND POSITION('($commandId)' IN upstream_ids)>0;")
-    
-                //if continue
-                next = dh.executeExists(s"SELECT id FROM qross_tasks_dags WHERE task_id=$taskId AND status='waiting' LIMIT 1")
-                if (!next) {
-                    //meet: no waiting action, no running action
-                    //action status: all done - task status: executing -> finished
-                    //if exceptional action exists - task status: executing, finished -> failed
-        
-                    //update task status if all finished
-                    dh.executeNonQuery(s"UPDATE qross_tasks SET finish_time=NOW(), spent=TIMESTAMPDIFF(SECOND, start_time, NOW()), status='finished', checked='', update_time=NOW() WHERE id=$taskId AND NOT EXISTS (SELECT id FROM qross_tasks_dags WHERE task_id=$taskId AND status!='done')")
-                    //dh.executeNonQuery(s"UPDATE qross_tasks SET finish_time=NOW(), status='failed', checked='no', update_time=NOW() WHERE id=$taskId AND status IN ('executing', 'finished') AND NOT EXISTS (SELECT id FROM qross_tasks_dags WHERE task_id=$taskId AND status='running') AND EXISTS(SELECT id FROM qross_tasks_dags WHERE task_id=$taskId AND status='exceptional')")  //6.12
-        
-                    //check "after" dependencies
-                    dh.get(s"SELECT A.id, A.task_id, A.dependency_type, A.dependency_value, A.ready, B.task_time FROM qross_tasks_dependencies A INNER JOIN qross_tasks B ON A.job_id=B.job_id WHERE B.status='finished' AND A.task_id=$taskId AND A.dependency_moment='after' AND A.ready='no'")
-                        .foreach(row => {
-                            val result = TaskDependency.check(row.getString("dependency_type"), row.getString("dependency_value"))
-                            row.set("ready", result._1)
-                            row.set("dependency_value", result._2)
-                        }).put("UPDATE qross_tasks_dependencies SET ready=$ready, dependency_value=$dependency_value, update_time=NOW() WHERE id=$id")
-        
-                    //update tasks status if incorrect
-                    dh.executeNonQuery(s"UPDATE qross_tasks SET status='incorrect', checked='no', update_time=NOW() WHERE id=$taskId AND status='finished' AND EXISTS(SELECT id FROM qross_tasks_dependencies WHERE task_id=$taskId AND dependency_moment='after' AND ready='no')")
-                }
-            //timeout
-            case -1 =>
-                dh.executeNonQuery(s"UPDATE qross_tasks_dags SET status='timeover', retry_times=$retry, update_time=NOW() WHERE id=$actionId")
-                dh.executeNonQuery(s"UPDATE qross_tasks SET status='timeout', checked='no', update_time=NOW() WHERE id=$taskId")
-            //failed
-            case _ =>
-                dh.executeNonQuery(s"UPDATE qross_tasks_dags SET status='exceptional', retry_times=$retry, update_time=NOW() WHERE id=$actionId")
-                dh.executeNonQuery(s"UPDATE qross_tasks SET finish_time=NOW(), status='failed', checked='no', update_time=NOW() WHERE id=$taskId")
-        }
-
-        val status = dh.executeSingleValue(s"SELECT status FROM qross_tasks WHERE id=$taskId").getOrElse("miss")
-        //send notification mail if failed or timeout or incorrect
-        if (Global.EMAIL_NOTIFICATION && taskCommand.getBoolean("mail_notification") && owner != "") {
-            if (status == "failed" || status == "timeout" || status == "incorrect") {
-                OpenResourceFile("/templates/failed_incorrect.html")
-                    .replace("${status}", status.toUpperCase())
-                    .replaceWith(taskCommand)
-                    .replace("${logs}", TaskRecord.toHTML(dh.executeDataTable(s"SELECT CAST(create_time AS CHAR) AS create_time, log_type, log_text FROM qross_tasks_logs WHERE task_id=$taskId AND action_id=$actionId ORDER BY create_time ASC")))
-                    .writeEmail(s"${status.toUpperCase()}: ${taskCommand.getString("title")} $taskTime - TaskID: $taskId")
-                    .to(owner)
-                    .cc(if (taskCommand.getBoolean("mail_master_on_exception")) Global.MASTER_USER_GROUP else "")
-                    .send()
-            }
-        }
-        //incorrect
-        if (status == "incorrect") {
-            logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId is INCORRECT: $commandText")
-        }
-        
-        dh.close()
-    
-        if (next) {
-            //return
-            taskId
-        } else {
-            TaskRecord.of(jobId, taskId).debug(s"Task $taskId of job $jobId finish with status ${status.toUpperCase}.")
-            //clear logger
-            TaskRecord.dispose(taskId)
-            //return
-            0
-        }
-    }
 }

@@ -19,7 +19,7 @@ object JDBCConnection {
             )
         }
         else {
-            ds.executeNonQuery("UPDATE qross_connections SET connection_type=?, connection_string=?, username=?, password=?, update_time=NOW() WHERE connection_name=?",
+            ds.executeNonQuery("UPDATE qross_connections SET connection_type=?, connection_string=?, username=?, password=? WHERE connection_name=?",
                 connection.connectionType,
                 connection.connectionString,
                 connection.userName,
@@ -31,11 +31,11 @@ object JDBCConnection {
     }
     
     def enable(connectionName: String): Unit = {
-        DataSource.queryUpdate("UPDATE qross_connections SET enabled='yes', update_time=NOW() WHERE connection_name=?", connectionName)
+        DataSource.queryUpdate("UPDATE qross_connections SET enabled='yes' WHERE connection_name=?", connectionName)
     }
     
     def disable(connectionName: String): Unit = {
-        DataSource.queryUpdate("UPDATE qross_connections SET enabled='no', update_time=NOW() WHERE connection_name=?", connectionName)
+        DataSource.queryUpdate("UPDATE qross_connections SET enabled='no' WHERE connection_name=?", connectionName)
     }
     
     def remove(connectionName: String): Unit = {

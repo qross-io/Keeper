@@ -147,16 +147,12 @@ object Properties {
     
     def updateFile(propertiesId: Int, propertiesType: String, propertiesPath: String): Unit = {
         DataSource.queryUpdate("UPDATE qross_properties SET properties_type=?, properties_path=? WHERE id=?", propertiesType, propertiesPath, propertiesId)
-    
         load(propertiesType, propertiesPath)
     }
     
     def refreshFile(propertiesId: Int): Unit = {
-        val ds = new DataSource()
-        ds.executeNonQuery("UPDATE qross_properties SET update_time=NOW() WHERE id=?", propertiesId)
-        val row = ds.executeDataRow("SELECT properties_type, properties_path FROM qross_properties WHERE id=?", propertiesId)
-        ds.close()
-        
+        val row = DataSource.queryDataRow("SELECT properties_type, properties_path FROM qross_properties WHERE id=?", propertiesId)
         load(row.getString("properties_type"), row.getString("properties_path"))
+        row.clear()
     }
 }

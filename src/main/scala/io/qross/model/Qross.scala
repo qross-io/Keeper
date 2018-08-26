@@ -33,7 +33,7 @@ object Qross {
     
     def beat(actor: String): Unit = {
         writeMessage(actor + " beat!")
-        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET last_beat_time='${DateTime.now.getString("yyyy-MM-dd HH:mm:ss")}' WHERE actor_name='$actor'")
+        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='$actor'")
     }
     
     def quit(actor: String): Unit = {
