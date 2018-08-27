@@ -10,8 +10,8 @@ object Global {
         .foreach(row => {
             CONFIG.set(row.getString("conf_key"), row.getString("conf_value"))
         }).clear()
-    CONFIG.set("MASTER_USER_GROUP", User.getUsers("master"))
-    CONFIG.set("KEEPER_USER_GROUP", User.getUsers("keeper"))
+    CONFIG.set("MASTER_USER_GROUP", QrossUser.getUsers("master"))
+    CONFIG.set("KEEPER_USER_GROUP", QrossUser.getUsers("keeper"))
     
     def QROSS_VERSION: String = CONFIG.getString("QROSS_VERSION")
     

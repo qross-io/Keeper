@@ -11,7 +11,7 @@ class TaskStarter extends WorkActor {
         //super.beat(tick)
         executor ! Tick(tick)
         //QrossTask.checkOvertimeOfActions(tick)
-        QrossTask.checkTasksToRestart(tick)
+        QrossTask.checkTasksStatus(tick)
     }
     
     override def execute(taskId: Long, taskStatus: String): Unit = {

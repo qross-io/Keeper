@@ -390,7 +390,7 @@ object QrossTask {
         result.getString("status") == "ready"
     }
 
-    def checkTasksToRestart(tick: String): Unit = {
+    def checkTasksStatus(tick: String): Unit = {
         val dh = new DataHub()
 
         //tasks to be restart

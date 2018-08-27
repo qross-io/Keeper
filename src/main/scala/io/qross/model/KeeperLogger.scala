@@ -68,7 +68,7 @@ class KeeperLogger {
                     .replace("${companyName}", map("COMPANY_NAME"))
                     .replace("${exceptions}", KeeperException.toHTML(exceptions))
                     .writeEmail(s"KEEPER EXCEPTION: ${map("COMPANY_NAME")} ${DateTime.now.toString}")
-                    .to(User.getUsers("master"))
+                    .to(QrossUser.getUsers("master"))
                     .cc(if (map("EMAIL_EXCEPTIONS_TO_DEVELOPER") == "yes") "Developer<garfi-wu@outlook.com>" else "")
                     .send()
             }

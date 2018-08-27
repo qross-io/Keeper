@@ -23,8 +23,10 @@ class Messager extends WorkActor {
                     case "GLOBAL" => Global.CONFIG.set(messageKey, messageText)
                     case "JOB" =>
                         //JOB - COMPLEMENT - job_id
+                        //JOB - MANUAL - job_id:begin_time#end_time
                         messageKey match {
                             case "COMPLEMENT" => QrossJob.tickTasks(messageText.toInt, queryId)
+                            case "MANUAL" => QrossJob.tickTasks(messageText, queryId);
                             case _ =>
                         }
                     case "TASK" =>
@@ -37,19 +39,12 @@ class Messager extends WorkActor {
                             case _ =>
                         }
                     case "USER" =>
-                        //USER - INSERT - role:name<email@doman.com>#password
-                        //USER - UPDATE - name:name#id / mail:email@doman.com#id / role:role_name#id / password:password#id
-                        //USER - DELETE - name:name / id:id
-                        //USER - SELECT - only refresh keeper and master
                         messageKey match {
-                            case "INSERT" => User.create(messageText)
-                            case "UPDATE" => User.update(messageText)
-                            case "DELETE" => User.remove(messageText)
-                            case "SELECT" =>
+                            case "MASTER" => Global.CONFIG.set("MASTER_USER_GROUP", QrossUser.getUsers("master"))
+                            case "KEEPER" => Global.CONFIG.set("KEEPER_USER_GROUP", QrossUser.getUsers("keeper"))
                             case _ =>
                         }
-                        Global.CONFIG.set("KEEPER_USER_GROUP", User.getUsers("keeper"))
-                        Global.CONFIG.set("MASTER_USER_GROUP", User.getUsers("master"))
+
                     case "PROPERTIES" =>
                         messageKey match {
                             //PROPERTIES - ADD - local|resources:path

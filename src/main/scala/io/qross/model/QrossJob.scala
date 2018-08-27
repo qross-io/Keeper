@@ -7,7 +7,6 @@ object QrossJob {
     
     //get complement tasks for master when enable a job
     def tickTasks(jobId: Int, queryId: String): Unit = {
-        
         val ds = new DataSource()
         val job = ds.executeDataRow(s"SELECT cron_exp, switch_time FROM qross_jobs WHERE id=$jobId")
         val json = CronExp.getTicks(
@@ -16,8 +15,17 @@ object QrossJob {
                 DateTime.now.getString("yyyy-MM-dd HH:mm:ss")).toJson.replace("'", "''")
         ds.executeNonQuery(s"INSERT INTO qross_query_result (query_id, result) VALUES ('$queryId', '$json')")
         ds.close()
-        //CronExp.getTicks()
-        //lastTaskTime
-        //CronExp.getTicks()
+    }
+
+    def tickTasks(messageText: String, queryId: String): Unit = {
+        val jobId = messageText.substring(0, messageText.indexOf(":"))
+        val beginTime = messageText.substring(messageText.indexOf(":") + 1, messageText.indexOf("#"))
+        val endTime = messageText.substring(messageText.indexOf("#"))
+
+        val ds = new DataSource()
+        val cronExp = ds.executeSingleValue(s"SELECT cron_exp FROM qross_jobs WHERE id=$jobId").getOrElse("")
+        val json = CronExp.getTicks(cronExp, beginTime, endTime).toJson.replace("'", "''")
+        ds.executeNonQuery(s"INSERT INTO qross_query_result (query_id, result) VALUES ('$queryId', '$json')")
+        ds.close()
     }
 }
