@@ -74,6 +74,13 @@ case class DataRow(private val items: (String, Any)*) {
             None
         }
     }
+
+    def combine(otherRow: DataRow): DataRow = {
+        for ((field, value) <- otherRow.columns) {
+            this.set(field, value)
+        }
+        this
+    }
     
     def getString(fieldName: String, defaultValue: String = ""): String = this.get(fieldName) match {
         case Some(value) => if (value != null) value.toString else defaultValue

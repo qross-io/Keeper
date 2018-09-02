@@ -1,5 +1,6 @@
 package io.qross.util
 
+import io.qross.model.TaskEvent
 import io.qross.util.DataType.DataType
 import io.qross.util.Output._
 
@@ -135,8 +136,7 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
     }
     
     // ---------- base method ----------
-    
-    def select(selectSQL: String, values: Any*): DataHub = this.get(selectSQL, values: _*)
+
     def get(selectSQL: String, values: Any*): DataHub = {
         if (TO_BE_CLEAR) {
             TABLE.clear()
@@ -146,16 +146,24 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
         TABLE.merge(CURRENT.executeDataTable(selectSQL, values: _*))
         this
     }
+
+    //execute SQL on source dataSource
+    def set(nonQuerySQL: String, values: Any*): DataHub = {
+        CURRENT.executeNonQuery(nonQuerySQL, values: _*)
+        this
+    }
+
+    def join(selectSQL: String, on: (String, String)*): DataHub = {
+        TABLE.join(CURRENT.executeDataTable(selectSQL), on: _*)
+        this
+    }
     
     //execute SQL on target dataSource
-    def execute(nonQuerySQL: String, values: Any*): DataHub = {
+    def fit(nonQuerySQL: String, values: Any*): DataHub = {
         TARGET.executeNonQuery(nonQuerySQL, values: _*)
         this
     }
    
-    def insert(insertSQL: String): DataHub = put(insertSQL)
-    def update(updateSQL: String): DataHub = put(updateSQL)
-    def delete(deleteSQL: String): DataHub = put(deleteSQL)
     def put(nonQuerySentence: String): DataHub = {
         if (DEBUG) TABLE.show(10)
         
@@ -164,9 +172,6 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
         this
     }
     
-    def insert(insertSQL: String, table: DataTable): DataHub = this.put(insertSQL, table)
-    def update(updateSQL: String, table: DataTable): DataHub = this.put(updateSQL, table)
-    def delete(deleteSQL: String, table: DataTable): DataHub = this.put(deleteSQL, table)
     def put(nonQuerySentence: String, table: DataTable): DataHub = {
         TARGET.tableUpdate(nonQuerySentence, table)
         this
@@ -234,7 +239,9 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
     }
     
     def takeOut(): DataTable = {
-        DataTable.from(TABLE)
+        val table = DataTable.from(TABLE)
+        TABLE.clear()
+        table
     }
     
     def takeOut(tableName: String): DataTable = {
@@ -244,6 +251,10 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
         else {
             DataTable()
         }
+    }
+
+    def getTable(): DataTable = {
+        TABLE
     }
     
     def discard(tableName: String): DataHub = {
@@ -348,7 +359,7 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
         TABLE.cut(TABLE.take(amount))
         this
     }
-    
+
     def insertRow(fields: (String, Any)*): DataHub = {
         TABLE.insertRow(fields: _*)
         this
@@ -404,7 +415,24 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
     def findDataRow(jsonPath: String): DataRow = JSON.findDataRow(jsonPath)
     def findList(jsonPath: String): List[Any] = JSON.findList(jsonPath)
     def findValue(jsonPath: String): Any = JSON.findValue(jsonPath)
-    
+
+    // ---------- for Keeper ----------
+
+    def writeKeeperEmail(taskStatus: String): DataHub = {
+        TABLE.first match {
+            case Some(row) =>  TaskEvent.sendMail(taskStatus, row)
+            case None =>
+        }
+        this
+    }
+
+    def requestKeeperApi(taskStatus: String): DataHub = {
+        TABLE.first match {
+            case Some(row) =>  TaskEvent.requestApi(taskStatus, row)
+            case None =>
+        }
+        this
+    }
     
     // ---------- other ----------
     

@@ -35,7 +35,7 @@ object Global {
     
     def LOGS_LEVEL: String = CONFIG.getString("LOGS_LEVEL", "DEBUG").toUpperCase
     
-    val CONCURRENT_BY_CPU_CORES: Int = CONFIG.getInt("CONCURRENT_BY_CPU_CORES", 4)
+    def CONCURRENT_BY_CPU_CORES: Int = CONFIG.getInt("CONCURRENT_BY_CPU_CORES", 4)
     
     def EMAIL_EXCEPTIONS_TO_DEVELOPER: Boolean = CONFIG.getBoolean("EMAIL_EXCEPTIONS_TO_DEVELOPER")
     
@@ -44,8 +44,18 @@ object Global {
     def MASTER_USER_GROUP: String = CONFIG.getString("MASTER_USER_GROUP")
     
     def KEEPER_USER_GROUP: String = CONFIG.getString("KEEPER_USER_GROUP")
-    
-    val CHARSET: String = CONFIG.getString("CHARSET")
+
+    def CHARSET: String = CONFIG.getString("CHARSET")
+
+    def API_ON_TASK_CHECKING_LIMIT: String = CONFIG.getString("API_ON_TASK_CHECKING_LIMIT")
+
+    def API_ON_TASK_FAILED: String = CONFIG.getString("API_ON_TASK_FAILED")
+
+    def API_ON_TASK_INCORRECT: String = CONFIG.getString("API_ON_TASK_INCORRECT")
+
+    def API_ON_TASK_TIMEOUT: String = CONFIG.getString("API_ON_TASK_TIMEOUT")
+
+    def API_ON_TASK_FINISHED: String = CONFIG.getString("API_ON_TASK_FINISHED")
     
     //def CLEAN_TASK_RECORDS_FREQUENCY: String = CONFIG.getString("CLEAN_TASK_RECORDS_FREQUENCY")
     def BEATS_MAILING_FREQUENCY: String = CONFIG.getString("BEATS_MAILING_FREQUENCY")

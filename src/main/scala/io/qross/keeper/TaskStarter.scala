@@ -10,8 +10,8 @@ class TaskStarter extends WorkActor {
     override def beat(tick: String): Unit = {
         //super.beat(tick)
         executor ! Tick(tick)
-        //QrossTask.checkOvertimeOfActions(tick)
         QrossTask.checkTasksStatus(tick)
+        //QrossTask.checkOvertimeOfActions(tick)
     }
     
     override def execute(taskId: Long, taskStatus: String): Unit = {

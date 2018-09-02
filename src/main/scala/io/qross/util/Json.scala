@@ -81,10 +81,10 @@ case class Json(text: String = "") {
         root = mapper.readTree(text)
     }
     
-    def readURL(url: String, post: String = ""): Json = {
+    def readURL(url: String, method: String = ""): Json = {
         try {
             val URL = new URL(if (url.contains("://")) url else "http://" + url)
-            if (post == "") {
+            if (method == "") {
                 root = mapper.readTree(URL)
             }
             else {
@@ -92,11 +92,11 @@ case class Json(text: String = "") {
                 conn.setDoOutput(true)
                 conn.setDoInput(true)
                 //conn.addRequestProperty("Content-Type", "application/json; charset=utf-8");
-                conn.setRequestMethod("POST")
+                conn.setRequestMethod(method.toUpperCase())
                 conn.connect()
     
                 val os = conn.getOutputStream
-                os.write(post.getBytes("utf-8"))
+                os.write(method.getBytes("utf-8"))
                 os.close()
     
                 val is = conn.getInputStream

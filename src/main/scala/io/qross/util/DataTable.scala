@@ -2,8 +2,10 @@ package io.qross.util
 
 import io.qross.util.Output._
 import io.qross.util.DataType.DataType
+
 import collection.JavaConverters._
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.util.control.Breaks._
 
 object DataTable {
@@ -409,18 +411,14 @@ case class DataTable(private val items: DataRow*) {
         table
     }
     
-    def selectRow(filter: DataRow => Boolean)(fieldNames: String*): DataTable = {
-        val table = DataTable()
+    def select(filter: DataRow => Boolean): ArrayBuffer[DataRow] = {
+        val rows = new ArrayBuffer[DataRow]()
         this.rows.foreach(row => {
             if (filter(row)) {
-                val newRow = DataRow()
-                fieldNames.foreach(fieldName => {
-                    newRow.set(fieldName, row.get(fieldName).orNull)
-                })
-                table.addRow(newRow)
+                rows += row
             }
         })
-        table
+        rows
     }
     
     def updateSource(SQL: String): DataTable = {
@@ -467,6 +465,28 @@ case class DataTable(private val items: DataRow*) {
         this.labels ++= otherTable.labels
         this.rows ++= otherTable.rows
         this
+    }
+
+    def join(otherTable: DataTable, on: (String, String)*): DataTable = {
+        val table = new DataTable()
+        for (row <- this.rows) {
+            for (line <- otherTable.rows) {
+                var matched = true
+                breakable {
+                    for (pair <- on) {
+                        if (row.getString(pair._1) != line.getString(pair._2)) {
+                            matched = false
+                            break
+                        }
+                    }
+                }
+                if (matched) {
+                    table.addRow(DataRow.from(row).combine(line))
+                }
+            }
+        }
+        this.clear()
+        table
     }
     
     def getFieldNames: List[String] = this.fields.keySet.toList

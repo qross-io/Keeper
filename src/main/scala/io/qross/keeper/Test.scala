@@ -1,11 +1,10 @@
 package io.qross.keeper
 
-import io.qross.model.QrossTask
 import io.qross.util._
 
 object Test {
     def main(args: Array[String]): Unit = {
-    
+
         val date = DateTime.of(2018, 7, 3)
         
         val startDate: DateTime = DateTime.from(date).minusDays(8)
@@ -59,13 +58,13 @@ object Test {
 //        val dh = new DataHub()
 //
 //        dh.open("mysql.qross")
-//        dh.executeNonQuery("ALTER TABLE qross_jobs MODIFY COLUMN id INT")
-//        dh.executeNonQuery("ALTER TABLE qross_jobs_dags MODIFY COLUMN id INT")
-//        dh.executeNonQuery("ALTER TABLE qross_jobs_dependencies MODIFY COLUMN id INT")
-//        dh.executeNonQuery("ALTER TABLE qross_tasks MODIFY COLUMN id BIGINT")
-//        dh.executeNonQuery("ALTER TABLE qross_tasks_dags MODIFY COLUMN id BIGINT")
-//        dh.executeNonQuery("ALTER TABLE qross_tasks_dependencies MODIFY COLUMN id BIGINT")
-//        dh.executeNonQuery("ALTER TABLE qross_tasks_logs MODIFY COLUMN id BIGINT")
+//          .set("ALTER TABLE qross_jobs MODIFY COLUMN id INT")
+//          .set("ALTER TABLE qross_jobs_dags MODIFY COLUMN id INT")
+//          .set("ALTER TABLE qross_jobs_dependencies MODIFY COLUMN id INT")
+//          .set("ALTER TABLE qross_tasks MODIFY COLUMN id BIGINT")
+//          .set("ALTER TABLE qross_tasks_dags MODIFY COLUMN id BIGINT")
+//          .set("ALTER TABLE qross_tasks_dependencies MODIFY COLUMN id BIGINT")
+//          .set("ALTER TABLE qross_tasks_logs MODIFY COLUMN id BIGINT")
         
 //        dh.open("mysql.qross_release").saveAs("mysql.qross")
 //
@@ -98,13 +97,13 @@ object Test {
             //    .put("INSERT INTO qross_tasks_logs (id, job_id, task_id, command_id, action_id, log_type, log_text, create_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
     
 //        dh.open("mysql.qross")
-//        dh.executeNonQuery("ALTER TABLE qross_jobs MODIFY COLUMN id INT AUTO_INCREMENT ")
-//        dh.executeNonQuery("ALTER TABLE qross_jobs_dags MODIFY COLUMN id INT AUTO_INCREMENT")
-//        dh.executeNonQuery("ALTER TABLE qross_jobs_dependencies MODIFY COLUMN id INT AUTO_INCREMENT")
-//        dh.executeNonQuery("ALTER TABLE qross_tasks MODIFY COLUMN id BIGINT AUTO_INCREMENT")
-//        dh.executeNonQuery("ALTER TABLE qross_tasks_dags MODIFY COLUMN id BIGINT AUTO_INCREMENT")
-//        dh.executeNonQuery("ALTER TABLE qross_tasks_dependencies MODIFY COLUMN id BIGINT AUTO_INCREMENT")
-//        dh.executeNonQuery("ALTER TABLE qross_tasks_logs MODIFY COLUMN id BIGINT AUTO_INCREMENT PRIMARY KEY")
+//          .set("ALTER TABLE qross_jobs MODIFY COLUMN id INT AUTO_INCREMENT ")
+//          .set("ALTER TABLE qross_jobs_dags MODIFY COLUMN id INT AUTO_INCREMENT")
+//          .set("ALTER TABLE qross_jobs_dependencies MODIFY COLUMN id INT AUTO_INCREMENT")
+//          .set("ALTER TABLE qross_tasks MODIFY COLUMN id BIGINT AUTO_INCREMENT")
+//          .set("ALTER TABLE qross_tasks_dags MODIFY COLUMN id BIGINT AUTO_INCREMENT")
+//          .set("ALTER TABLE qross_tasks_dependencies MODIFY COLUMN id BIGINT AUTO_INCREMENT")
+//          .set("ALTER TABLE qross_tasks_logs MODIFY COLUMN id BIGINT AUTO_INCREMENT PRIMARY KEY")
 //
 //        dh.close()
     }

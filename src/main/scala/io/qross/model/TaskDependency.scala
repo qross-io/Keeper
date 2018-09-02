@@ -10,15 +10,6 @@ import scala.util.{Success, Try}
 
 object TaskDependency {
     
-    def main(args: Array[String]): Unit = {
-    
-        var s = "{\"dataSource\": \"mysql.bi_platform\","
-            s += "selectSQL\": \"${jobId}\","
-            s += "updateSQL\": \"UPDATE BD2800_executions SET status=(SELECT status FROM qross_tasks WHERE id=${taskId}) WHERE task_id=${taskId}\"}"
-        
-        parseDependencyValue("1", "2345", s, "20180504101000").foreach(println)
-    }
-    
     def parseDependencyValue(jobId: String, taskId: String, dependencyValue: String, taskTime: String): List[String] = {
     
         var content = dependencyValue
@@ -169,13 +160,15 @@ object TaskDependency {
             /*
             {
                 "jobId": 123,
-                "taskTime": "datetime sharp expression"
+                "taskTime": "datetime sharp expression",
+                "status": "finished"
             }
             */
             case "TASK" =>
-                if (DataSource.queryExists("SELECT id FROM qross_tasks WHERE job_id=? AND task_time=? AND status='finished'",
+                if (DataSource.queryExists("SELECT id FROM qross_tasks WHERE job_id=? AND task_time=? AND status=?",
                         conf.getInt("jobId"),
-                        conf.getString("taskTime"))) {
+                        conf.getString("taskTime"),
+                        conf.getString("status"))) {
                     ready = "yes"
                 }
         

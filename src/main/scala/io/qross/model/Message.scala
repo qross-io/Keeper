@@ -7,10 +7,25 @@ import io.qross.util.{DataRow, DateTime, Output}
 case class Tick(minute: String)
 
 object TaskStatus {
+    val NEW = "new"
     val RESTARTING = "restarting"
     val INITIALIZED = "initialized"
     val READY = "ready"
     val EXECUTING = "executing"
+    val CHECKING_LIMIT = "checking_limit"
+    val FINISHED = "finished"
+    val FAILED = "failed"
+    val INCORRECT = "incorrect"
+    val TIMEOUT = "timeout"
+}
+
+object ActionStatus {
+    val WAITING = "waiting"
+    val QUEUING = "queuing"
+    val RUNNING = "running"
+    val EXCEPTIONAL = "exceptional"
+    val OVERTIME = "overtime"
+    val DONE = "done"
 }
 
 case class Task(id: Long, var status: String = TaskStatus.INITIALIZED) {
