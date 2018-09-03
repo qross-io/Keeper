@@ -185,32 +185,21 @@ object QrossAction {
         //send notification mail if failed or timeout or incorrect
         if (status == TaskStatus.FAILED || status == TaskStatus.TIMEOUT || status == TaskStatus.INCORRECT) {
             dh.get(s"SELECT job_id, event_function, event_value FROM qross_jobs_events WHERE job_id=$jobId AND enabled='yes' AND event_name='onTask${status.capitalize}'")
-                    .cache("events")
+                .cache("events")
+                .cache("task", DataTable(taskCommand))
+            
+            dh.get(s"SELECT CAST(create_time AS CHAR) AS create_time, log_type, log_text FROM qross_tasks_logs WHERE task_id=$taskId AND action_id=$actionId ORDER BY create_time ASC")
+                .buffer("logs")
 
             dh.openCache()
                 .get("SELECT A.*, B.event_value AS receivers FROM task A INNER JOIN events B ON A.job_id=B.job_id WHERE event_function='SEND_MAIL_TO'")
-                    .writeKeeperEmail(TaskStatus.CHECKING_LIMIT)
+                    .writeKeeperEmail(status)
                 .get("SELECT * FROM task WHERE EXISTS (SELECT job_id FROM events WHERE event_function='REQUEST_API')")
-                    .requestKeeperApi(TaskStatus.CHECKING_LIMIT)
-                .get("SELECT event_value, '' AS restart_time FROM events WHERE event_function='RESTART_CHECKING_AFTER'")  //?
+                    .requestKeeperApi(status)
+                .get("SELECT event_value, '' AS restart_time FROM events WHERE INSTR(event_function, 'RESTART_')=1")
                     .foreach(row => {
                         row.set("restart_time", DateTime.now.plusMinutes(row.getInt("event_value")).getString("yyyyMMddHHmmss"))
                     }).put(s"UPDATE qross_tasks SET restart_time='#restart_time' WHERE id=$taskId")
-            //if (Global.EMAIL_NOTIFICATION && taskCommand.getBoolean("mail_notification") && owner != "") {
-                OpenResourceFile("/templates/failed_incorrect.html")
-                        .replace("${status}", status.toUpperCase())
-                        .replaceWith(taskCommand)
-                        .replace("${logs}", TaskRecord.toHTML(dh.executeDataTable(s"SELECT CAST(create_time AS CHAR) AS create_time, log_type, log_text FROM qross_tasks_logs WHERE task_id=$taskId AND action_id=$actionId ORDER BY create_time ASC")))
-                        .writeEmail(s"${status.toUpperCase()}: ${taskCommand.getString("title")} $taskTime - TaskID: $taskId")
-                        //.to(owner)
-                        .cc(if (taskCommand.getBoolean("mail_master_on_exception")) Global.MASTER_USER_GROUP else "")
-                        .send()
-            //}
-
-            //retry delay on exception
-            //if (retryDelay > 0) {
-                //dh.set(s"UPDATE qross_tasks SET restart_time=${DateTime.now.plusMinutes(retryDelay).getString("yyyyMMddHHmm00")} WHERE id=$taskId")
-            //}
         }
 
         dh.close()

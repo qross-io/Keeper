@@ -1,6 +1,6 @@
 package io.qross.model
 
-import io.qross.util.{DataRow, Json, OpenResourceFile}
+import io.qross.util.{DataRow, DataTable, Json, OpenResourceFile}
 
 object TaskEvent {
 
@@ -8,19 +8,20 @@ object TaskEvent {
 
     }
 
-    def sendMail(status: String, row: DataRow): Unit = {
+    def sendMail(status: String, row: DataRow, logs: DataTable): Unit = {
         if (Global.EMAIL_NOTIFICATION) {
             val receivers = row.getString("receivers")
-            val upper = status.toUpperCase()
-            if (receivers.contains("(OWNER)") && row.getString("owner") != "") {
+            val upperStatus = status.toUpperCase()
+            if (receivers != "") {
                 OpenResourceFile(s"/templates/$status.html")
-                        .replace("${status}", upper)
-                        .replaceWith(row)
-                        .writeEmail(s"$upper: ${row.getString("title")} ${row.getString("task_time")} - JobID: ${row.getString("job_id")} - TaskID: ${row.getString("task_id")}")
-                        .to(row.getString("owner"))
-                        .cc(if (receivers.contains("(MASTER)")) Global.MASTER_USER_GROUP else "")
-                        .cc(if (receivers.contains("(KEEPER)")) Global.KEEPER_USER_GROUP else "")
-                        .send()
+                    .replace("${status}", upperStatus)
+                    .replaceWith(row)
+                    .replace(s"${logs}", TaskRecord.toHTML(logs))
+                    .writeEmail(s"$upperStatus: ${row.getString("title")} ${row.getString("task_time")} - JobID: ${row.getString("job_id")} - TaskID: ${row.getString("task_id")}")
+                    .to(if (receivers.contains("(OWNER)")) row.getString("owner") else "")
+                    .to(if (receivers.contains("(MASTER)")) Global.MASTER_USER_GROUP else "")
+                    .to(if (receivers.contains("(KEEPER)")) Global.KEEPER_USER_GROUP else "")
+                    .send()
             }
 
             TaskRecord.of(row.getInt("job_id"), row.getLong("task_id"))

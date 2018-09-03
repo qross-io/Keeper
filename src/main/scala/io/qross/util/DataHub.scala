@@ -239,24 +239,19 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
     }
     
     def takeOut(): DataTable = {
-        val table = DataTable.from(TABLE)
-        TABLE.clear()
-        table
+        TABLE
     }
     
     def takeOut(tableName: String): DataTable = {
         if (BUFFER.contains(tableName)) {
-            DataTable.from(BUFFER(tableName))
+            BUFFER(tableName)
         }
         else {
             DataTable()
         }
     }
 
-    def getTable(): DataTable = {
-        TABLE
-    }
-    
+   
     def discard(tableName: String): DataHub = {
         if (BUFFER.contains(tableName)) {
             BUFFER.remove(tableName)
@@ -420,7 +415,7 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
 
     def writeKeeperEmail(taskStatus: String): DataHub = {
         TABLE.first match {
-            case Some(row) =>  TaskEvent.sendMail(taskStatus, row)
+            case Some(row) =>  TaskEvent.sendMail(taskStatus, row, BUFFER("logs"))
             case None =>
         }
         this

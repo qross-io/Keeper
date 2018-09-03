@@ -421,10 +421,10 @@ object QrossTask {
 
         //recent tasks status
         dh.openDefault()
-                .get(s"""SELECT job_id FROM qross_tasks WHERE update_time>='${DateTime(tick).minusMinutes(1).getString("yyyy-MM-dd HH:mm:ss")}'
-                        UNION SELECT id AS job_id FROM qross_jobs WHERE recent_tasks_status IS NULL""")
-                .pass("SELECT #job_id AS job_id, GROUP_CONCAT(CONCAT(id, ':', status) ORDER BY id ASC SEPARATOR ',') AS status FROM (SELECT id, status FROM qross_tasks WHERE job_id=#job_id ORDER BY id DESC LIMIT 3) T")
-                    .put("UPDATE qross_jobs SET recent_tasks_status='#status' WHERE id=#job_id")
+            .get(s"""SELECT job_id FROM qross_tasks WHERE update_time>='${DateTime(tick).minusMinutes(1).getString("yyyy-MM-dd HH:mm:ss")}'
+                    UNION SELECT id AS job_id FROM qross_jobs WHERE recent_tasks_status IS NULL""")
+            .pass("SELECT #job_id AS job_id, GROUP_CONCAT(CONCAT(id, ':', status) ORDER BY id ASC SEPARATOR ',') AS status FROM (SELECT id, status FROM qross_tasks WHERE job_id=#job_id ORDER BY id DESC LIMIT 3) T")
+                .put("UPDATE qross_jobs SET recent_tasks_status='#status' WHERE id=#job_id")
 
         writeMessage("TaskStarter beat!")
         dh.set(s"UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='TaskStarter'")
