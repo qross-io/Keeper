@@ -434,6 +434,11 @@ case class DataTable(private val items: DataRow*) {
         this
     }
     
+    def updateSource(dataSource: DataSource, SQL: String): DataTable = {
+        dataSource.tableUpdate(SQL, this)
+        this
+    }
+    
     def nonEmpty: Boolean = {
         this.rows.nonEmpty
     }

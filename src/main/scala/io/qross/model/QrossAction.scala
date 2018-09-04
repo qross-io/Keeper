@@ -158,15 +158,14 @@ object QrossAction {
 
                     //update task status if all finished
                     dh.set(s"UPDATE qross_tasks SET finish_time=NOW(), spent=TIMESTAMPDIFF(SECOND, start_time, NOW()), status='${TaskStatus.FINISHED}', checked='' WHERE id=$taskId AND NOT EXISTS (SELECT id FROM qross_tasks_dags WHERE task_id=$taskId AND status!='${ActionStatus.DONE}')")
-                    //dh.set(s"UPDATE qross_tasks SET finish_time=NOW(), status='failed', checked='no' WHERE id=$taskId AND status IN ('executing', 'finished') AND NOT EXISTS (SELECT id FROM qross_tasks_dags WHERE task_id=$taskId AND status='running') AND EXISTS(SELECT id FROM qross_tasks_dags WHERE task_id=$taskId AND status='exceptional')")  //6.12
-
+                    
                     //check "after" dependencies
                     dh.get(s"SELECT A.id, A.task_id, A.dependency_type, A.dependency_value, A.ready, B.task_time FROM qross_tasks_dependencies A INNER JOIN qross_tasks B ON A.job_id=B.job_id WHERE B.status='${TaskStatus.FINISHED}' AND A.task_id=$taskId AND A.dependency_moment='after' AND A.ready='no'")
                             .foreach(row => {
                                 val result = TaskDependency.check(row.getString("dependency_type"), row.getString("dependency_value"))
                                 row.set("ready", result._1)
                                 row.set("dependency_value", result._2)
-                            }).put("UPDATE qross_tasks_dependencies SET ready=$ready, dependency_value=$dependency_value WHERE id=$id")
+                            }).put("UPDATE qross_tasks_dependencies SET ready='#ready', dependency_value='#dependency_value' WHERE id=#id")
 
                     //update tasks status if incorrect
                     dh.set(s"UPDATE qross_tasks SET status='${TaskStatus.INCORRECT}', checked='no' WHERE id=$taskId AND status='${TaskStatus.FINISHED}' AND EXISTS(SELECT id FROM qross_tasks_dependencies WHERE task_id=$taskId AND dependency_moment='after' AND ready='no')")

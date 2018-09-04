@@ -340,7 +340,7 @@ object QrossTask {
                     FROM (SELECT id, job_id, task_id, dependency_type, dependency_value, ready FROM qross_tasks_dependencies WHERE task_id=$taskId AND dependency_moment='before' AND ready='no') A
                     INNER JOIN (SELECT id, task_time FROM qross_tasks where id=$taskId) B ON A.task_id=B.id""")
             .foreach(row => {
-                val result = TaskDependency.check(row.getString("dependency_type"), row.getString("dependency_value"))
+                val result = TaskDependency.check(row.getString("dependency_type"), row.getString("dependency_value"), taskId)
                 row.set("ready", result._1)
                 row.set("dependency_value", result._2)
                 jobId = row.getInt("job_id")

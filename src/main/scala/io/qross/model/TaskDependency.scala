@@ -50,7 +50,7 @@ object TaskDependency {
         }
     }
 
-    def check(dependencyType: String, dependencyValue: String): (String, String) =  {
+    def check(dependencyType: String, dependencyValue: String, taskId: Long = 0L): (String, String) =  {
         
         var ready = "no"
         val conf = Json(dependencyValue).findDataRow("/")
@@ -65,19 +65,45 @@ object TaskDependency {
             }
              */
             case "SQL" =>
-                    val dh = new DataHub(conf.getString("dataSource"))
-                    dh.get(conf.getString("selectSQL"))
-                    if (dh.nonEmpty) {
+                    val ds = new DataSource(conf.getString("dataSource"))
+                    val table = ds.executeDataTable(conf.getString("selectSQL"))
+                    if (table.nonEmpty) {
                         ready = "yes"
                         if (conf.contains("updateSQL") && conf.getString("updateSQL") != "") {
-                            dh.put(conf.getString("updateSQL"))
+                            ds.tableUpdate(conf.getString("updateSQL"), table)
                         }
-                        conf.set("SELECT", dh.count())
+                        conf.set("SELECT", table.count())
+    
+                        //pass variables to command in pre-dependency
+                        if (taskId > 0) {
+                            val default = new DataSource()
+                            val dag = ds.executeDataTable(s"SELECT id, command_text FROM qross_task_dags WHERE task_id=$taskId")
+                            dag.filter(row => {
+                                var command = row.getString("command_text")
+                                if (command.contains("#{") && command.contains("}")) {
+                                    table.last match {
+                                        case Some(line) =>
+                                            line.getFields.foreach(field => {
+                                                command = command.replace("#{" + field + "}", row.getString(field))
+                                            })
+                                        case None =>
+                                    }
+                                    true
+                                }
+                                else {
+                                    false
+                                }
+                            }).updateSource(default, "UPDATE qross_task_dags SET command_text='#command_text' WHERE id=#id")
+                            dag.clear()
+                            default.close()
+                        }
                     }
                     else {
                         conf.set("SELECT", "EMPTY")
                     }
-                    dh.close()
+                    table.clear()
+                    ds.close()
+                    
             /*
             {
                 "path": ""
