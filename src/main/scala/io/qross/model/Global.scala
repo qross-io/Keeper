@@ -80,7 +80,7 @@ object Global {
     
     def clearTaskRecords(): Unit = {
         val dh = new DataHub()
-        dh.openDefault().saveAsDefault()
+        dh.openDefault()
             .get("SELECT id, keep_x_task_records FROM qross_jobs WHERE keep_x_task_records>0")
             .pass("SELECT job_id, #keep_x_task_records AS keep_x_task_records FROM qross_tasks WHERE job_id=#id GROUP BY job_id HAVING COUNT(0)>#keep_x_task_records", "id" -> 0, "keep_x_task_records" -> 100)
             .pass("SELECT id AS task_id, job_id FROM qross_tasks WHERE job_id=#job_id ORDER BY id DESC LIMIT #keep_x_task_records,1", "job_id" -> 0, "keep_x_task_records" -> 100)

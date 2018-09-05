@@ -81,7 +81,7 @@ object TaskDependency {
                             dag.filter(row => {
                                 var command = row.getString("command_text")
                                 if (command.contains("#{") && command.contains("}")) {
-                                    table.last match {
+                                    table.lastRow match {
                                         case Some(line) =>
                                             line.getFields.foreach(field => {
                                                 command = command.replace("#{" + field + "}", row.getString(field))

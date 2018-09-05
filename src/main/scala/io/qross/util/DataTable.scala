@@ -27,23 +27,6 @@ object DataTable {
         })
         table
     }
-    
-    def main(args: Array[String]): Unit = {
-        val table = DataTable()
-        table.insertRow("a" -> 1, "b" -> "HELLO", "c" -> "I", "d" -> "am", "e" -> "chinese", "f" -> "!")
-        table.label(
-            "a" -> "AA",
-            "b" -> "BB",
-            "c" -> "CC",
-            "d" -> "DD",
-            "e" -> "EE",
-            "f" -> "FF"
-        )
-        table.show(10)
-        
-        println(table.toHtmlString)
-        table.clear()
-    }
 }
 
 case class DataTable(private val items: DataRow*) {
@@ -62,10 +45,6 @@ case class DataTable(private val items: DataRow*) {
         val name = if (field.contains(".")) field.substring(field.lastIndexOf(".") + 1) else field
         this.fields += name -> dataType
         this.labels += name -> name
-        //add column for every row
-        //for (row <- this.rows) {
-        //    row.set(name, null)
-        //}
     }
     
     def label(alias: (String, String)*): DataTable = {
@@ -269,9 +248,9 @@ case class DataTable(private val items: DataRow*) {
             def compare(value: Option[Double]): Unit = {
                 value match {
                     case Some(v) =>
-                        max match {
+                        max = max match {
                             case Some(a) => Some(v max a)
-                            case None => max = Some(v)
+                            case None => Some(v)
                         }
                     case None =>
                 }
@@ -319,9 +298,9 @@ case class DataTable(private val items: DataRow*) {
             def compare(value: Option[Double]): Unit = {
                 value match {
                     case Some(v) =>
-                        min match {
+                        min = min match {
                             case Some(a) => Some(v min a)
-                            case None => min = Some(v)
+                            case None => Some(v)
                         }
                     case None =>
                 }
@@ -447,6 +426,14 @@ case class DataTable(private val items: DataRow*) {
         this.rows.isEmpty
     }
     
+    def isEmptySchema: Boolean = {
+        fields.isEmpty
+    }
+    
+    def nonEmptySchema: Boolean = {
+        fields.nonEmpty
+    }
+    
     def copy(otherTable: DataTable): DataTable = {
         this.clear()
         this.union(otherTable)
@@ -500,8 +487,8 @@ case class DataTable(private val items: DataRow*) {
     def getFields: mutable.LinkedHashMap[String, DataType] = this.fields
     def getRows: mutable.ArrayBuffer[DataRow] = this.rows
     def columns: Int = this.fields.size
-    def first: Option[DataRow] = if (this.rows.nonEmpty) Some(this.rows(0)) else None
-    def last: Option[DataRow] = if (this.rows.nonEmpty) Some(this.rows(this.rows.size - 1)) else None
+    def firstRow: Option[DataRow] = if (this.rows.nonEmpty) Some(this.rows(0)) else None
+    def lastRow: Option[DataRow] = if (this.rows.nonEmpty) Some(this.rows(this.rows.size - 1)) else None
     
     def mkString(delimiter: String, fieldName: String): String = {
         val value = new StringBuilder()

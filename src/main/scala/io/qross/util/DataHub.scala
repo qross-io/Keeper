@@ -9,16 +9,13 @@ import scala.collection.mutable
 class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
     
     private val SOURCES = mutable.HashMap[String, DataSource](
-        "CACHE" -> DataSource.createMemoryDatabase,
-        "DEFAULT" -> DataSource.create(defaultSourceName)
+        "DEFAULT" -> DataSource.openDefault()
     )
     
     private var DEBUG = false
     
-    private val CACHE = SOURCES("CACHE") //SQLite cache
-    private val DEFAULT = SOURCES("DEFAULT") //default dataSource
-    private var CURRENT = DEFAULT   //current dataSource - open
-    private var TARGET = DEFAULT    //current dataDestination - saveAs
+    private var CURRENT = SOURCES("DEFAULT")   //current dataSource - open
+    private var TARGET = SOURCES("DEFAULT")    //current dataDestination - saveAs
     
     private val TABLE = DataTable()  //current buffer
     private val BUFFER = new mutable.HashMap[String, DataTable]() //all buffer
@@ -36,17 +33,16 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
     // ---------- open ----------
     
     def openCache(): DataHub = {
-        CURRENT = CACHE
+        reset()
+        if (!SOURCES.contains("CACHE")) {
+            SOURCES += "CACHE" -> DataSource.createMemoryDatabase
+        }
+        CURRENT = SOURCES("CACHE")
         this
     }
     
     def openDefault(): DataHub = {
-        CURRENT = DEFAULT
-        this
-    }
-    
-    def openTarget(): DataHub = {
-        CURRENT = TARGET
+        CURRENT = SOURCES("DEFAULT")
         this
     }
     
@@ -55,21 +51,10 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
             SOURCES += connectionName -> new DataSource(connectionName)
         }
         CURRENT = SOURCES(connectionName)
-        //CONNECTING = connectionName
         this
     }
     
     // ---------- save as ----------
-    
-    def saveAsCache(): DataHub = {
-        TARGET = CACHE
-        this
-    }
-    
-    def saveAsDefault(): DataHub = {
-        TARGET = DEFAULT
-        this
-    }
     
     def saveAs(connectionName: String): DataHub = {
         if (!SOURCES.contains(connectionName)) {
@@ -79,29 +64,31 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
         this
     }
     
-    def saveAsTextFile(fileNameOrFullPath: String, delimiter: String = ",", deleteFileIfExists: Boolean = true): DataHub = {
-        FileWriter(fileNameOrFullPath, deleteFileIfExists).delimit(delimiter).writeTable(TABLE).close()
+    // ---------- Reset ----------
+    
+    def reset(): DataHub = {
+        if (TO_BE_CLEAR) {
+            TABLE.clear()
+            TO_BE_CLEAR = false
+        }
         this
     }
-    
-    def saveAsCsvFile(fileNameOrFullPath: String, deleteFileIfExists: Boolean = true): DataHub = {
-        FileWriter(fileNameOrFullPath, deleteFileIfExists).delimit(",").writeTable(TABLE).close()
-        this
-    }
-    
-//    def saveAsExcel(fileNameOrFullPath: String, sheetName: String = "sheet1"): DataHub = {
-//        Excel(fileNameOrFullPath).writeTable(TABLE, sheetName)
-//        this
-//    }
     
     // ---------- cache ----------
     
     def cache(tableName: String): DataHub = {
-        this.cache(tableName, TABLE)
+        if (TABLE.nonEmptySchema) {
+            this.cache(tableName, TABLE)
+        }
         this
     }
     
     def cache(tableName: String, table: DataTable): DataHub = {
+    
+        if (!SOURCES.contains("CACHE")) {
+            SOURCES += "CACHE" -> DataSource.createMemoryDatabase
+        }
+        
         //var createSQL = "CREATE TABLE IF NOT EXISTS " + tableName + " (__pid INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL UNIQUE"
         var createSQL = ""
         val placeHolders = new mutable.ArrayBuffer[String]
@@ -118,15 +105,11 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
             table.show(10)
             writeMessage(createSQL)
         }
-        
-        CACHE.executeNonQuery(createSQL)
-        
+    
+        SOURCES("CACHE").executeNonQuery(createSQL)
+    
         if (table.nonEmpty) {
-            CACHE.setBatchCommand("INSERT INTO " + tableName + " (" + table.getFieldNames.mkString(",") + ") VALUES (" + placeHolders.mkString(",") + ");")
-            table.foreach(row => {
-                CACHE.addBatch(row.getValues)
-            })
-            CACHE.executeBatchUpdate()
+            SOURCES("CACHE").tableUpdate("INSERT INTO " + tableName + " (" + table.getFieldNames.mkString(",") + ") VALUES (" + placeHolders.mkString(",") + ")", table)
         }
         placeHolders.clear()
         
@@ -250,8 +233,7 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
             DataTable()
         }
     }
-
-   
+    
     def discard(tableName: String): DataHub = {
         if (BUFFER.contains(tableName)) {
             BUFFER.remove(tableName)
@@ -414,7 +396,7 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
     // ---------- for Keeper ----------
 
     def writeKeeperEmail(taskStatus: String): DataHub = {
-        TABLE.first match {
+        TABLE.firstRow match {
             case Some(row) =>  TaskEvent.sendMail(taskStatus, row, BUFFER("logs"))
             case None =>
         }
@@ -422,7 +404,7 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
     }
 
     def requestKeeperApi(taskStatus: String): DataHub = {
-        TABLE.first match {
+        TABLE.firstRow match {
             case Some(row) =>  TaskEvent.requestApi(taskStatus, row)
             case None =>
         }
@@ -433,6 +415,7 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
     
     def close(): Unit = {
         SOURCES.values.foreach(_.close())
+        SOURCES.clear()
         BUFFER.clear()
         TABLE.clear()
     }

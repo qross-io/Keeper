@@ -37,7 +37,7 @@ object Properties {
                 version = Global.QROSS_VERSION
             }
             catch {
-                case e: Exception =>
+                case e: Exception => e.printStackTrace()
             }
             
             if (version != "") {
@@ -93,28 +93,8 @@ object Properties {
         }
     }
     
-    def getInt(key: String, defaultValue: Int = 0): Int = {
-        if (props.containsKey(key)) {
-            Try(props.getProperty(key).toInt) match {
-                case Success(value) => value
-                case _ => defaultValue
-            }
-        }
-        else {
-            defaultValue
-        }
-    }
-    
-    def getBoolean(key: String): Boolean = {
-        if (props.containsKey(key)) {
-            props.getProperty(key).toLowerCase() match {
-                case "true" | "yes" | "ok" | "1" => true
-                case _ => false
-            }
-        }
-        else {
-            false
-        }
+    def contains(key: String): Boolean = {
+        props.containsKey(key)
     }
     
     /*
@@ -122,15 +102,7 @@ object Properties {
         props.setProperty(key, value)
         props.store(externalOutput, "updated by user: " + key + " = " + value)
     }
-    
-    def getDataSources: HashMap[String, String] = {
-        var sources = new HashMap[String, String]
-        props.entrySet().forEach(row => {
-            sources += (row.getKey.toString -> row.getValue.toString)
-        })
-        
-        sources
-    }*/
+    */
     
     def addFile(propertiesType: String, propertiesPath: String): Unit = {
         DataSource.queryUpdate("INSERT INTO qross_properties (properties_type, properties_path) SELECT ?, ? FROM dual WHERE NOT EXISTS (SELECT id FROM qross_properties WHERE properties_type=? AND properties_path=?)",

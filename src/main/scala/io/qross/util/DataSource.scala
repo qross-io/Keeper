@@ -73,45 +73,67 @@ class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseN
     private val batchValues = new ArrayBuffer[Vector[Any]]()
     
     private val connectionString = if (connectionName != "sqlite.memory") Properties.get(connectionName) else "jdbc:sqlite::memory:"
-    private val dataSourceType = connectionName.substring(0, connectionName.indexOf("."))
-    private val driver = dataSourceType match {
-        case "sqlite" => "org.sqlite.JDBC"
-        case "mysql" => "com.mysql.jdbc.Driver"
-        case "hive" => "org.apache.hive.jdbc.HiveDriver"
-        //case "sqlserver" => "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-        //case "impala" => "org.apache.hive.jdbc.HiveDriver"
-        //case "oracle" => "oracle.jdbc.driver.OracleDriver"
-        //case "impala" => "com.cloudera.impala.jdbc4.Driver"
-        //case "h2" => "org.h2.Driver"
-        //case "postgresql" => ""
-        case _ => ""
-    }
+    private val config = new JDBConfiguration(connectionName)
+    private val isMySQL: Boolean = config.driver.contains("mysql")
     
     private var connection = None: Option[Connection] //current connection
     private var tick: Long = -1L //not opened
-    private var retry: Int = 0
     
-    def getConnectionName: String = this.connectionName
-    def getConnectionString: String = this.connectionString
+    def testConnection(): Boolean = {
+        var connected = false
+        try {
+            this.executeResultSet("SELECT 1 AS test")
+            connected = true
+        }
+        catch {
+            case _: Exception =>
+        }
+        
+        connected
+    }
     
     def open(): Unit = {
         try {
-            Class.forName(driver).newInstance
-            this.connection = Some(DriverManager.getConnection(connectionString))
+            Class.forName(config.driver).newInstance
+            if (config.isAlone) {
+                this.connection = Some(DriverManager.getConnection(config.connectionString, config.username, config.password))
+            }
+            else {
+                this.connection = Some(DriverManager.getConnection(config.connectionString))
+            }
         } catch {
             case e: InstantiationException => System.err.println(s"Open database $connectionName InstantiationException: " + e.getMessage)
             case e: IllegalAccessException => System.err.println(s"Open database $connectionName IllegalAccessException: " + e.getMessage)
             case e: ClassNotFoundException => System.err.println(s"Open database $connectionName ClassNotFoundException: " + e.getMessage)
             case e: SQLException => System.err.println(s"Open database $connectionName SQLException: " + e.getMessage)
         }
-        
-        while (this.connection.isEmpty && retry < 100) {
-            Timer.sleep(1F)
-            retry += 1
-            this.open()
+    
+        if (this.isMySQL) {
+            this.connection match {
+                case Some(conn) =>
+                    try {
+                        val prest: PreparedStatement = conn.prepareStatement("SELECT 1 FROM dual")
+                        val rs = prest.executeQuery()
+                        rs.close()
+                        prest.close()
+                    }
+                    catch {
+                        case e: Exception =>
+                            System.err.println("test connection Exception " + e.getMessage)
+                            connection = None
+                    }
+                case None =>
+            }
         }
-        if (this.connection.isDefined) {
-            this.tick = System.currentTimeMillis
+    
+        if (this.databaseName != "") {
+            this.connection match {
+                case Some(conn) =>
+                    val prest: PreparedStatement = conn.prepareStatement("USE " + databaseName)
+                    prest.executeUpdate()
+                    prest.close()
+                case None =>
+            }
         }
     }
     
@@ -143,7 +165,9 @@ class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseN
                             }
                             table.addRow(row)
                         }
-                        rs.getStatement.close()
+                        if (!connectionName.startsWith("presto.")) {
+                            rs.getStatement.close()
+                        }
                         rs.close()
                     } catch {
                         case e: SQLException => e.printStackTrace()
@@ -167,7 +191,9 @@ class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseN
                         }
                         list += row
                     }
-                    rs.getStatement.close()
+                    if (!connectionName.startsWith("presto.")) {
+                        rs.getStatement.close()
+                    }
                     rs.close()
                 } catch {
                     case e: SQLException => e.printStackTrace()
@@ -188,7 +214,9 @@ class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseN
                         for (i <- 1 to columns) {
                             row.set(meta.getColumnLabel(i), rs.getObject(i))
                         }
-                        rs.getStatement.close()
+                        if (!connectionName.startsWith("presto.")) {
+                            rs.getStatement.close()
+                        }
                         rs.close()
                     }
                 } catch {
@@ -207,7 +235,9 @@ class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseN
                     while (rs.next) {
                         map += (rs.getString(1) -> rs.getString(2))
                     }
-                    rs.getStatement.close()
+                    if (!connectionName.startsWith("presto.")) {
+                        rs.getStatement.close()
+                    }
                     rs.close()
                 } catch {
                     case e: SQLException => e.printStackTrace()
@@ -226,7 +256,9 @@ class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseN
                     while (rs.next) {
                         list += rs.getString(1)
                     }
-                    rs.getStatement.close()
+                    if (!connectionName.startsWith("presto.")) {
+                        rs.getStatement.close()
+                    }
                     rs.close()
                 } catch {
                     case e: SQLException => e.printStackTrace()
@@ -243,7 +275,9 @@ class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseN
                 try {
                     if (rs.next()) {
                         value = Some(rs.getString(1))
-                        rs.getStatement.close()
+                        if (!connectionName.startsWith("presto.")) {
+                            rs.getStatement.close()
+                        }
                         rs.close()
                     }
                 } catch {
@@ -261,7 +295,9 @@ class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseN
                 try {
                     if (rs.next()) {
                         result = true
-                        rs.getStatement.close()
+                        if (!connectionName.startsWith("presto.")) {
+                            rs.getStatement.close()
+                        }
                         rs.close()
                     }
                 } catch {
@@ -546,14 +582,21 @@ class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseN
     
     def openIfNot(): Unit = {
         try {
-            if (this.retry < 100) {
-                if (this.dataSourceType == "mysql" && this.getIdleTime >= 10000) {
-                    this.close()
-                }
-                if (this.tick == -1 || this.connection.get.isClosed) {
+            var retry = 0
+            //idle 10s
+            if (this.isMySQL && this.getIdleTime >= 10000) {
+                this.close()
+            }
+            if (this.tick == -1 || this.connection.get.isClosed) {
+                while (this.connection.isEmpty && retry < 100) {
                     this.open()
+                    if (this.connection.isEmpty) {
+                        Timer.sleep(1F)
+                        retry += 1
+                    }
                 }
-                if (this.tick > -1) {
+                
+                if (this.connection.isDefined) {
                     this.tick = System.currentTimeMillis
                 }
             }
@@ -565,12 +608,13 @@ class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseN
     def close(): Unit = {
         try {
             if (this.connection.isDefined && !this.connection.get.isClosed) {
-                this.tick = -1
                 this.connection.get.close()
+                this.connection = None
             }
         } catch {
-            case e: SQLException => e.printStackTrace()
+            case e: SQLException => "close database Exception: " + e.printStackTrace()
         }
+        this.tick = -1
     }
     
     private def trimSQL(SQL: String): String = {

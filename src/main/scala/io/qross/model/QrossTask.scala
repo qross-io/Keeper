@@ -175,8 +175,7 @@ object QrossTask {
 
         //get all DAGs
         dh.openCache()
-            .get("SELECT DISTINCT job_id FROM tasks")
-                .flat(table => DataRow("job_ids" -> (if (table.nonEmpty) table.mkString(",", "job_id") else "0")))
+            .get("SELECT GROUP_CONCAT(DISTINCT job_id) AS job_ids FROM tasks")
         dh.openDefault()
             .pass("SELECT id AS command_id, job_id, upstream_ids FROM qross_jobs_dags WHERE job_id IN (#job_ids)")
                 .cache("dags")
