@@ -10,14 +10,13 @@ object DataSource {
     
     val DEFAULT = "mysql.qross"
     
-    def create(connectionName: String = DEFAULT): DataSource = {
-        new DataSource(connectionName)
+    def openDefault(): DataSource = {
+        new DataSource()
     }
     
     def createMemoryDatabase: DataSource = {
         new DataSource("sqlite.memory")
     }
-    
     
     def queryDataTable(SQL: String, values: Any*): DataTable = {
         val ds: DataSource = new DataSource()
@@ -68,10 +67,10 @@ object DataSource {
     }
 }
 
-class DataSource (connectionName: String = DataSource.DEFAULT) {
+class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseName: String = "") {
     
-    private var batchSQLs = new ArrayBuffer[String]()
-    private var batchValues = new ArrayBuffer[Vector[Any]]()
+    private val batchSQLs = new ArrayBuffer[String]()
+    private val batchValues = new ArrayBuffer[Vector[Any]]()
     
     private val connectionString = if (connectionName != "sqlite.memory") Properties.get(connectionName) else "jdbc:sqlite::memory:"
     private val dataSourceType = connectionName.substring(0, connectionName.indexOf("."))
