@@ -138,8 +138,8 @@ object QrossTask {
 
         //get all new tasks
         dh.openDefault()
-            //.get("SELECT A.id AS task_id, A.job_id, A.task_time, A.status, B.dependencies FROM qross_tasks A INNER JOIN qross_jobs B ON A.job_id=B.id AND B.enabled='yes' WHERE A.status='new'")  // remove qross_jobs.dependencies at 7.2
-            .get("SELECT A.task_id, A.job_id, A.task_time, IFNULL(B.dependencies, 0) AS dependencies FROM (SELECT id FROM qross_jobs WHERE enabled='yes') T INNER JOIN (SELECT id AS task_id, job_id, task_time FROM qross_tasks WHERE status='new') A ON T.id=A.job_id LEFT JOIN (SELECT job_id, COUNT(0) AS dependencies FROM qross_jobs_dependencies GROUP BY job_id) B ON A.job_id=B.job_id")
+            //.get(s"SELECT A.id AS task_id, A.job_id, A.task_time, A.status, B.dependencies FROM qross_tasks A INNER JOIN qross_jobs B ON A.job_id=B.id AND B.enabled='yes' WHERE A.status='$TaskStatus.NEW'")  // remove qross_jobs.dependencies at 7.2
+            .get(s"SELECT A.task_id, A.job_id, A.task_time, IFNULL(B.dependencies, 0) AS dependencies FROM (SELECT id FROM qross_jobs WHERE enabled='yes') T INNER JOIN (SELECT id AS task_id, job_id, task_time FROM qross_tasks WHERE status='${TaskStatus.NEW}') A ON T.id=A.job_id LEFT JOIN (SELECT job_id, COUNT(0) AS dependencies FROM qross_jobs_dependencies GROUP BY job_id) B ON A.job_id=B.job_id")
                 .cache("tasks")
 
         //get all dependencies
@@ -208,7 +208,27 @@ object QrossTask {
     }
     
     def createTask(jobId: Int, queryId: String): Unit = {
+        
+        val now = DateTime.now
+        val nextMinute = now.plusMinutes(1).getString("yyyyMMddHHmm00")
     
+        val dh = new DataHub()
+        
+        dh.openDefault()
+            //whatever job is enabled or not
+            .get(s"SELECT id FROM qross_jobs WHERE next_tick<>'$nextMinute' OR enabled='no'")
+        
+        if (dh.nonEmpty) {
+            dh.set(s"INSERT INTO qross_tasks (job_id, task_time) VALUES ($jobId, '$nextMinute')")
+    
+            if (60 - now.getSecond >= 10) {
+                dh.get(s"SELECT id FROM qross_tasks WHERE job_id=$jobId AND task_time='$nextMinute' AND status='${TaskStatus.NEW}'")
+                
+                #TO DO
+            }
+        }
+        
+        dh.close()
     }
 
     def restartTask(taskId: Long, option: String): String = {
