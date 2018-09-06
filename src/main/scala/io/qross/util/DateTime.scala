@@ -3,6 +3,7 @@ package io.qross.util
 import java.time.format.DateTimeFormatter
 import java.time.temporal.{ChronoField, ChronoUnit}
 import java.time.{LocalDateTime, OffsetDateTime, ZoneId}
+import java.util.regex.Pattern
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
@@ -26,11 +27,11 @@ object DateTime {
     
     def main(args: Array[String]): Unit = {
     
-        println(DateTime.now.sharp("FROM DAY=MON#DAY-7 TO DAY=MON#DAY-1 FILTER DAY=W FORMAT yyyy-MM-dd"))
+        //println(DateTime.now.sharp("FROM DAY=MON#DAY-7 TO DAY=MON#DAY-1 FILTER DAY=W FORMAT yyyy-MM-dd"))
         
         //println(DateTime.now.plusDays(-31).setHour(0).setMinute(0).setSecond(0).toEpochSecond)
         
-        println(DateTime.now.setHour(12).setMinute(0).setSecond(0).toEpochSecond)
+        println(DateTime.now.toEpochSecond)
         //println("25" + DateTime.of(2018, 3 , 25).toEpochSecond)
         
         //println(CronExp("* * * ? * TUE *").matches(DateTime.now))
@@ -42,7 +43,7 @@ object DateTime {
     }
 }
 
-case class DateTime(private val dateTime: String = "", private var formatStyle: String = "") {
+case class DateTime(private var dateTime: String = "", private var formatStyle: String = "") {
     
     //E,EE,EEE = Sun
     //EEEE = Sunday
@@ -60,9 +61,23 @@ case class DateTime(private val dateTime: String = "", private var formatStyle: 
     
     if (formatStyle == "") {
         formatStyle = dateTime.length match {
-            case 5 => "EPOCH"
             case 8 => "yyyyMMddHH"
-            case 10 => if (dateTime.contains("-")) "yyyy-MM-dd HH" else "yyyyMMddHH"
+            case 10 =>
+                if (dateTime.contains("-")) {
+                    "yyyy-MM-dd"
+                } else if (dateTime.contains("/")) {
+                    if (dateTime.indexOf("/") == 4) {
+                        "yyyy/MM/dd"
+                    }
+                    else {
+                        "dd/MM/yyyy"
+                    }
+                } else if (Pattern.compile("^[0-9]+$").matcher(dateTime).find()) {
+                    "EPOCH"
+                }
+                else {
+                    "yyyyMMddHH"
+                }
             case 12 => "yyyyMMddHHmm"
             case 14 => "yyyyMMddHHmmss"
             case 18 => "yyyyMMddHHmmss.SSS"
@@ -72,18 +87,20 @@ case class DateTime(private val dateTime: String = "", private var formatStyle: 
         }
     }
     
+    if (dateTime.length == 8) {
+        dateTime += "00"
+        formatStyle += "HH"
+    }
+    else if (dateTime.length == 10 && (dateTime.contains("-") || dateTime.contains("/"))) {
+        dateTime += " 00"
+        formatStyle += " HH"
+    }
+    
     private var localDateTime : LocalDateTime =
             if (formatStyle != "EPOCH") {
                 dateTime match {
                     case "" => LocalDateTime.now()
-                    case _ =>
-                        LocalDateTime.parse(dateTime +
-                            (dateTime.length match {
-                                case 8 => "00"
-                                case 10 => if (dateTime.contains("-") || dateTime.contains("/")) " 00" else ""
-                                case _ => ""
-                            }),
-                            DateTimeFormatter.ofPattern(formatStyle))
+                    case _ => LocalDateTime.parse(dateTime, DateTimeFormatter.ofPattern(formatStyle))
                 }
             }
             else {

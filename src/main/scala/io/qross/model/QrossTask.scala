@@ -6,7 +6,7 @@ import io.qross.util._
 import scala.util.{Success, Try}
 
 object QrossTask {
-
+    
     //on keeper start up @ TaskProducer
     def complementTasks(): Unit = {
 
@@ -205,6 +205,10 @@ object QrossTask {
         dh.close()
 
         prepared
+    }
+    
+    def createTask(jobId: Int, queryId: String): Unit = {
+    
     }
 
     def restartTask(taskId: Long, option: String): String = {
