@@ -10,7 +10,7 @@ import scala.util.{Success, Try}
 object Properties {
     
     private val props = new java.util.Properties()
-    private var externalPath = new File(Properties.getClass.getProtectionDomain.getCodeSource.getLocation.getPath).getParentFile.getAbsolutePath.replace("\\", "/") + "/qross.properties"
+    private val externalPath = new File(Properties.getClass.getProtectionDomain.getCodeSource.getLocation.getPath).getParentFile.getAbsolutePath.replace("\\", "/") + "/qross.properties"
     //private lazy val externalOutput = new FileOutputStream(internalPath)
     
     if (!loadLocalFile(externalPath)) {

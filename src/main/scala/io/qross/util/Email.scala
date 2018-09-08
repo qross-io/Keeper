@@ -83,7 +83,7 @@ class Email(private var title: String) {
     
     def bcc(receivers: String): Email = {
         if (receivers != "") {
-            this.ccReceivers ++= parseReceivers(receivers)
+            this.bccReceivers ++= parseReceivers(receivers)
         }
         this
     }

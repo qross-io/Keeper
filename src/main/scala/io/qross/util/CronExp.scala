@@ -537,15 +537,7 @@ case class CronExp(expression: String = "0 * * * * ? *") {
         var no = 1
         val date = this.nextTick.copy().plusMonths(1).setDayOfMonth(1).plusDays(-1)
         for (day <- 1 to date.getDayOfMonth) {
-            val week: Int = date.setDayOfMonth(day).getWeekName match {
-                case "Sun" => 1
-                case "Mon" => 2
-                case "Tue" => 3
-                case "Wed" => 4
-                case "Thu" => 5
-                case "Fri" => 6
-                case "Sat" => 7
-            }
+            val week: Int = date.setDayOfMonth(day).getString("e").toInt
             if (day > 1 && week == 1) {
                 no += 1
             }

@@ -31,11 +31,9 @@ object DateTime {
         
         //println(DateTime.now.plusDays(-31).setHour(0).setMinute(0).setSecond(0).toEpochSecond)
         
-        println(DateTime.now.toEpochSecond)
+        println(DateTime.now.getString("E"))
         //println("25" + DateTime.of(2018, 3 , 25).toEpochSecond)
-        
         //println(CronExp("* * * ? * TUE *").matches(DateTime.now))
-    
         //println(DateTime.now.express("month=1#day=1"))
         //println(DateTime.now.express("day=L"))
         //println(DateTime.now.sharp("FROM month=1#day=1 TO month=2#day=L FILTER day=MON FORMAT yyyy-MM-dd JOIN WITH ' # '"))

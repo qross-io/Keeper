@@ -2,6 +2,7 @@ package io.qross.model
 
 import io.qross.util._
 import scala.sys.process._
+import io.qross.model.QrossTask.DataHubExt
 
 object QrossAction {
 
@@ -192,9 +193,9 @@ object QrossAction {
 
             dh.openCache()
                 .get("SELECT A.*, B.event_value AS receivers FROM task A INNER JOIN events B ON A.job_id=B.job_id WHERE event_function='SEND_MAIL_TO'")
-                    .writeKeeperEmail(status)
+                    .writeEmail(status)
                 .get("SELECT * FROM task WHERE EXISTS (SELECT job_id FROM events WHERE event_function='REQUEST_API')")
-                    .requestKeeperApi(status)
+                    .requestApi(status)
                 .get("SELECT event_value, '' AS restart_time FROM events WHERE INSTR(event_function, 'RESTART_')=1")
                     .foreach(row => {
                         row.set("restart_time", DateTime.now.plusMinutes(row.getInt("event_value")).getString("yyyyMMddHHmmss"))

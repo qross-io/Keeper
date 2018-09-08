@@ -5,16 +5,8 @@ import io.qross.util._
 object Test {
     def main(args: Array[String]): Unit = {
 
-        val date = DateTime.of(2018, 7, 3)
-        
-        val startDate: DateTime = DateTime.from(date).minusDays(8)
-        val endDate: DateTime = DateTime.from(date).minusDays(1)
-        while (startDate.getMonth != endDate.getMonth) {
-            startDate.plusDays(1)
-        }
-        
-        println(startDate)
-        println(endDate)
+        val date = DateTime.now.getDayOfWeek
+        println(date)
         //day=1
         //day>1
         

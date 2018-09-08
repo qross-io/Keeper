@@ -6,7 +6,7 @@ import io.qross.util.{DateTime, Output, Properties, Timer}
 class Messager extends WorkActor {
     
     private val producer = context.actorSelection("akka://keeper/user/producer")
-    private val starter = context.actorSelection("akka://keeper/user/starter")
+    //private val starter = context.actorSelection("akka://keeper/user/starter")
     
     override def beat(tick: String): Unit = {
         super.beat(tick)
@@ -34,12 +34,13 @@ class Messager extends WorkActor {
                         //TASK - RESTART - ^CommandIDs@TaskID - ^1,2,3,4,5@123
                         //TASK - RESTART - ^EXCEPTIONAL@TaskID - ^EXCEPTIONAL@123
                         //TASK - RESTART - CommandIDs@TaskID - 1,2,3,4,5@123
-                        //TASK - CREATE - JobID
+                        //TASK - CREATE - JobID@name1=value1&name2=value2
                         messageKey match {
-                            case "RESTART" => producer ! Task(messageText.substring(messageText.indexOf("@") + 1).toLong, messageText.substring(0, messageText.indexOf("@")))
-                            case "CREATE" => QrossTask.createTask(messageText.toInt, queryId)
+                            case "RESTART" => producer ! QrossTask.restartTask(messageText.substring(messageText.indexOf("@") + 1).toLong, messageText.substring(0, messageText.indexOf("@")))
+                            case "CREATE" => producer ! QrossTask.createInstantTask(messageText)
                             case _ =>
                         }
+
                     case "USER" =>
                         messageKey match {
                             case "MASTER" => Global.CONFIG.set("MASTER_USER_GROUP", QrossUser.getUsers("master"))

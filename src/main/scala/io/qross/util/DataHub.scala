@@ -1,6 +1,6 @@
 package io.qross.util
 
-import io.qross.model.TaskEvent
+import io.qross.model.{TaskDependency, TaskEvent}
 import io.qross.util.DataType.DataType
 import io.qross.util.Output._
 
@@ -17,8 +17,8 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
     private var CURRENT = SOURCES("DEFAULT")   //current dataSource - open
     private var TARGET = SOURCES("DEFAULT")    //current dataDestination - saveAs
     
-    private val TABLE = DataTable()  //current buffer
-    private val BUFFER = new mutable.HashMap[String, DataTable]() //all buffer
+    val TABLE = DataTable()  //current buffer
+    val BUFFER = new mutable.HashMap[String, DataTable]() //all buffer
     
     private var JSON: Json = _
     private var TO_BE_CLEAR: Boolean = false
@@ -393,23 +393,6 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
     def findList(jsonPath: String): List[Any] = JSON.findList(jsonPath)
     def findValue(jsonPath: String): Any = JSON.findValue(jsonPath)
 
-    // ---------- for Keeper ----------
-
-    def writeKeeperEmail(taskStatus: String): DataHub = {
-        TABLE.firstRow match {
-            case Some(row) =>  TaskEvent.sendMail(taskStatus, row, BUFFER("logs"))
-            case None =>
-        }
-        this
-    }
-
-    def requestKeeperApi(taskStatus: String): DataHub = {
-        TABLE.firstRow match {
-            case Some(row) =>  TaskEvent.requestApi(taskStatus, row)
-            case None =>
-        }
-        this
-    }
     
     // ---------- other ----------
     
