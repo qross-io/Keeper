@@ -187,8 +187,7 @@ object QrossTask {
             //.get(s"SELECT A.id AS task_id, A.job_id, A.task_time, A.status, B.dependencies FROM qross_tasks A INNER JOIN qross_jobs B ON A.job_id=B.id AND B.enabled='yes' WHERE A.status='$TaskStatus.NEW'")  // remove qross_jobs.dependencies at 7.2
             .get(
                 s"""SELECT A.task_id, A.job_id, A.task_time, IFNULL(B.dependencies, 0) AS dependencies
-                   FROM (SELECT id FROM qross_jobs WHERE enabled='yes') T
-                   INNER JOIN (SELECT id AS task_id, job_id, task_time FROM qross_tasks WHERE status='${TaskStatus.NEW}') A ON T.id=A.job_id
+                   FROM (SELECT id AS task_id, job_id, task_time FROM qross_tasks WHERE status='${TaskStatus.NEW}') A
                    LEFT JOIN (SELECT job_id, COUNT(0) AS dependencies FROM qross_jobs_dependencies WHERE dependency_moment='before' GROUP BY job_id) B ON A.job_id=B.job_id""")
                 .cache("tasks")
 
@@ -229,7 +228,7 @@ object QrossTask {
         // ---------- finishing ----------
 
         //send initialized tasks to checker, and send ready tasks to starter
-        val prepared = dh.openDefault().executeDataTable(s"SELECT A.task_id, A.status FROM (SELECT id AS task_id, job_id, status FROM qross_tasks WHERE status='${TaskStatus.READY}' or status='${TaskStatus.READY}') A INNER JOIN (SELECT id FROM qross_jobs WHERE enabled='yes') B ON A.job_id=B.id")
+        val prepared = dh.openDefault().executeDataTable(s"SELECT id AS task_id, job_id, status FROM qross_tasks WHERE status='${TaskStatus.READY}' or status='${TaskStatus.READY}'")
 
         //beat
         dh.executeNonQuery("UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='TaskProducer'")
@@ -246,14 +245,23 @@ object QrossTask {
         var taskId = 0L
         var status = TaskStatus.EMPTY
 
-        val (jobId, queryString) =
-            if (!message.contains("@")) {
-                (Try(message.substring(0, message.indexOf("@")).toInt).getOrElse(0), message.substring(message.indexOf("@") + 1))
-            }
-            else {
-                (Try(message.toInt).getOrElse(0), "")
-            }
-
+        var jobId = 0
+        var queryString = ""
+        var commandIds = ""
+    
+        if (message.contains("@")) {
+            queryString = message.substring(message.indexOf("@") + 1)
+            commandIds = message.substring(0, message.indexOf("@"))
+        }
+        
+        if (commandIds.contains("#")) {
+            jobId = Try(commandIds.substring(0, commandIds.indexOf("#")).toInt).getOrElse(0)
+            commandIds = commandIds.substring(commandIds.indexOf("#") + 1)
+        }
+        else {
+            jobId = Try(commandIds.toInt).getOrElse(0)
+        }
+        
         //maybe convert failure
         if (jobId > 0) {
 
@@ -274,7 +282,7 @@ object QrossTask {
                     .generateDependencies()
 
                 //DAG
-                dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId")
+                dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId" + (if (commandIds != "") s" AND id IN ($commandIds)" else ""))
                 //repalce arguments
                 if (queries.nonEmpty) {
                     dh.foreach(row => {
@@ -284,6 +292,11 @@ object QrossTask {
                     })
                 }
                 dh.put("INSERT INTO qross_tasks_dags (job_id, task_id, command_id, command_text, upstream_ids) VALUES (?, ?, ?, ?, ?)")
+                //upstream_ids
+                if (commandIds != "") {
+                    dh.get(s"SELECT id FROM qross_jobs_dags WHERE job_id=$jobId AND id NOT IN ($commandIds)")
+                        .put(s"UPDATE qross_tasks_dags SET upstream_ids=REPLACE(upstream_ids, '(#id)', '') WHERE task_id=$taskId")
+                }
 
                 //task status
                 dh.get(s"SELECT id FROM qross_tasks_dependencies WHERE task_id=$taskId AND dependency_moment='before' LIMIT 1")
@@ -371,10 +384,13 @@ object QrossTask {
                     dh.get(s"SELECT id, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId")
                         .put(s"UPDATE qross_tasks_dags SET upstream_ids='#upstream_ids',status='waiting' WHERE task_id=$taskId AND command_id=#id")
                     val commandIds = option.drop(1)
+                    dh.get(s"SELECT id FROM qross_jobs_dags WHERE job_id=$jobId WHERE id NOT IN ($commandIds)")
+                        .put(s"UPDATE qross_tasks_dags SET upstream_ids=REPLACE(upstream_ids, '(#id)', '') WHERE task_id=$taskId")
+                    /* 2018/09/11 so tedious
                     while (dh.get(s"SELECT id, command_id FROM qross_tasks_dags WHERE task_id=$taskId AND upstream_ids='' AND status='waiting' AND command_id NOT IN ($commandIds)").nonEmpty) {
                         dh.put(s"UPDATE qross_tasks_dags SET upstream_ids=REPLACE(upstream_ids, '(#command_id)', '') WHERE task_id=$taskId")
                             .put("UPDATE qross_tasks_dags SET status='done' WHERE id=#id")
-                    }
+                    }*/
             }
 
             //final status

@@ -34,7 +34,7 @@ class Messager extends WorkActor {
                         //TASK - RESTART - ^CommandIDs@TaskID - ^1,2,3,4,5@123
                         //TASK - RESTART - ^EXCEPTIONAL@TaskID - ^EXCEPTIONAL@123
                         //TASK - RESTART - CommandIDs@TaskID - 1,2,3,4,5@123
-                        //TASK - CREATE - JobID@name1=value1&name2=value2
+                        //TASK - CREATE - JobID#CommandID1,CommandID2,...@name1=value1&name2=value2&...
                         messageKey match {
                             case "RESTART" => producer ! QrossTask.restartTask(messageText.substring(messageText.indexOf("@") + 1).toLong, messageText.substring(0, messageText.indexOf("@")))
                             case "CREATE" => producer ! QrossTask.createInstantTask(messageText)
