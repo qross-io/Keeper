@@ -5,10 +5,7 @@ import io.qross.util._
 object Test {
     def main(args: Array[String]): Unit = {
 
-        val date = DateTime.now.getDayOfWeek
-        println(date)
-        //day=1
-        //day>1
+        
         
         //Properties.loadAll()
 
@@ -37,19 +34,13 @@ object Test {
         })
         */
         
-        /*
-        qross_jobs
-        qross_jobs_dags
-        qross_jobs_dependencies;
-        qross_tasks
-        qross_tasks_dags
-        qross_tasks_dependencies
-        qross_tasks_logs
-        */
-        
-//        val dh = new DataHub()
-//
-//        dh.open("mysql.qross")
+        val dh = new DataHub()
+        dh.get("SELECT id FROM qross_jobs")
+            .pass("SELECT job_id, GROUP_CONCAT(CONCAT(id, ':', status, '@', task_time) ORDER BY id ASC SEPARATOR ',') AS status FROM (SELECT job_id, id, status, task_time FROM qross_tasks WHERE job_id=#id ORDER BY id DESC LIMIT 3) T GROUP BY job_id")
+            .show()
+            //.put("UPDATE qross_jobs SET recent_tasks_status='#status' WHERE id=#job_id")
+        dh.close()
+
 //          .set("ALTER TABLE qross_jobs MODIFY COLUMN id INT")
 //          .set("ALTER TABLE qross_jobs_dags MODIFY COLUMN id INT")
 //          .set("ALTER TABLE qross_jobs_dependencies MODIFY COLUMN id INT")

@@ -249,6 +249,11 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
         TABLE.isEmpty
     }
     
+    def show(limit: Int = 10): DataHub = {
+        TABLE.show(limit)
+        this
+    }
+    
     // ---------- buffer action ----------
     
     def label(alias: (String, String)*): DataHub = {
