@@ -246,17 +246,17 @@ object QrossTask {
         var status = TaskStatus.EMPTY
 
         var jobId = 0
-        var queryString = ""
+        var parameters = ""
         var commandIds = ""
     
         if (message.contains("@")) {
-            queryString = message.substring(message.indexOf("@") + 1)
+            parameters = message.substring(message.indexOf("@") + 1)
             commandIds = message.substring(0, message.indexOf("@"))
         }
         
-        if (commandIds.contains("#")) {
-            jobId = Try(commandIds.substring(0, commandIds.indexOf("#")).toInt).getOrElse(0)
-            commandIds = commandIds.substring(commandIds.indexOf("#") + 1)
+        if (commandIds.contains("$")) {
+            jobId = Try(commandIds.substring(0, commandIds.indexOf("$")).toInt).getOrElse(0)
+            commandIds = commandIds.substring(commandIds.indexOf("$") + 1)
         }
         else {
             jobId = Try(commandIds.toInt).getOrElse(0)
@@ -266,7 +266,7 @@ object QrossTask {
         if (jobId > 0) {
 
             val taskTime = DateTime.now.getString("yyyyMMddHHmmss")
-            val queries = Common.parseQueryString(queryString)
+            val queries = Common.parseQueryString(parameters)
 
             val dh = new DataHub()
 
