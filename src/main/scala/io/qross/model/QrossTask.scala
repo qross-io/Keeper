@@ -241,40 +241,37 @@ object QrossTask {
     }
 
     def createInstantTask(message: String): Task = {
-
+        
+        /*
+            {
+                jobId: 123,
+                dag: "1,2,3",
+                params: "name1:value1,name2:value2",
+                commands: "commandId:commandText##$##commandId:commandText"
+            }
+         */
+    
+        val info = Json(message).findDataRow("/")
+    
         var taskId = 0L
         var status = TaskStatus.EMPTY
 
-        var jobId = 0
-        var parameters = ""
-        var commandIds = ""
-    
-        if (message.contains("@")) {
-            parameters = message.substring(message.indexOf("@") + 1)
-            commandIds = message.substring(0, message.indexOf("@"))
-        }
-        
-        if (commandIds.contains("$")) {
-            jobId = Try(commandIds.substring(0, commandIds.indexOf("$")).toInt).getOrElse(0)
-            commandIds = commandIds.substring(commandIds.indexOf("$") + 1)
-        }
-        else {
-            jobId = Try(commandIds.toInt).getOrElse(0)
-        }
+        val jobId = info.getInt("jobId")
+        val dag = info.getString("dag")
+        val params = Common.parseMapString(info.getString("params"), ",", ":")
+        val commands = Common.parseMapString(info.getString("commands"), "##\\$##", ":")
         
         //maybe convert failure
         if (jobId > 0) {
 
             val taskTime = DateTime.now.getString("yyyyMMddHHmmss")
-            val queries = Common.parseQueryString(parameters)
 
             val dh = new DataHub()
 
             //create task
-            dh.set(s"INSERT INTO qross_tasks (job_id, task_time, status) VALUES ($jobId, '$taskTime', '${TaskStatus.MANUAL}')")
+            dh.set(s"INSERT INTO qross_tasks (job_id, task_time, status) VALUES ($jobId, '$taskTime', '${TaskStatus.INSTANT}')")
             //get task id
-            taskId = dh.executeSingleValue(s"SELECT id FROM qross_tasks WHERE job_id=$jobId AND task_time='$taskTime' AND status='${TaskStatus.MANUAL}'").getOrElse("0").toLong
-            status = TaskStatus.INITIALIZED
+            taskId = dh.executeSingleValue(s"SELECT id FROM qross_tasks WHERE job_id=$jobId AND task_time='$taskTime' AND status='${TaskStatus.INSTANT}'").getOrElse("0").toLong
 
             if (taskId > 0) {
                 //dependencies
@@ -282,33 +279,35 @@ object QrossTask {
                     .generateDependencies()
 
                 //DAG
-                dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId" + (if (commandIds != "") s" AND id IN ($commandIds)" else ""))
-                //repalce arguments
-                if (queries.nonEmpty) {
+                dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId" + (if (dag != "") s" AND id IN ($dag)" else ""))
+                //replace params and commands
+                if (params.nonEmpty || commands.nonEmpty) {
                     dh.foreach(row => {
-                        for ((name, value) <- queries) {
+                        if (commands.nonEmpty && commands.contains(row.getString("command_id"))) {
+                            row.set("command_text", commands(row.getString("command_id")))
+                        }
+                        for ((name, value) <- params) {
                             row.set("command_text", row.getString("command_text").replace("${" + name + "}", value))
                         }
                     })
                 }
                 dh.put("INSERT INTO qross_tasks_dags (job_id, task_id, command_id, command_text, upstream_ids) VALUES (?, ?, ?, ?, ?)")
+                
                 //upstream_ids
-                if (commandIds != "") {
-                    dh.get(s"SELECT id FROM qross_jobs_dags WHERE job_id=$jobId AND id NOT IN ($commandIds)")
+                if (dag != "") {
+                    dh.get(s"SELECT id FROM qross_jobs_dags WHERE job_id=$jobId AND id NOT IN ($dag)")
                         .put(s"UPDATE qross_tasks_dags SET upstream_ids=REPLACE(upstream_ids, '(#id)', '') WHERE task_id=$taskId")
                 }
 
                 //task status
                 dh.get(s"SELECT id FROM qross_tasks_dependencies WHERE task_id=$taskId AND dependency_moment='before' LIMIT 1")
-                if (dh.isEmpty) {
-                    status = TaskStatus.READY
-                }
+                status = if (dh.isEmpty) TaskStatus.READY else TaskStatus.INITIALIZED
                 dh.set(s"UPDATE qross_tasks SET status='$status' WHERE id=$taskId")
             }
 
             dh.close()
 
-            TaskRecord.of(jobId, taskId).debug(s"Task $taskId of job $jobId has been created.")
+            TaskRecord.of(jobId, taskId).debug(s"Instant Task $taskId of job $jobId has been created.")
         }
 
         Task(taskId, status)

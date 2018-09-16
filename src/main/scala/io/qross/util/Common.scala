@@ -4,12 +4,12 @@ import scala.collection.mutable.HashMap
 
 object Common {
 
-    def parseQueryString(queryString: String): HashMap[String, String] = {
-        val params = queryString.split("&")
+    def parseMapString(queryString: String, delimiter: String = "&", terminator: String = "="): HashMap[String, String] = {
+        val params = queryString.split(delimiter)
         val queries = new HashMap[String, String]()
         for (param <- params) {
-            if (param.contains("=")) {
-                queries += param.substring(0, param.indexOf("=")) -> param.substring(param.indexOf("=") + 1)
+            if (param.contains(terminator)) {
+                queries += param.substring(0, param.indexOf(terminator)) -> param.substring(param.indexOf(terminator) + 1)
             }
             else {
                 queries += param -> ""
