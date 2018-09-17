@@ -5,6 +5,7 @@ import java.net.{HttpURLConnection, MalformedURLException, URL}
 
 import com.fasterxml.jackson.databind.node.JsonNodeType
 import com.fasterxml.jackson.databind.{JsonNode, ObjectMapper}
+import io.qross.model.Global
 
 import scala.collection.mutable
 import scala.util.{Failure, Success, Try}
@@ -96,7 +97,7 @@ case class Json(text: String = "") {
                 conn.connect()
     
                 val os = conn.getOutputStream
-                os.write(method.getBytes("utf-8"))
+                os.write(method.getBytes(Global.CHARSET))
                 os.close()
     
                 val is = conn.getInputStream

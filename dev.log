@@ -14,9 +14,10 @@
     3) Run at once! Now can create a task instantly.
     4) Now can transport SQL result variables in SQL dependencies.
     5) Add status option in Job dependencies.
-    6) Message box now supports return result.
-    7) Analyse recent tasks status every minute.
-    8) Fix bug of TaskLogger (restart constantly!).
+    6) User can choose missed task to complement when switch on a job.
+    7) Message box now supports return result.
+    8) Analyse recent tasks status every minute.
+    #) Fix bug of TaskLogger (restart constantly!).
 
 
 2018/07/17 0.5.6 Run.

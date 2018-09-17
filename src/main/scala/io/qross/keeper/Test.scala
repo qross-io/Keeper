@@ -7,38 +7,28 @@ import io.qross.util._
 object Test {
     def main(args: Array[String]): Unit = {
 
-        //val ds = new DataSource()
+        val dh = new DataHub()
 
-        //ds.testConnection()
+        dh.insertRow("job_ids" -> 0)
+        dh.pass("SELECT id AS dependency_id, job_id, dependency_moment, dependency_type, dependency_value FROM qross_jobs_dependencies WHERE job_id IN (#job_ids)").show()
 
-        val connectionString = Properties.get("mysql.qross")
-        println(connectionString)
+        dh.close()
 
-        Class.forName("com.mysql.jdbc.Driver").newInstance
-        val connection = DriverManager.getConnection(connectionString)
 
-        val prest = connection.prepareStatement("SELECT 1 AS test FROM dual")
-        val rs = prest.executeQuery()
 
-        while (rs.next()) {
-            println(rs.getString("test"))
-        }
-        rs.close()
-        connection.close()
 
-        //ds.close()
 
         //val list = List[String]("1", "2", "3")
-        
+
 //        val dh = new DataHub()
 //        dh.get("SELECT * FROM tc").cache("tc")
 //        dh.openCache().executeDataTable("SELECT (CASE WHEN status='waiting' THEN 1 ELSE 0 END) AS key FROM tc").show()
 //        dh.close()
         /*println(DateTime.now.getString("yyyyMMdd/HH"))
-        
+
         //QrossTask.checkTaskDependencies(542973L)
         //println(DateTime.of(2018, 3, 1).toEpochSecond)
-        
+
         HDFS.list(args(1)).foreach(hdfs => {
             val reader = new HDFSReader(hdfs.path)
             var line = ""
@@ -48,11 +38,11 @@ object Test {
                 count += 1
             }
             reader.close()
-            
+
             println(hdfs.path + " # " + count)
         })
         */
-        
+
         //val dh = new DataHub()
         //dh.get("SELECT id FROM qross_jobs")
         //    .pass("SELECT job_id, GROUP_CONCAT(CONCAT(id, ':', status, '@', task_time) ORDER BY id ASC SEPARATOR ',') AS status FROM (SELECT job_id, id, status, task_time FROM qross_tasks WHERE job_id=#id ORDER BY id DESC LIMIT 3) T GROUP BY job_id")
@@ -67,7 +57,7 @@ object Test {
 //          .set("ALTER TABLE qross_tasks_dags MODIFY COLUMN id BIGINT")
 //          .set("ALTER TABLE qross_tasks_dependencies MODIFY COLUMN id BIGINT")
 //          .set("ALTER TABLE qross_tasks_logs MODIFY COLUMN id BIGINT")
-        
+
 //        dh.open("mysql.qross_release").saveAs("mysql.qross")
 //
 //        var id = "0"
@@ -82,7 +72,7 @@ object Test {
 //                case None => continue = false
 //            }
 //        }
-        
+
             //.get("SELECT id, title, job_type, owner, description, enabled, cron_exp, next_tick, dependencies, mail_notification, complement_missed_tasks, concurrent_limit, create_time, update_time, mail_master_on_exception, keep_x_task_records FROM qross_jobs WHERE id>1")
             //    .put("INSERT INTO qross_jobs (id, title, job_type, owner, description, enabled, cron_exp, next_tick, dependencies, mail_notification, complement_missed_tasks, concurrent_limit, create_time, update_time, mail_master_on_exception, keep_x_task_records) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
             //.get("SELECT id, job_id, upstream_ids, title, command_type, command_text, overtime, retry_limit, create_time, update_time FROM qross_jobs_dags WHERE job_id>1")
@@ -97,7 +87,7 @@ object Test {
             //    .put("INSERT INTO qross_tasks_dependencies (id, job_id, task_id, dependency_id, dependency_moment, dependency_type, dependency_value, ready, retry_times, create_time, update_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
             //.get("SELECT id, job_id, task_id, command_id, action_id, log_type, log_text, create_time FROM qross_tasks_logs WHERE job_id>1")
             //    .put("INSERT INTO qross_tasks_logs (id, job_id, task_id, command_id, action_id, log_type, log_text, create_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-    
+
 //        dh.open("mysql.qross")
 //          .set("ALTER TABLE qross_jobs MODIFY COLUMN id INT AUTO_INCREMENT ")
 //          .set("ALTER TABLE qross_jobs_dags MODIFY COLUMN id INT AUTO_INCREMENT")

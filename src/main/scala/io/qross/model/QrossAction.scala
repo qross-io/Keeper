@@ -10,7 +10,7 @@ object QrossAction {
     def getTaskCommandsToExecute(taskId: Long, status: String): DataTable = synchronized {
         val ds = new DataSource()
 
-        val job = ds.executeDataRow(s"SELECT id AS job_id, concurrent_limit, enabled FROM qross_jobs WHERE id=(SELECT job_id FROM qross_tasks WHERE id=$taskId)")
+        val job = ds.executeDataRow(s"SELECT id AS job_id, concurrent_limit FROM qross_jobs WHERE id=(SELECT job_id FROM qross_tasks WHERE id=$taskId)")
         val jobId = job.getInt("job_id")
 
         if (status == TaskStatus.READY) {
@@ -25,30 +25,28 @@ object QrossAction {
             //exceptional exists -> failed -> restart task
             //waiting exists -> running
 
-            if (job.getBoolean("enabled")) {
-                val concurrentLimit = job.getInt("concurrent_limit")
-                if (concurrentLimit == 0 || ds.executeDataRow(s"SELECT COUNT(0) AS concurrent FROM qross_tasks WHERE job_id=$jobId AND status='${TaskStatus.EXECUTING}'").getInt("concurrent") < concurrentLimit) {
-                    val map = ds.executeHashMap(s"SELECT status, COUNT(0) AS amount FROM qross_tasks_dags WHERE task_id=$taskId GROUP BY status")
-                    if (map.isEmpty || map.contains(ActionStatus.EXCEPTIONAL) || map.contains(ActionStatus.OVERTIME)) {
-                        //restart task
-                        ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.RESTARTING}', start_time=NULL, finish_time=NULL, spent=NULL WHERE id=$taskId")
-                        ds.executeNonQuery(s"INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '${if (map.isEmpty) "WHOLE" else "^EXCEPTIONAL"}@$taskId')")
-                        TaskRecord.of(jobId, taskId).warn(s"Task $taskId of job $jobId restart because of exception on ready.")
-                    }
-                    else if (map.contains(ActionStatus.WAITING) || map.contains(ActionStatus.QUEUING) || map.contains(ActionStatus.RUNNING)) {
-                        //executing
-                        ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.EXECUTING}', start_time=NOW() WHERE id=$taskId")
-                        TaskRecord.of(jobId, taskId).log(s"Task $taskId of job $jobId start executing on ready.")
-                    }
-                    else {
-                        //finished
-                        ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.FINISHED}' WHERE id=$taskId")
-                        TaskRecord.of(jobId, taskId).warn(s"Task $taskId of job $jobId changes status to '${TaskStatus.FINISHED}' because of no commands to be execute on ready.")
-                    }
+            val concurrentLimit = job.getInt("concurrent_limit")
+            if (concurrentLimit == 0 || ds.executeDataRow(s"SELECT COUNT(0) AS concurrent FROM qross_tasks WHERE job_id=$jobId AND status='${TaskStatus.EXECUTING}'").getInt("concurrent") < concurrentLimit) {
+                val map = ds.executeHashMap(s"SELECT status, COUNT(0) AS amount FROM qross_tasks_dags WHERE task_id=$taskId GROUP BY status")
+                if (map.isEmpty || map.contains(ActionStatus.EXCEPTIONAL) || map.contains(ActionStatus.OVERTIME)) {
+                    //restart task
+                    ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.RESTARTING}', start_time=NULL, finish_time=NULL, spent=NULL WHERE id=$taskId")
+                    ds.executeNonQuery(s"INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '${if (map.isEmpty) "WHOLE" else "^EXCEPTIONAL"}@$taskId')")
+                    TaskRecord.of(jobId, taskId).warn(s"Task $taskId of job $jobId restart because of exception on ready.")
+                }
+                else if (map.contains(ActionStatus.WAITING) || map.contains(ActionStatus.QUEUING) || map.contains(ActionStatus.RUNNING)) {
+                    //executing
+                    ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.EXECUTING}', start_time=NOW() WHERE id=$taskId")
+                    TaskRecord.of(jobId, taskId).log(s"Task $taskId of job $jobId start executing on ready.")
                 }
                 else {
-                    TaskRecord.of(jobId, taskId).warn(s"Concurrent reach upper limit of Job $jobId for Task $taskId on ready.")
+                    //finished
+                    ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.FINISHED}' WHERE id=$taskId")
+                    TaskRecord.of(jobId, taskId).warn(s"Task $taskId of job $jobId changes status to '${TaskStatus.FINISHED}' because of no commands to be execute on ready.")
                 }
+            }
+            else {
+                TaskRecord.of(jobId, taskId).warn(s"Concurrent reach upper limit of Job $jobId for Task $taskId on ready.")
             }
         }
 
@@ -57,7 +55,7 @@ object QrossAction {
                          FROM (SELECT id AS action_id, job_id, task_id, command_id FROM qross_tasks_dags WHERE task_id=$taskId AND status='${ActionStatus.WAITING}' AND upstream_ids='') A
                          INNER JOIN (SELECT id, task_time FROM qross_tasks WHERE id=$taskId AND status='${TaskStatus.EXECUTING}') B ON A.task_id=B.id
                          INNER JOIN (SELECT id, command_type, command_text, overtime, retry_limit FROM qross_jobs_dags WHERE job_id=$jobId) C ON A.command_id=C.id
-                         INNER JOIN (SELECT title, owner FROM qross_jobs WHERE id=$jobId) D ON A.job_id=D.id""")
+                         INNER JOIN (SELECT id, title, owner FROM qross_jobs WHERE id=$jobId) D ON A.job_id=D.id""")
 
         //prepare to run command - start time point
         ds.tableUpdate(s"UPDATE qross_tasks_dags SET start_time=NOW(), status='${ActionStatus.QUEUING}' WHERE id=#action_id", executable)
@@ -115,25 +113,35 @@ object QrossAction {
             val start = System.currentTimeMillis()
             var timeout = false
 
-            val process = commandText.run(ProcessLogger(out => {
-                logger.out(out)
-            }, err => {
-                logger.err(err)
-            }))
+            try {
+                val process = commandText.run(ProcessLogger(out => {
+                    logger.out(out)
+                }, err => {
+                    logger.err(err)
+                }))
 
-            while (process.isAlive()) {
-                //if timeout
-                if (overtime > 0 && (System.currentTimeMillis() - start) / 1000 > overtime) {
-                    process.destroy() //kill it
-                    timeout = true
+                while (process.isAlive()) {
+                    //if timeout
+                    if (overtime > 0 && (System.currentTimeMillis() - start) / 1000 > overtime) {
+                        process.destroy() //kill it
+                        timeout = true
 
-                    logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId is TIMEOUT: $commandText")
+                        logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId is TIMEOUT: $commandText")
+                    }
+
+                    Timer.sleep(1)
                 }
 
-                Timer.sleep(1)
+                exitValue = process.exitValue()
+            }
+            catch {
+                case e: Exception =>
+                    e.printStackTrace()
+                    logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId is exceptional: ${e.getMessage}")
+
+                    exitValue = 2
             }
 
-            exitValue = process.exitValue()
             if (timeout) exitValue = -1
 
             retry += 1

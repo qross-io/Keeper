@@ -222,7 +222,7 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
     }
     
     def takeOut(): DataTable = {
-        TABLE
+        DataTable.from(TABLE)
     }
     
     def takeOut(tableName: String): DataTable = {
@@ -270,6 +270,7 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
                 throw new Exception("No data to pass. Please ensure data exists or default value provided.")
             }
         }
+
         TABLE.cut(CURRENT.tableSelect(querySentence, TABLE))
         
         this

@@ -28,7 +28,7 @@ class JDBConfiguration(connectionName: String) {
 
     if (this.driver == "") {
         this.driver =   if (connectionName.contains("mysql") || connectionString.contains("mysql")) {
-                            "com.mysql.jdbc.Driver"
+                            "com.mysql.cj.jdbc.Driver"
                         }
                         else if (connectionName.contains("sqlite") || connectionString.contains("sqlite")) {
                             "org.sqlite.JDBC"

@@ -193,7 +193,7 @@ object QrossTask {
 
         //get all dependencies
         dh.openCache()
-            .get("SELECT GROUP_CONCAT(DISTINCT job_id) AS job_ids FROM tasks WHERE dependencies>0")
+            .get("SELECT IFNULL(GROUP_CONCAT(DISTINCT job_id), 0) AS job_ids FROM tasks WHERE dependencies>0")
         dh.openDefault()
             .pass("SELECT id AS dependency_id, job_id, dependency_moment, dependency_type, dependency_value FROM qross_jobs_dependencies WHERE job_id IN (#job_ids)")
                 .cache("dependencies")
@@ -207,9 +207,9 @@ object QrossTask {
 
         //get all DAGs
         dh.openCache()
-            .get("SELECT GROUP_CONCAT(DISTINCT job_id) AS job_ids FROM tasks")
+            .get("SELECT IFNULL(GROUP_CONCAT(DISTINCT job_id), 0) AS job_ids FROM tasks")
         dh.openDefault()
-            .get("SELECT id AS command_id, command_text, job_id, upstream_ids FROM qross_jobs_dags WHERE job_id IN (#job_ids)")
+            .pass("SELECT id AS command_id, command_text, job_id, upstream_ids FROM qross_jobs_dags WHERE job_id IN (#job_ids)")
                 .cache("dags")
 
         //generate DAGs
