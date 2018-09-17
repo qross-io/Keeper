@@ -9,6 +9,7 @@ case class Tick(minute: String)
 object TaskStatus {
     val NEW = "new"
     val INSTANT = "instant"
+    val EMPTY_DAG = "empty_"
     //val MANUAL = "manual"
     val RESTARTING = "restarting"
     val INITIALIZED = "initialized"

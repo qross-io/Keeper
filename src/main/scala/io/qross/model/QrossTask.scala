@@ -223,7 +223,7 @@ object QrossTask {
         //Master will can't turn on job if no commands to execute - 2018.9.8
         //dh.openCache()
         //    .get("SELECT A.task_id FROM tasks A LEFT JOIN dags B ON A.job_id=B.job_id WHERE B.job_id IS NULL")
-        //        .put("UPDATE qross_tasks SET status='miss_commands' WHERE id=?")
+        //        .put("UPDATE qross_tasks SET status='${TaskStatus.EMPTY}' WHERE id=?")
 
         // ---------- finishing ----------
 
@@ -393,7 +393,7 @@ object QrossTask {
             }
 
             //final status
-            status = if (restartMode == WHOLE && dh.executeExists(s"SELECT id FROM qross_jobs_dependencies WHERE job_id=$jobId AND dependency_memont='before' LIMIT 1")) {
+            status = if (restartMode == WHOLE && dh.executeExists(s"SELECT id FROM qross_jobs_dependencies WHERE job_id=$jobId AND dependency_moment='before' LIMIT 1")) {
                         TaskStatus.INITIALIZED
                     }
                     else {
