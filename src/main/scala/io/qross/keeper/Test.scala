@@ -1,11 +1,32 @@
 package io.qross.keeper
 
+import java.sql.DriverManager
+
 import io.qross.util._
 
 object Test {
     def main(args: Array[String]): Unit = {
 
-        "1###$###2###$###3".split("###\\$###").foreach(println)
+        //val ds = new DataSource()
+
+        //ds.testConnection()
+
+        val connectionString = Properties.get("mysql.qross")
+        println(connectionString)
+
+        Class.forName("com.mysql.jdbc.Driver").newInstance
+        val connection = DriverManager.getConnection(connectionString)
+
+        val prest = connection.prepareStatement("SELECT 1 AS test FROM dual")
+        val rs = prest.executeQuery()
+
+        while (rs.next()) {
+            println(rs.getString("test"))
+        }
+        rs.close()
+        connection.close()
+
+        //ds.close()
 
         //val list = List[String]("1", "2", "3")
         

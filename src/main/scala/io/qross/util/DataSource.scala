@@ -72,7 +72,7 @@ class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseN
     private val batchSQLs = new ArrayBuffer[String]()
     private val batchValues = new ArrayBuffer[Vector[Any]]()
     
-    private val connectionString = if (connectionName != "sqlite.memory") Properties.get(connectionName) else "jdbc:sqlite::memory:"
+    //private val connectionString = if (connectionName != "sqlite.memory") Properties.get(connectionName) else "jdbc:sqlite::memory:"
     private val config = new JDBConfiguration(connectionName)
     private val isMySQL: Boolean = config.driver.contains("mysql")
     
@@ -105,7 +105,7 @@ class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseN
             case e: InstantiationException => System.err.println(s"Open database $connectionName InstantiationException: " + e.getMessage)
             case e: IllegalAccessException => System.err.println(s"Open database $connectionName IllegalAccessException: " + e.getMessage)
             case e: ClassNotFoundException => System.err.println(s"Open database $connectionName ClassNotFoundException: " + e.getMessage)
-            case e: SQLException => System.err.println(s"Open database $connectionName SQLException: " + e.getMessage)
+            case e: SQLException => System.err.println(s"Open database $connectionName SQLException: ${e.getMessage} ${config.connectionString}")
         }
     
         if (this.isMySQL) {
