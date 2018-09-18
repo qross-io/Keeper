@@ -1,14 +1,13 @@
 package io.qross.model
 
-import io.qross.util.{DataRow, DataTable, Json, OpenResourceFile}
+import io.qross.util._
 
 object TaskEvent {
 
-    def execute(content: DataRow): Unit = {
-
-    }
-
     def sendMail(status: String, row: DataRow, logs: DataTable): Unit = {
+
+        Output.writeLine("WRITE MAIL")
+
         if (Global.EMAIL_NOTIFICATION) {
             val receivers = row.getString("receivers")
             val upperStatus = status.toUpperCase()
@@ -30,6 +29,9 @@ object TaskEvent {
     }
 
     def requestApi(status: String, row: DataRow): Unit = {
+
+        Output.writeLine("REQUEST API")
+
         var api = status match {
             case TaskStatus.CHECKING_LIMIT => Global.API_ON_TASK_CHECKING_LIMIT
             case TaskStatus.FAILED => Global.API_ON_TASK_FAILED
@@ -52,14 +54,19 @@ object TaskEvent {
                 api = api.substring(0, api.indexOf("->")).trim
             }
 
-            api = api.replace("${jobId}", row.getString("job_id"))
-                        .replace("${taskId}", row.getString("task_id"))
+            api = api.replace("${jobId}", row.getString("job_id", "0"))
+                        .replace("${taskId}", row.getString("task_id", "0"))
+                        .replace("${commandId}", row.getString("command_id", "0"))
+                        .replace("${actionId}", row.getString("action_id", "0"))
+                        .replace("${status}", status)
                         .replace("${title}", row.getString("title"))
-                        .replace("${retryTimes}", row.getString("retry_times"))
-                        .replace("${retryLimit}", row.getString("retry_limit"))
+                        .replace("${retryTimes}", row.getString("retry_times", "0"))
+                        .replace("${retryLimit}", row.getString("retry_limit", "0"))
                         .replace("${owner}", row.getString("owner"))
                         .replace("${taskTime}", row.getString("taskTime"))
                         .replace("${status}", status)
+
+            Output.writeLine(api)
 
             val result = try {
                 Json.fromURL(api, method).findValue(path)
@@ -70,7 +77,7 @@ object TaskEvent {
             }
 
             TaskRecord.of(row.getInt("job_id"), row.getLong("task_id"))
-                    .log(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} request api on $status")
+                    .log(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} request api on $status, result is { $result }")
         }
     }
 }

@@ -11,7 +11,7 @@ object MessageBox {
                 .put("DELETE FROM qross_message_box WHERE id=#id")
                     .takeOut()
         dh.close()
-        
+
         table
     }
     

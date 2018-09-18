@@ -42,12 +42,11 @@ object Json {
         //node.fields().forEachRemaining(field => println(field.getKey))
         //Json.fromURL("http://localhost/1.htm").findDataRow("/score").foreach((k, v) => println(k + "+" + v))
 
-        val table = DataTable()
-        //table.addField("A", DataType.NUMBER)
         //table.addField("B", DataType.TEXT)
-        val f = new File("c:\\lonfile.txt")
-        println(f.length())
-        println(f.getName)
+
+        //println(Json.fromURL("http://localhost:8080/api?name=recordTaskExecuting&jobId=1&taskId=21&commandId=1&actionId=21&status=failed", "POST")
+        //        .findValue("/"))
+
         /*
         println(node.textValue())
         println("------------------------")

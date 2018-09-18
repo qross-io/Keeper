@@ -87,8 +87,17 @@ class Email(private var title: String) {
         }
         this
     }
-    
+
     def send(): Unit = {
+        try {
+            transfer()
+        }
+        catch {
+            case e: Exception => e.printStackTrace()
+        }
+    }
+    
+    def transfer(): Unit = {
         //must setup one receiver as least
         if (toReceivers.nonEmpty) {
     

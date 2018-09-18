@@ -28,8 +28,12 @@ object QrossAction {
             val concurrentLimit = job.getInt("concurrent_limit")
             if (concurrentLimit == 0 || ds.executeDataRow(s"SELECT COUNT(0) AS concurrent FROM qross_tasks WHERE job_id=$jobId AND status='${TaskStatus.EXECUTING}'").getInt("concurrent") < concurrentLimit) {
                 val map = ds.executeHashMap(s"SELECT status, COUNT(0) AS amount FROM qross_tasks_dags WHERE task_id=$taskId GROUP BY status")
-                if (map.isEmpty || map.contains(ActionStatus.EXCEPTIONAL) || map.contains(ActionStatus.OVERTIME)) {
-                    //restart task
+                if (map.isEmpty) {
+                    //quit if no commands to execute
+                    ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.NO_COMMANDS}' WHERE id=$taskId")
+                }
+                else if (map.contains(ActionStatus.EXCEPTIONAL) || map.contains(ActionStatus.OVERTIME)) {
+                    //restart task if exceptional or overtime
                     ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.RESTARTING}', start_time=NULL, finish_time=NULL, spent=NULL WHERE id=$taskId")
                     ds.executeNonQuery(s"INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '${if (map.isEmpty) "WHOLE" else "^EXCEPTIONAL"}@$taskId')")
                     TaskRecord.of(jobId, taskId).warn(s"Task $taskId of job $jobId restart because of exception on ready.")
@@ -51,10 +55,10 @@ object QrossAction {
         }
 
         val executable = ds.executeDataTable(
-            s"""SELECT A.action_id, A.job_id, A.task_id, A.command_id, B.task_time, C.command_type, C.command_text, C.overtime, C.retry_limit, D.title, D.owner
-                         FROM (SELECT id AS action_id, job_id, task_id, command_id FROM qross_tasks_dags WHERE task_id=$taskId AND status='${ActionStatus.WAITING}' AND upstream_ids='') A
+            s"""SELECT A.action_id, A.job_id, A.task_id, A.command_id, B.task_time, C.command_type, A.command_text, C.overtime, C.retry_limit, D.title, D.owner
+                         FROM (SELECT id AS action_id, job_id, task_id, command_id, command_text FROM qross_tasks_dags WHERE task_id=$taskId AND status='${ActionStatus.WAITING}' AND upstream_ids='') A
                          INNER JOIN (SELECT id, task_time FROM qross_tasks WHERE id=$taskId AND status='${TaskStatus.EXECUTING}') B ON A.task_id=B.id
-                         INNER JOIN (SELECT id, command_type, command_text, overtime, retry_limit FROM qross_jobs_dags WHERE job_id=$jobId) C ON A.command_id=C.id
+                         INNER JOIN (SELECT id, command_type, overtime, retry_limit FROM qross_jobs_dags WHERE job_id=$jobId) C ON A.command_id=C.id
                          INNER JOIN (SELECT id, title, owner FROM qross_jobs WHERE id=$jobId) D ON A.job_id=D.id""")
 
         //prepare to run command - start time point
@@ -201,12 +205,12 @@ object QrossAction {
 
             dh.openCache()
                 .get("SELECT A.*, B.event_value AS receivers FROM task A INNER JOIN events B ON A.job_id=B.job_id WHERE event_function='SEND_MAIL_TO'")
-                    .writeEmail(status)
+                    .sendEmail(status)
                 .get("SELECT * FROM task WHERE EXISTS (SELECT job_id FROM events WHERE event_function='REQUEST_API')")
                     .requestApi(status)
                 .get("SELECT event_value, '' AS restart_time FROM events WHERE INSTR(event_function, 'RESTART_')=1")
                     .foreach(row => {
-                        row.set("restart_time", DateTime.now.plusMinutes(row.getInt("event_value")).getString("yyyyMMddHHmmss"))
+                        row.set("restart_time", DateTime.now.plusMinutes(row.getInt("event_value")).getString("yyyyMMddHHmm00"))
                     }).put(s"UPDATE qross_tasks SET restart_time='#restart_time' WHERE id=$taskId")
         }
 

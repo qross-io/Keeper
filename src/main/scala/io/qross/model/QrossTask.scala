@@ -9,7 +9,7 @@ object QrossTask {
 
     implicit class DataHubExt(dh: DataHub) {
 
-        def writeEmail(taskStatus: String): DataHub = {
+        def sendEmail(taskStatus: String): DataHub = {
             dh.TABLE.firstRow match {
                 case Some(row) =>  TaskEvent.sendMail(taskStatus, row, dh.BUFFER("logs"))
                 case None =>
@@ -221,9 +221,9 @@ object QrossTask {
                 .put("UPDATE qross_tasks SET status=? WHERE id=?")
 
         //Master will can't turn on job if no commands to execute - 2018.9.8
-        //dh.openCache()
-        //    .get("SELECT A.task_id FROM tasks A LEFT JOIN dags B ON A.job_id=B.job_id WHERE B.job_id IS NULL")
-        //        .put("UPDATE qross_tasks SET status='${TaskStatus.EMPTY}' WHERE id=?")
+        dh.openCache()
+            .get("SELECT A.task_id FROM tasks A LEFT JOIN dags B ON A.job_id=B.job_id WHERE B.job_id IS NULL")
+                .put(s"UPDATE qross_tasks SET status='${TaskStatus.NO_COMMANDS}' WHERE id=?")
 
         // ---------- finishing ----------
 
@@ -240,8 +240,8 @@ object QrossTask {
         prepared
     }
 
-    def createInstantTask(message: String): Task = {
-        
+    def createInstantTask(queryId: String, message: String): Task = {
+
         /*
             {
                 jobId: 123,
@@ -250,9 +250,9 @@ object QrossTask {
                 commands: "commandId:commandText##$##commandId:commandText"
             }
          */
-    
+
         val info = Json(message).findDataRow("/")
-    
+
         var taskId = 0L
         var status = TaskStatus.EMPTY
 
@@ -260,7 +260,7 @@ object QrossTask {
         val dag = info.getString("dag")
         val params = Common.parseMapString(info.getString("params"), ",", ":")
         val commands = Common.parseMapString(info.getString("commands"), "##\\$##", ":")
-        
+
         //maybe convert failure
         if (jobId > 0) {
 
@@ -292,7 +292,7 @@ object QrossTask {
                     })
                 }
                 dh.put("INSERT INTO qross_tasks_dags (job_id, task_id, command_id, command_text, upstream_ids) VALUES (?, ?, ?, ?, ?)")
-                
+
                 //upstream_ids
                 if (dag != "") {
                     dh.get(s"SELECT id FROM qross_jobs_dags WHERE job_id=$jobId AND id NOT IN ($dag)")
@@ -304,6 +304,8 @@ object QrossTask {
                 status = if (dh.isEmpty) TaskStatus.READY else TaskStatus.INITIALIZED
                 dh.set(s"UPDATE qross_tasks SET status='$status' WHERE id=$taskId")
             }
+
+            dh.set(s"INSERT INTO qross_query_result (query_id, result) VALUES ('$queryId', '$taskId')")
 
             dh.close()
 
@@ -470,12 +472,12 @@ object QrossTask {
                 //execute event
                 dh.openCache()
                     .get("SELECT A.*, B.event_value AS receivers FROM task A INNER JOIN events B ON A.job_id=B.job_id WHERE event_function='SEND_MAIL_TO'")
-                        .writeEmail(TaskStatus.CHECKING_LIMIT)
+                        .sendEmail(TaskStatus.CHECKING_LIMIT)
                     .get("SELECT * FROM task WHERE EXISTS (SELECT job_id FROM events WHERE event_function='REQUEST_API')")
                         .requestApi(TaskStatus.CHECKING_LIMIT)
                     .get("SELECT event_value, '' AS restart_time FROM events WHERE event_function='RESTART_CHECKING_AFTER'")
                         .foreach(row => {
-                            row.set("restart_time", DateTime.now.plusMinutes(row.getInt("event_value")).getString("yyyyMMddHHmmss"))
+                            row.set("restart_time", DateTime.now.plusMinutes(row.getInt("event_value")).getString("yyyyMMddHHmm00"))
                         }).put(s"UPDATE qross_tasks SET restart_time='#restart_time' WHERE id=$taskId")
             }
         }

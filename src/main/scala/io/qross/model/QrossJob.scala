@@ -8,7 +8,7 @@ object QrossJob {
     //get complement tasks for master when enable a job
     def tickTasks(jobId: Int, queryId: String): Unit = {
         val ds = new DataSource()
-        val job = ds.executeDataRow(s"SELECT cron_exp, switch_time FROM qross_jobs WHERE id=$jobId")
+        val job = ds.executeDataRow(s"SELECT cron_exp, CAST(switch_time AS CHAR) AS switch_time FROM qross_jobs WHERE id=$jobId")
         val json = CronExp.getTicks(
                 job.getString("cron_exp"),
                 job.getString("switch_time"),
