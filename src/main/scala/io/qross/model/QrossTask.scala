@@ -49,7 +49,7 @@ object QrossTask {
                 dh.put("INSERT INTO qross_tasks_dependencies (job_id, task_id, dependency_id, dependency_moment, dependency_type, dependency_value) VALUES (?, ?, ?, ?, ?, ?)", table)
             }
 
-            dh
+            dh.clear()
         }
     }
 
@@ -506,6 +506,7 @@ object QrossTask {
                     .put(s"UPDATE qross_tasks SET status='${TaskStatus.RESTARTING}', start_time=NULL, finish_time=NULL, spent=NULL, restart_time=NULL WHERE id=#task_id")
                     .put("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '^EXCEPTIONAL@#task_id')")
         }
+        dh.clear()
 
         //recent tasks status
         dh.openDefault()

@@ -325,7 +325,9 @@ class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseN
                         rs = Some(prest.executeQuery)
                         //prest.close()
                     } catch {
-                        case e: SQLException => e.printStackTrace()
+                        case e: SQLException =>
+                            Output.writeException(SQL)
+                            e.printStackTrace()
                             //if (e.getClass.getSimpleName == "CommunicationsException") {
                             //    Output.writeMessage("MATCHED!")
                             //}
@@ -353,7 +355,9 @@ class DataSource (val connectionName: String = DataSource.DEFAULT, var databaseN
                         row = prest.executeUpdate
                         prest.close()
                     } catch {
-                        case e: SQLException => e.printStackTrace()
+                        case e: SQLException =>
+                            Output.writeException(SQL)
+                            e.printStackTrace()
                     }
                     retry += 1
                 }

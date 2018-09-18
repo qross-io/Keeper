@@ -234,6 +234,11 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
         }
     }
     
+    def clear(): DataHub = {
+        TABLE.clear()
+        this
+    }
+    
     def discard(tableName: String): DataHub = {
         if (BUFFER.contains(tableName)) {
             BUFFER.remove(tableName)
@@ -270,7 +275,7 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
                 throw new Exception("No data to pass. Please ensure data exists or default value provided.")
             }
         }
-
+        
         TABLE.cut(CURRENT.tableSelect(querySentence, TABLE))
         
         this
