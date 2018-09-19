@@ -77,7 +77,7 @@ object TaskDependency {
                         //pass variables to command in pre-dependency
                         if (taskId > 0) {
                             val default = new DataSource()
-                            val dag = ds.executeDataTable(s"SELECT id, command_text FROM qross_task_dags WHERE task_id=$taskId")
+                            val dag = default.executeDataTable(s"SELECT id, command_text FROM qross_tasks_dags WHERE task_id=$taskId")
                             dag.filter(row => {
                                 var command = row.getString("command_text")
                                 if (command.contains("#{") && command.contains("}")) {
@@ -93,7 +93,7 @@ object TaskDependency {
                                 else {
                                     false
                                 }
-                            }).updateSource(default, "UPDATE qross_task_dags SET command_text='#command_text' WHERE id=#id")
+                            }).updateSource(default, "UPDATE qross_tasks_dags SET command_text='#command_text' WHERE id=#id")
                             dag.clear()
                             default.close()
                         }

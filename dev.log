@@ -1,10 +1,12 @@
 
+2018/09/19 Debug Finished.
 2018/09/15 0.5.7 Code Finished. Rewrite about 30 percent codes.
     1) Qross Master release!
     2) Job Events
         a. SEND_MAIL_TO_OWNER/MASTER/KEEPER
         b. REQUEST_API
         c. RESTART_TASK_AFTER
+        d. Task status "finished" also supports events
         d. new global variables
             API_ON_TASK_CHECKING_LIMIT
             API_ON_TASK_FAILED
@@ -15,21 +17,20 @@
     4) Now can transport SQL result variables in SQL dependencies.
     5) Add status option in Job dependencies.
     6) User can choose missed task to complement when switch on a job.
-    7) Message box now supports return result.
+    7) Message now supports return result.
     8) Analyse recent tasks status every minute.
-    #) Fix bug of TaskLogger (restart constantly!).
-
+    9) Fix some bugs.
 
 2018/07/17 0.5.6 Run.
 2018/07/05 0.5.6 Debug Finished.
 2018/07/05 0.5.6 Code Finished.
     1) Restart or finish task if exceptional commands exist or no commands to execute.
     2) KeeperLogger: refresh configuration when send exception mail.
-    3) remove qross_jobs.dependencies
-    4) fix bugs of SQL.
-    5) add try...catch for cron expression.
-    6) add default value on passing data for Cleaner.
-    7) fix bug for clean logs before executing action.
+    3) Remove qross_jobs.dependencies
+    4) Fix bugs of SQL.
+    5) Add try...catch for cron expression.
+    6) Add default value on passing data for Cleaner.
+    7) Fix bug for clean logs before executing action.
 
 2018/07/02 0.5.5 Run.
 2018/06/30 0.5.5 Bug fixed for logText. (too long)

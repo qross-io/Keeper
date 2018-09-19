@@ -197,23 +197,25 @@ object QrossAction {
         //send notification mail if failed or timeout or incorrect
         if (status == TaskStatus.FINISHED || status == TaskStatus.FAILED || status == TaskStatus.TIMEOUT || status == TaskStatus.INCORRECT) {
     
-            dh.cache("task", DataTable(taskCommand))
-            
             dh.get(s"SELECT job_id, event_function, event_value FROM qross_jobs_events WHERE job_id=$jobId AND enabled='yes' AND event_name='onTask${status.capitalize}'")
-                .cache("events")
-            
-            dh.get(s"SELECT CAST(create_time AS CHAR) AS create_time, log_type, log_text FROM qross_tasks_logs WHERE task_id=$taskId AND action_id=$actionId ORDER BY create_time ASC")
-                .buffer("logs")
+            if (dh.nonEmpty) {
 
-            dh.openCache()
-                .get("SELECT A.*, B.event_value AS receivers FROM task A INNER JOIN events B ON A.job_id=B.job_id WHERE event_function='SEND_MAIL_TO'")
-                    .sendEmail(status)
-                .get("SELECT * FROM task WHERE EXISTS (SELECT job_id FROM events WHERE event_function='REQUEST_API')")
-                    .requestApi(status)
-                .get("SELECT event_value, '' AS restart_time FROM events WHERE INSTR(event_function, 'RESTART_')=1")
-                    .foreach(row => {
-                        row.set("restart_time", DateTime.now.plusMinutes(row.getInt("event_value")).getString("yyyyMMddHHmm00"))
-                    }).put(s"UPDATE qross_tasks SET restart_time='#restart_time' WHERE id=$taskId")
+                dh.cache("events")
+                dh.cache("task", DataTable(taskCommand))
+
+                dh.get(s"SELECT CAST(create_time AS CHAR) AS create_time, log_type, log_text FROM qross_tasks_logs WHERE task_id=$taskId AND action_id=$actionId ORDER BY create_time ASC")
+                        .buffer("logs")
+
+                dh.openCache()
+                    .get("SELECT A.*, B.event_value AS receivers FROM task A INNER JOIN events B ON A.job_id=B.job_id WHERE event_function='SEND_MAIL_TO'")
+                        .sendEmail(status)
+                    .get("SELECT * FROM task WHERE EXISTS (SELECT job_id FROM events WHERE event_function='REQUEST_API')")
+                        .requestApi(status)
+                    .get("SELECT event_value, '' AS restart_time FROM events WHERE INSTR(event_function, 'RESTART_')=1")
+                        .foreach(row => {
+                            row.set("restart_time", DateTime.now.plusMinutes(row.getInt("event_value", 30)).getString("yyyyMMddHHmm00"))
+                        }).put(s"UPDATE qross_tasks SET restart_time='#restart_time' WHERE id=$taskId")
+            }
         }
 
         dh.close()

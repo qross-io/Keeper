@@ -6,8 +6,6 @@ object TaskEvent {
 
     def sendMail(status: String, row: DataRow, logs: DataTable): Unit = {
 
-        Output.writeLine("WRITE MAIL")
-
         if (Global.EMAIL_NOTIFICATION) {
             val receivers = row.getString("receivers")
             val upperStatus = status.toUpperCase()
@@ -15,7 +13,7 @@ object TaskEvent {
                 OpenResourceFile(s"/templates/$status.html")
                     .replace("${status}", upperStatus)
                     .replaceWith(row)
-                    .replace(s"${logs}", TaskRecord.toHTML(logs))
+                    .replace("${logs}", TaskRecord.toHTML(logs))
                     .writeEmail(s"$upperStatus: ${row.getString("title")} ${row.getString("task_time")} - JobID: ${row.getString("job_id")} - TaskID: ${row.getString("task_id")}")
                     .to(if (receivers.contains("_OWNER")) row.getString("owner") else "")
                     .to(if (receivers.contains("_MASTER")) Global.MASTER_USER_GROUP else "")
@@ -29,8 +27,6 @@ object TaskEvent {
     }
 
     def requestApi(status: String, row: DataRow): Unit = {
-
-        Output.writeLine("REQUEST API")
 
         var api = status match {
             case TaskStatus.CHECKING_LIMIT => Global.API_ON_TASK_CHECKING_LIMIT
@@ -65,8 +61,6 @@ object TaskEvent {
                         .replace("${owner}", row.getString("owner"))
                         .replace("${taskTime}", row.getString("taskTime"))
                         .replace("${status}", status)
-
-            Output.writeLine(api)
 
             val result = try {
                 Json.fromURL(api, method).findValue(path)
