@@ -20,6 +20,7 @@ object TaskStatus {
     val FAILED = "failed"
     val INCORRECT = "incorrect"
     val TIMEOUT = "timeout"
+    val SUCCESS = "success"
     val EMPTY = ""
 }
 

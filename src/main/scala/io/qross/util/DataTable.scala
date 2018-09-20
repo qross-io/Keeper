@@ -460,7 +460,8 @@ case class DataTable(private val items: DataRow*) {
     }
 
     def join(otherTable: DataTable, on: (String, String)*): DataTable = {
-        val table = new DataTable()
+        this.fields ++= otherTable.fields
+        this.labels ++= otherTable.labels
         for (row <- this.rows) {
             for (line <- otherTable.rows) {
                 var matched = true
@@ -473,12 +474,12 @@ case class DataTable(private val items: DataRow*) {
                     }
                 }
                 if (matched) {
-                    table.addRow(DataRow.from(row).combine(line))
+                    row.combine(line)
                 }
             }
         }
-        this.clear()
-        table
+        otherTable.clear()
+        this
     }
     
     def getFieldNames: List[String] = this.fields.keySet.toList

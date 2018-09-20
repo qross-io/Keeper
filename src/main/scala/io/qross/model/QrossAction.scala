@@ -204,11 +204,11 @@ object QrossAction {
                 dh.cache("task", DataTable(taskCommand))
 
                 dh.get(s"SELECT CAST(create_time AS CHAR) AS create_time, log_type, log_text FROM qross_tasks_logs WHERE task_id=$taskId AND action_id=$actionId ORDER BY create_time ASC")
-                        .buffer("logs")
+                    .buffer("logs")
 
                 dh.openCache()
                     .get("SELECT A.*, B.event_value AS receivers FROM task A INNER JOIN events B ON A.job_id=B.job_id WHERE event_function='SEND_MAIL_TO'")
-                        .sendEmail(status)
+                        .sendEmailWithLogs(status)
                     .get("SELECT * FROM task WHERE EXISTS (SELECT job_id FROM events WHERE event_function='REQUEST_API')")
                         .requestApi(status)
                     .get("SELECT event_value, '' AS restart_time FROM events WHERE INSTR(event_function, 'RESTART_')=1")

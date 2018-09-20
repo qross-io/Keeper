@@ -4,7 +4,7 @@ import io.qross.util._
 
 object TaskEvent {
 
-    def sendMail(status: String, row: DataRow, logs: DataTable): Unit = {
+    def sendMail(status: String, row: DataRow, logs: DataTable = DataTable()): Unit = {
 
         if (Global.EMAIL_NOTIFICATION) {
             val receivers = row.getString("receivers")

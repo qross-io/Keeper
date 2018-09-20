@@ -7,23 +7,20 @@ import io.qross.util._
 object Test {
     def main(args: Array[String]): Unit = {
 
-        val dh = new DataHub()
-
-        dh.insertRow("job_ids" -> 0)
-        dh.pass("SELECT id AS dependency_id, job_id, dependency_moment, dependency_type, dependency_value FROM qross_jobs_dependencies WHERE job_id IN (#job_ids)").show()
-
-        dh.close()
-
-
-
-
 
         //val list = List[String]("1", "2", "3")
 
-//        val dh = new DataHub()
-//        dh.get("SELECT * FROM tc").cache("tc")
-//        dh.openCache().executeDataTable("SELECT (CASE WHEN status='waiting' THEN 1 ELSE 0 END) AS key FROM tc").show()
-//        dh.close()
+        val dh = new DataHub()
+        dh.get(s"""SELECT A.task_id, A.retry_times, B.retry_limit, A.job_id
+                                         FROM (SELECT task_id, job_id, dependency_id, retry_times FROM qross_tasks_dependencies WHERE task_id=92 AND dependency_moment='before' AND ready='no') A
+                                         INNER JOIN (SELECT id, retry_limit FROM qross_jobs_dependencies WHERE job_id=2) B ON A.dependency_id=B.id AND B.retry_limit>0 AND A.retry_times>=B.retry_limit""")
+                .show()
+
+        dh.join(s"""SELECT A.title, A.owner, B.job_id, B.task_time
+                            FROM (SELECT id, title, owner FROM qross_jobs WHERE id=2) A
+                            INNER JOIN (SELECT job_id, task_time FROM qross_tasks WHERE id=92) B ON A.id=B.job_id""", "job_id" -> "job_id").show()
+
+        dh.close()
         /*println(DateTime.now.getString("yyyyMMdd/HH"))
 
         //QrossTask.checkTaskDependencies(542973L)

@@ -61,7 +61,7 @@ object TaskDependency {
             {
                 "dataSource": "source name"
                 "selectSQL": "select SQL"
-                "updateSQL": "update SQL, support $ and # place holder"
+                "updateSQL": "update SQL, support # place holder"
             }
              */
             case "SQL" =>
@@ -75,27 +75,21 @@ object TaskDependency {
                         conf.set("SELECT", table.count())
     
                         //pass variables to command in pre-dependency
-                        if (taskId > 0) {
-                            val default = new DataSource()
-                            val dag = default.executeDataTable(s"SELECT id, command_text FROM qross_tasks_dags WHERE task_id=$taskId")
-                            dag.filter(row => {
-                                var command = row.getString("command_text")
-                                if (command.contains("#{") && command.contains("}")) {
-                                    table.lastRow match {
-                                        case Some(line) =>
-                                            line.getFields.foreach(field => {
-                                                command = command.replace("#{" + field + "}", row.getString(field))
-                                            })
-                                        case None =>
-                                    }
-                                    true
-                                }
-                                else {
-                                    false
-                                }
-                            }).updateSource(default, "UPDATE qross_tasks_dags SET command_text='#command_text' WHERE id=#id")
-                            dag.clear()
-                            default.close()
+                        table.lastRow match {
+                            case Some(row) =>
+                                /*val line = new DataTable()
+                                row.getFields.foreach(field => {
+                                    line.insertRow("field" -> field, "value" -> row.getString(field))
+                                })
+                                df.tableUpdate(s"UPDATE qross_tasks_dags SET command_text=REPLACE(command_text, '#{#field}', '#value') WHERE task_id=$taskId AND POSITION('#{' IN command_text) > 0", line)
+                                */
+                                val df = new DataSource()
+                                row.getFields.foreach(field => {
+                                    df.addBatchCommand(s"UPDATE qross_tasks_dags SET command_text=REPLACE(command_text, '#{$field}', '${row.getString(field).replace("'", "''")}') WHERE task_id=$taskId AND POSITION('#{' IN command_text) > 0")
+                                })
+                                df.executeBatchCommands()
+                                df.close()
+                            case None =>
                         }
                     }
                     else {
@@ -194,7 +188,7 @@ object TaskDependency {
                 if (DataSource.queryExists("SELECT id FROM qross_tasks WHERE job_id=? AND task_time=? AND status=?",
                         conf.getInt("jobId"),
                         conf.getString("taskTime"),
-                        conf.getString("status"))) {
+                        conf.getString("status", TaskStatus.FINISHED))) {
                     ready = "yes"
                 }
         

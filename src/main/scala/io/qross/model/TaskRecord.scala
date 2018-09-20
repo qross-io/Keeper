@@ -16,7 +16,7 @@ object TaskRecord {
         if (!loggers.contains(taskId)) {
             loggers += (taskId -> new TaskRecord(jobId, taskId))
         }
-        loggers(taskId)
+         loggers(taskId)
     }
     
     def dispose(taskId: Long): Unit = {
