@@ -16,8 +16,8 @@ object TaskEvent {
                     .replace("${logs}", TaskRecord.toHTML(logs))
                     .writeEmail(s"$upperStatus: ${row.getString("title")} ${row.getString("task_time")} - JobID: ${row.getString("job_id")} - TaskID: ${row.getString("task_id")}")
                     .to(if (receivers.contains("_OWNER")) row.getString("owner") else "")
-                    .to(if (receivers.contains("_MASTER")) Global.MASTER_USER_GROUP else "")
-                    .to(if (receivers.contains("_KEEPER")) Global.KEEPER_USER_GROUP else "")
+                    .cc(if (receivers.contains("_MASTER")) Global.MASTER_USER_GROUP else "")
+                    .cc(if (receivers.contains("_KEEPER")) Global.KEEPER_USER_GROUP else "")
                     .send()
             }
 

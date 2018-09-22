@@ -2,7 +2,7 @@ package io.qross.util
 
 import javax.activation.{DataHandler, FileDataSource}
 import javax.mail.internet._
-import javax.mail.{Message, Session, Transport}
+import javax.mail.{Message, SendFailedException, Session, Transport}
 import io.qross.model.Global.CONFIG
 
 import scala.collection.mutable
@@ -156,7 +156,18 @@ class Email(private var title: String) {
     
             val transport: Transport = session.getTransport
             transport.connect(Email.EMAIL_SENDER_ACCOUNT, Email.EMAIL_SENDER_PASSWORD)
-            transport.sendMessage(message, message.getAllRecipients)
+            try {
+                transport.sendMessage(message, message.getAllRecipients)
+            }
+            catch {
+                case se: SendFailedException =>
+                    se.getInvalidAddresses
+                            .foreach(address => {
+                                Output.writeException(s"Invalid email address $address")
+                            })
+                    transport.sendMessage(message, se.getValidUnsentAddresses)
+                case e: Exception => e.printStackTrace()
+            }
             transport.close()
     
             title = ""
@@ -176,7 +187,7 @@ class Email(private var title: String) {
         message.setFrom(new InternetAddress(sendMail, "163User", "UTF-8"));
         //2. 收件人信息
         message.setRecipient(MimeMessage.RecipientType.TO, new InternetAddress(receiveMail, "weShareUser", "UTF-8"));
-    /**  增加收件人（可选）
+        /**  增加收件人（可选）
         message.addRecipient(MimeMessage.RecipientType.TO, new InternetAddress("dd@receive.com", "USER_DD", "UTF-8"));
          // 添加抄送
         message.setRecipient(MimeMessage.RecipientType.CC, new InternetAddress(copyReceiveMailAccount, "xijie", "UTF-8"));
