@@ -49,7 +49,7 @@
     3) Protector now send mail to master on Keeper exception
         a. store error logs at qross_keeper_exceptions
         b. send mail to developer
-    4) restart interuputed executing tasks on system restart.
+    4) restart interrupted executing tasks on system restart.
     5) new global variables
         a. HADOOP_AND_HIVE_ENABLED
         b. LOGS_LEVEL

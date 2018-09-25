@@ -59,7 +59,7 @@ case class DateTime(private var dateTime: String = "", private var formatStyle: 
     
     if (formatStyle == "") {
         formatStyle = dateTime.length match {
-            case 8 => "yyyyMMddHH"
+            case 8 => "yyyyMMdd"
             case 10 =>
                 if (dateTime.contains("-")) {
                     "yyyy-MM-dd"

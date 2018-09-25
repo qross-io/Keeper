@@ -10,26 +10,28 @@ import scala.collection.mutable.ArrayBuffer
 object TaskRecord {
     
     // Map<taskId, new TaskRecord>
-    val loggers = new mutable.HashMap[Long, TaskRecord]()
+    //val loggers = new mutable.HashMap[Long, TaskRecord]()
+    val loggers = new ConcurrentHashMap[Long, TaskRecord]()
     
     def of(jobId: Int, taskId: Long): TaskRecord = {
         if (!loggers.contains(taskId)) {
-            loggers += (taskId -> new TaskRecord(jobId, taskId))
+            //loggers += (taskId -> new TaskRecord(jobId, taskId))
+            loggers.put(taskId, new TaskRecord(jobId, taskId))
         }
-         loggers(taskId)
+         loggers.get(taskId)
     }
     
     def dispose(taskId: Long): Unit = {
         if (loggers.contains(taskId)) {
-            loggers(taskId).save()
-            loggers -= taskId
+            loggers.get(taskId).save()
+            loggers.remove(taskId)
         }
     }
     
     def saveAll(): Unit = {
-        loggers.keySet.foreach(taskId => {
-            if (loggers.contains(taskId) && loggers(taskId).overtime) {
-                loggers(taskId).save()
+        loggers.keySet.forEach(taskId => {
+            if (loggers.contains(taskId) && loggers.get(taskId).overtime) {
+                loggers.get(taskId).save()
             }
         })
     }
@@ -58,7 +60,9 @@ class TaskRecord(jobId: Int, taskId: Long) {
     var commandId = 0
     var actionId = 0L
     
-    private val logs = new ArrayBuffer[TaskLog]()
+    //private val logs = new ArrayBuffer[TaskLog]()
+    private val logs = new java.util.concurrent.ConcurrentLinkedQueue[TaskLog]()
+
     private var tick = System.currentTimeMillis()
     
     def overtime: Boolean = System.currentTimeMillis() - tick > 2000
@@ -92,23 +96,35 @@ class TaskRecord(jobId: Int, taskId: Long) {
     }
     
     private def record(seal: String, text: String): Unit = {
-        logs += new TaskLog(jobId, taskId, commandId, actionId, seal, text)
+        logs.add(new TaskLog(jobId, taskId, commandId, actionId, seal, text))
         if (overtime) {
             save()
         }
     }
     
     def save(): Unit = synchronized {
-        if (logs.nonEmpty) {
+        if (logs.size() > 0) {
             val log = new TaskLog(0, 0)
             val ds = new DataSource()
             ds.setBatchCommand(s"INSERT INTO qross_tasks_logs (job_id, task_id, command_id, action_id, log_type, log_text, create_time) VALUES (?, ?, ?, ?, ?, ?, ?)")
-            logs.foreach(line => {
+
+            while(logs.size() > 0) {
+                val line = logs.poll()
+                if (!log.merge(line)) {
+                    ds.addBatch(log.jobId, log.taskId, log.commandId, log.actionId, log.logType, log.logText, log.logTime)
+                    log.copy(line)
+                }
+            }
+            /*
+            logs.forEach(line => {
                 if (!log.merge(line)) {
                     ds.addBatch(log.jobId, log.taskId, log.commandId, log.actionId, log.logType, log.logText, log.logTime)
                     log.copy(line)
                 }
             })
+            logs.clear()
+            */
+
             if (log.taskId > 0) {
                 ds.addBatch(log.jobId, log.taskId, log.commandId, log.actionId, log.logType, log.logText, log.logTime)
             }
@@ -119,8 +135,6 @@ class TaskRecord(jobId: Int, taskId: Long) {
                 case e: Exception => e.printStackTrace()
             }
             ds.close()
-            
-            logs.clear()
         }
         tick = System.currentTimeMillis()
     }

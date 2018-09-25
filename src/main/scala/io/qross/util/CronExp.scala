@@ -7,16 +7,53 @@ import scala.collection.{immutable, mutable}
 import scala.util.control.Breaks._
 import scala.util.{Success, Try}
 import io.qross.util.Output.writeMessage
+import io.qross.util.CronExp._
 
 object CronExp {
-    
+
+    val ASTERISK = "*"
+    val QUESTION = "?"
+    val COMMA = ","
+    val MINUS = "-"
+    val SLASH = "/"
+    val LAST_DAY = "L"
+    val WORK_DAY = "W"
+    val LAST_WORK_DAY = "LW"
+    val HASH = "#"   //MON#2 dayOfWeek
+    val SECOND = "SECOND"
+    val MINUTE = "MINUTE"
+    val HOUR = "HOUR"
+    val DAY = "DAY"
+    val MONTH = "MONTH"
+    val WEEKDAY = "WEEKDAY"
+    val WEEK = "WEEK"
+    val YEAR = "YEAR"
+    val WEEKS = immutable.HashMap[String, String](
+        "SUN" -> "1",
+        "MON" -> "2",
+        "TUE" -> "3",
+        "WED" -> "4",
+        "THU" -> "5",
+        "FRI" -> "6",
+        "SAT" -> "7"
+    )
+    val MONTHS = immutable.HashMap[String, String](
+        "JAN" -> "1",
+        "FEB" -> "2",
+        "MAR" -> "3",
+        "APR" -> "4",
+        "MAY" -> "5",
+        "JUN" -> "6",
+        "JUL" -> "7",
+        "AUG" -> "8",
+        "SEP" -> "9",
+        "OCT" -> "10",
+        "NOV" -> "11",
+        "DEC" -> "12"
+    )
+
     def parse(expression: String = "0 * * * * ? *") = new CronExp(expression)
-    
-    def main(args: Array[String]): Unit = {
-        writeMessage("NEXT TICK: " + CronExp.parse("0 0/20 * * * ? *").getNextTick("20180509114200"))
-        writeMessage("NEXT TICK: " + CronExp.parse("0 0/20 * * * ? *").getNextTick("20180509110500"))
-    }
-    
+
     def getTicks(cronExp: String, begin: String, end: String): List[String] = {
         var tick = DateTime(begin)
         val terminal = DateTime(end)
@@ -37,9 +74,19 @@ object CronExp {
         }
         ticks.toList
     }
+
+    def main(args: Array[String]): Unit = {
+
+
+        writeMessage(DateTime("20180925"))
+
+        //writeMessage("NEXT TICK: " + CronExp.parse("0 58 7/2 * * FRI *").getNextTick(dateTime))
+        //writeMessage("NEXT TICK: " + CronExp.parse("0 7 8,10 * * ? *").getNextTick(dateTime))
+    }
 }
 
 case class CronExp(expression: String = "0 * * * * ? *") {
+
     /*
     second, minute, hour, dayOfMonth, month, dayOfWeek, year
     0 * * * * * *
@@ -54,48 +101,7 @@ case class CronExp(expression: String = "0 * * * * ? *") {
     */
     
     private var nextTick: DateTime = _
-    
-    private val ASTERISK = "*"
-    private val QUESTION = "?"
-    private val COMMA = ","
-    private val MINUS = "-"
-    private val SLASH = "/"
-    private val LAST_DAY = "L"
-    private val WORK_DAY = "W"
-    private val LAST_WORK_DAY = "LW"
-    private val HASH = "#"   //MON#2 dayOfWeek
-    private val SECOND = "SECOND"
-    private val MINUTE = "MINUTE"
-    private val HOUR = "HOUR"
-    private val DAY = "DAY"
-    private val MONTH = "MONTH"
-    private val WEEKDAY = "WEEKDAY"
-    private val WEEK = "WEEK"
-    private val YEAR = "YEAR"
-    private val WEEKS = immutable.HashMap[String, String](
-        "SUN" -> "1",
-        "MON" -> "2",
-        "TUE" -> "3",
-        "WED" -> "4",
-        "THU" -> "5",
-        "FRI" -> "6",
-        "SAT" -> "7"
-    )
-    private val MONTHS = immutable.HashMap[String, String](
-        "JAN" -> "1",
-        "FEB" -> "2",
-        "MAR" -> "3",
-        "APR" -> "4",
-        "MAY" -> "5",
-        "JUN" -> "6",
-        "JUL" -> "7",
-        "AUG" -> "8",
-        "SEP" -> "9",
-        "OCT" -> "10",
-        "NOV" -> "11",
-        "DEC" -> "12"
-    )
-    
+
     private val fields = expression.toUpperCase().split(" ")
     if (fields.length != 7) throw new IllegalArgumentException("expression must has 7 fields")
     
@@ -389,7 +395,7 @@ case class CronExp(expression: String = "0 * * * * ? *") {
             }
         }
         
-        for ((no, weekDay) <- weekDays) {
+        for (weekDay <- weekDays.values) {
             for ((week, day) <- weekDay) {
                 if (everyMatch(WEEKDAY).contains(week)) {
                     everyMatch(WEEK) += day
@@ -401,28 +407,30 @@ case class CronExp(expression: String = "0 * * * * ? *") {
     private def resetMatchFrom(chronoName: String): Unit = {
         chronoName match  {
             case YEAR =>
-                    this.nextTick.set(ChronoField.MONTH_OF_YEAR, if (this.month.contains(ASTERISK)) 1 else this.everyMatch(MONTH).head)
-                    resetMatchFrom(MONTH)
             case MONTH =>
+                    this.nextTick.set(ChronoField.MONTH_OF_YEAR, if (this.month.contains(ASTERISK)) 1 else this.everyMatch(MONTH).head)
+                    resetMatchFrom(DAY)
+            case DAY | WEEK =>
                     if (!this.dayOfMonth.contains(QUESTION)) {
                         parseDAY()
                         this.nextTick.set(ChronoField.DAY_OF_MONTH, if (this.dayOfMonth.contains(ASTERISK)) 1 else this.everyMatch(DAY).head)
-                        resetMatchFrom(DAY)
+                        resetMatchFrom(HOUR)
                     }
                     else {
                         parseWEEK()
                         this.nextTick.set(ChronoField.DAY_OF_MONTH, if (this.dayOfWeek.contains(ASTERISK)) 1 else this.everyMatch(WEEK).head)
-                        resetMatchFrom(WEEK)
+                        resetMatchFrom(HOUR)
                     }
-            case DAY | WEEK =>
-                    this.nextTick.set(ChronoField.HOUR_OF_DAY, if (this.hour.contains(ASTERISK)) 0 else this.everyMatch(HOUR).head)
-                    resetMatchFrom(HOUR)
             case HOUR =>
-                    this.nextTick.set(ChronoField.MINUTE_OF_HOUR, if (this.minute.contains(ASTERISK)) 0 else this.everyMatch(MINUTE).head)
+                    this.nextTick.set(ChronoField.HOUR_OF_DAY, if (this.hour.contains(ASTERISK)) 0 else this.everyMatch(HOUR).head)
                     resetMatchFrom(MINUTE)
             case MINUTE =>
-                    this.nextTick.set(ChronoField.SECOND_OF_MINUTE, if (this.second.contains(ASTERISK)) 0 else this.everyMatch(SECOND).head)
+                    this.nextTick.set(ChronoField.MINUTE_OF_HOUR, if (this.minute.contains(ASTERISK)) 0 else this.everyMatch(MINUTE).head)
+                    resetMatchFrom(SECOND)
             case SECOND =>
+                    this.nextTick.set(ChronoField.SECOND_OF_MINUTE, if (this.second.contains(ASTERISK)) 0 else this.everyMatch(SECOND).head)
+            case _ =>
+
         }
     }
     
@@ -478,8 +486,10 @@ case class CronExp(expression: String = "0 * * * * ? *") {
         var matched = everyMatch(chronoName).isEmpty //skip match if empty
         while (!matched && this.nextTick != null) {
             val matchValue = this.nextTick.get(chronoField)
-            //found
+
+            //note found
             if (!everyMatch(chronoName).contains(matchValue)) {
+
                 var next = matchValue
                 breakable {
                     for (v <- everyMatch(chronoName)) {
@@ -489,7 +499,7 @@ case class CronExp(expression: String = "0 * * * * ? *") {
                         }
                     }
                 }
-        
+
                 //not found
                 if (next == matchValue) {
                     if (chronoName != YEAR) {
@@ -504,7 +514,7 @@ case class CronExp(expression: String = "0 * * * * ? *") {
                 else {
                     matched = true
                     this.nextTick.set(chronoField, next)
-                    resetMatchFrom(chronoName)
+                    //resetMatchFrom(chronoName)
                 }
             }
             //found
@@ -512,8 +522,6 @@ case class CronExp(expression: String = "0 * * * * ? *") {
                 matched = true
             }
         }
-        
-        
     }
     
     private def getWorkDayOfMonth: List[Int] = {
