@@ -9,7 +9,7 @@ object Timer {
         println(DateTime.now.toEpochSecond)
     }
   
-    //sleep to next minute
+    //empty or 0 means sleep to next minute
     def sleep(seconds: Float = 0F): Unit = {
         try {
             if (seconds > 0) {

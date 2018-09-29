@@ -14,7 +14,7 @@ object QrossTask {
                 case Some(row) => TaskEvent.sendMail(taskStatus, row)
                 case None =>
             }
-            dh
+            dh.clear()
         }
 
         def sendEmailWithLogs(taskStatus: String): DataHub = {
@@ -22,7 +22,7 @@ object QrossTask {
                 case Some(row) => TaskEvent.sendMail(taskStatus, row, dh.BUFFER("logs"))
                 case None =>
             }
-            dh
+            dh.clear()
         }
 
         def requestApi(taskStatus: String): DataHub = {
@@ -30,7 +30,7 @@ object QrossTask {
                 case Some(row) =>  TaskEvent.requestApi(taskStatus, row)
                 case None =>
             }
-            dh
+            dh.clear()
         }
 
         def generateDependencies(): DataHub = {
@@ -233,8 +233,9 @@ object QrossTask {
         // ---------- finishing ----------
 
         //send initialized tasks to checker, and send ready tasks to starter
-        val prepared = dh.openDefault().executeDataTable(s"SELECT id AS task_id, job_id, status FROM qross_tasks WHERE status='${TaskStatus.INITIALIZED}' or status='${TaskStatus.READY}'")
-
+        val prepared = dh.openDefault()
+                .executeDataTable(s"""SELECT A.id AS task_id, A.job_id, A.status FROM (SELECT id, job_id, status FROM qross_tasks WHERE status='${TaskStatus.INITIALIZED}' or status='${TaskStatus.READY}') A
+                                                INNER JOIN (SELECT id FROM qross_jobs WHERE enabled='yes') B ON A.job_id=B.id""")
         //beat
         dh.executeNonQuery("UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='TaskProducer'")
 
@@ -252,7 +253,8 @@ object QrossTask {
                 jobId: 123,
                 dag: "1,2,3",
                 params: "name1:value1,name2:value2",
-                commands: "commandId:commandText##$##commandId:commandText"
+                commands: "commandId:commandText##$##commandId:commandText",
+                delay: 5
             }
          */
 
@@ -265,6 +267,7 @@ object QrossTask {
         val dag = info.getString("dag")
         val params = Common.parseMapString(info.getString("params"), ",", ":")
         val commands = Common.parseMapString(info.getString("commands"), "##\\$##", ":")
+        val delay = info.getInt("delay", 0)
 
         //maybe convert failure
         if (jobId > 0) {
@@ -315,6 +318,11 @@ object QrossTask {
             dh.close()
 
             TaskRecord.of(jobId, taskId).debug(s"Instant Task $taskId of job $jobId has been created.")
+        }
+
+        if (delay > 0 && taskId > 0) {
+            TaskRecord.of(jobId, taskId).debug(s"Instant Task $taskId of job $jobId will start after $delay seconds.")
+            Timer.sleep(if (delay > 60) 60 else delay)
         }
 
         Task(taskId, status)

@@ -40,7 +40,8 @@ class Messager extends WorkActor {
                                 jobId: 123,
                                 dag: "1,2,3",
                                 params: "name1:value1,name2:value2",
-                                commands: "commandId:commandText##$##commandId:commandText"
+                                commands: "commandId:commandText##$##commandId:commandText",
+                                delay:
                             }
                              */
                         messageKey match {

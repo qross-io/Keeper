@@ -22,7 +22,7 @@ object TaskEvent {
             }
 
             TaskRecord.of(row.getInt("job_id"), row.getLong("task_id"))
-                    .log(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} send mail on $status")
+                    .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} send mail on $status")
         }
     }
 
@@ -71,7 +71,7 @@ object TaskEvent {
             }
 
             TaskRecord.of(row.getInt("job_id"), row.getLong("task_id"))
-                    .log(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} request api on $status, result is { $result }")
+                    .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} request api on $status, result is { $result }")
         }
     }
 }

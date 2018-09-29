@@ -77,8 +77,7 @@ object CronExp {
 
     def main(args: Array[String]): Unit = {
 
-
-        writeMessage(DateTime("20180925"))
+        writeMessage("NEXT TICK: " + CronExp.parse("0 0 12 ? * thu *").getNextTick(DateTime.now))
 
         //writeMessage("NEXT TICK: " + CronExp.parse("0 58 7/2 * * FRI *").getNextTick(dateTime))
         //writeMessage("NEXT TICK: " + CronExp.parse("0 7 8,10 * * ? *").getNextTick(dateTime))
