@@ -2,7 +2,7 @@ package io.qross.keeper
 
 import akka.actor.{ActorSystem, PoisonPill, Props}
 import io.qross.model.{Global, Qross, Tick}
-import io.qross.util.{DateTime, Properties, Timer}
+import io.qross.util.{DateTime, Output, Properties, Timer}
 
 import scala.collection.immutable.List
 import scala.collection.mutable
@@ -47,12 +47,16 @@ object Keeper {
             })
         }
         
-        Qross.stop()
-        
         for(actor <- actors) {
             actor ! PoisonPill
         }
-        
-        system.terminate().onComplete(_ => Qross.quit("Keeper"))
+
+        Qross.quit("Keeper")
+
+        Output.writeDebugging("System will wait for all actors to finish their work, or you can kill Keeper manually if it stuck.")
+
+        Qross.waitAndStop()
+
+        system.terminate().onComplete(_ => Output.writeDebugging("Qross Keeper shut down!"))
     }
 }

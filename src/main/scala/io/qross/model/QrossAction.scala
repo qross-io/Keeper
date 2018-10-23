@@ -98,7 +98,7 @@ object QrossAction {
             var format = commandText.substring(commandText.indexOf("${") + 2)
             val latter = format.substring(format.indexOf("}") + 1)
             format = format.substring(0, format.indexOf("}"))
-            commandText = ahead + DateTime(taskTime).sharp(format).mkString(",") + latter
+            commandText = ahead + DateTime(taskTime).sharp(format) + latter
         }
 
         dh.set(s"UPDATE qross_tasks_dags SET status='${ActionStatus.RUNNING}', run_time=NOW(), waiting=TIMESTAMPDIFF(SECOND, start_time, NOW()) WHERE id=$actionId")
@@ -180,8 +180,8 @@ object QrossAction {
                                 row.set("dependency_value", result._2)
                             }).put("UPDATE qross_tasks_dependencies SET ready='#ready', dependency_value='#dependency_value' WHERE id=#id")
 
-                    //update tasks status if incorrect
-                    dh.set(s"UPDATE qross_tasks SET status='${TaskStatus.INCORRECT}', checked='no' WHERE id=$taskId AND status='${TaskStatus.FINISHED}' AND EXISTS(SELECT id FROM qross_tasks_dependencies WHERE task_id=$taskId AND dependency_moment='after' AND ready='no')")
+                    //dh.set(s"UPDATE qross_tasks SET status='${TaskStatus.INCORRECT}', checked='no' WHERE id=$taskId AND status='${TaskStatus.FINISHED}' AND EXISTS(SELECT id FROM qross_tasks_dependencies WHERE task_id=$taskId AND dependency_moment='after' AND ready='no')")
+                    dh.set(s"UPDATE qross_tasks A INNER JOIN (SELECT task_id, COUNT(0) AS amount FROM qross_tasks_dependencies WHERE task_id=$taskId AND dependency_moment='after' AND ready='no') B ON A.id=B.task_id AND A.id=$taskId AND A.status='${TaskStatus.FINISHED}' SET status=IF(B.amount > 0, '${TaskStatus.INCORRECT}', '${TaskStatus.SUCCESS}'), checked=IF(B.amount > 0, 'no', '')")
                 }
             //timeout
             case -1 =>
@@ -195,7 +195,7 @@ object QrossAction {
     
         val status = dh.executeSingleValue(s"SELECT status FROM qross_tasks WHERE id=$taskId").getOrElse("miss")
         //send notification mail if failed or timeout or incorrect
-        if (status == TaskStatus.FINISHED || status == TaskStatus.FAILED || status == TaskStatus.TIMEOUT || status == TaskStatus.INCORRECT) {
+        if (status == TaskStatus.SUCCESS || status == TaskStatus.FAILED || status == TaskStatus.TIMEOUT || status == TaskStatus.INCORRECT) {
     
             dh.get(s"SELECT job_id, event_function, event_value FROM qross_jobs_events WHERE job_id=$jobId AND enabled='yes' AND event_name='onTask${status.capitalize}'")
             if (dh.nonEmpty) {

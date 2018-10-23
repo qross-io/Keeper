@@ -233,7 +233,14 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
             DataTable()
         }
     }
-    
+
+    def firstRow: DataRow = {
+        TABLE.firstRow match {
+            case Some(row) => row
+            case None => DataRow()
+        }
+    }
+
     def clear(): DataHub = {
         TABLE.clear()
         this

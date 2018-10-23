@@ -37,15 +37,23 @@ object Qross {
     }
     
     def quit(actor: String): Unit = {
-        writeDebugging(if (actor != "Keeper") s"$actor quit!" else "Qross Keeper shut down!")
+        writeDebugging(s"$actor quit!")
         DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET status='rest', quit_time=NOW() WHERE actor_name='$actor'")
         
     }
     
-    def stop(): Unit = {
+    def waitAndStop(): Unit = {
         val dh = new DataHub()
         dh.get("SELECT id FROM qross_keeper_running_records ORDER BY id DESC LIMIT 1")
             .put("UPDATE qross_keeper_running_records SET status='stopping', stop_time=NOW(), duration=TIMESTAMPDIFF(SECOND, start_time, NOW()) WHERE id=#id")
+
+        while(dh.get("SELECT actor_name FROM qross_keeper_beats WHERE status='running' LIMIT 1").nonEmpty) {
+            writeDebugging(dh.firstRow.getString("actor_name") + " still working.")
+            dh.get("SELECT COUNT(0) AS amount FROM qross_tasks WHERE status='executing'")
+            writeDebugging("" + dh.firstRow.getString("amount") + " tasks is still executing.")
+            Timer.sleep(5F)
+        }
+
         dh.close()
     }
     

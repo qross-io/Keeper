@@ -32,7 +32,7 @@ object TaskDependency {
                 val latter = exp.substring(exp.indexOf("}") + 1)
                 exp = exp.substring(0, exp.indexOf("}"))
                 
-                DateTime(taskTime).sharp(exp).foreach(value => {
+                DateTime(taskTime).shark(exp).foreach(value => {
                         val replacement = ahead + value + latter
                         if (latter.contains("${") && latter.contains("}")) {
                             semi.offer(replacement)

@@ -1,26 +1,16 @@
-package io.qross.keeper
-
-import java.sql.DriverManager
-
-import io.qross.util._
+package io.qross.trash
 
 object Test {
     def main(args: Array[String]): Unit = {
 
+        for (i <- 1 to 3) {
+            println(i)
+        }
 
         //val list = List[String]("1", "2", "3")
 
-        val dh = new DataHub()
-        dh.get(s"""SELECT A.task_id, A.retry_times, B.retry_limit, A.job_id
-                                         FROM (SELECT task_id, job_id, dependency_id, retry_times FROM qross_tasks_dependencies WHERE task_id=92 AND dependency_moment='before' AND ready='no') A
-                                         INNER JOIN (SELECT id, retry_limit FROM qross_jobs_dependencies WHERE job_id=2) B ON A.dependency_id=B.id AND B.retry_limit>0 AND A.retry_times>=B.retry_limit""")
-                .show()
-
-        dh.join(s"""SELECT A.title, A.owner, B.job_id, B.task_time
-                            FROM (SELECT id, title, owner FROM qross_jobs WHERE id=2) A
-                            INNER JOIN (SELECT job_id, task_time FROM qross_tasks WHERE id=92) B ON A.id=B.job_id""", "job_id" -> "job_id").show()
-
-        dh.close()
+        //val dh = new DataHub()
+        //dh.close()
         /*println(DateTime.now.getString("yyyyMMdd/HH"))
 
         //QrossTask.checkTaskDependencies(542973L)
