@@ -57,7 +57,7 @@ object QrossAction {
         val executable = ds.executeDataTable(
             s"""SELECT A.action_id, A.job_id, A.task_id, A.command_id, B.task_time, C.command_type, A.command_text, C.overtime, C.retry_limit, D.title, D.owner
                          FROM (SELECT id AS action_id, job_id, task_id, command_id, command_text FROM qross_tasks_dags WHERE task_id=$taskId AND status='${ActionStatus.WAITING}' AND upstream_ids='') A
-                         INNER JOIN (SELECT id, task_time FROM qross_tasks WHERE id=$taskId AND status='${TaskStatus.EXECUTING}') B ON A.task_id=B.id
+                         INNER JOIN (SELECT id, task_time, restart_times FROM qross_tasks WHERE id=$taskId AND status='${TaskStatus.EXECUTING}') B ON A.task_id=B.id
                          INNER JOIN (SELECT id, command_type, overtime, retry_limit FROM qross_jobs_dags WHERE job_id=$jobId) C ON A.command_id=C.id
                          INNER JOIN (SELECT id, title, owner FROM qross_jobs WHERE id=$jobId) D ON A.job_id=D.id""")
 
@@ -81,6 +81,7 @@ object QrossAction {
         val taskTime = taskCommand.getString("task_time")
         val retryLimit = taskCommand.getInt("retry_limit")
         val overtime = taskCommand.getInt("overtime")
+        val restartTimes = taskCommand.getInt("restart_times")
 
         var commandText = taskCommand.getString("command_text")
         commandText = commandText.replace("${jobId}", s"$jobId")
@@ -91,6 +92,16 @@ object QrossAction {
         commandText = commandText.replace("%QROSS_VERSION", Global.QROSS_VERSION)
         commandText = commandText.replace("%JAVA_BIN_HOME", Global.JAVA_BIN_HOME)
         commandText = commandText.replace("%QROSS_HOME", Global.QROSS_HOME)
+
+        if (commandText.startsWith("java ")) {
+            commandText = Global.JAVA_BIN_HOME + commandText;
+        }
+        else if (commandText.startsWith("python2 ")) {
+            commandText = Global.PYTHON2_HOME + commandText;
+        }
+        else if (commandText.startsWith("python3 ")) {
+            commandText = Global.PYTHON3_HOME + commandText;
+        }
 
         //replace datetime format
         while (commandText.contains("${") && commandText.contains("}")) {
@@ -211,10 +222,10 @@ object QrossAction {
                         .sendEmailWithLogs(status)
                     .get("SELECT * FROM task WHERE EXISTS (SELECT job_id FROM events WHERE event_function='REQUEST_API')")
                         .requestApi(status)
-                    .get("SELECT event_value, '' AS restart_time FROM events WHERE INSTR(event_function, 'RESTART_')=1")
+                    .get(s"SELECT event_value, '' AS restart_time FROM events WHERE INSTR(event_function, 'RESTART_')=1 AND $restartTimes<=10")
                         .foreach(row => {
                             row.set("restart_time", DateTime.now.plusMinutes(row.getInt("event_value", 30)).getString("yyyyMMddHHmm00"))
-                        }).put(s"UPDATE qross_tasks SET restart_time='#restart_time' WHERE id=$taskId")
+                        }).put(s"UPDATE qross_tasks SET restart_time='#restart_time', restart_times=restart_times+1 WHERE id=$taskId")
             }
         }
 

@@ -28,8 +28,12 @@ object Global {
     def QROSS_KEEPER_HOME: String = FilePath.format(CONFIG.getString("QROSS_KEEPER_HOME")).replace("%QROSS_HOME", QROSS_HOME).replace("%USER_HOME", USER_HOME).replace("//", "/")
     
     def JAVA_BIN_HOME: String = CONFIG.getString("JAVA_BIN_HOME")
+
+    def PYTHON2_HOME: String = CONFIG.getString("PYTHON2_HOME")
+
+    def PYTHON3_HOME: String = CONFIG.getString("PYTHON3_HOME")
     
-    def EMAIL_NOTIFICATION: Boolean = CONFIG.getBoolean("EMAIL_NOTIFICATION")
+    def EMAIL_NOTIFICATION: Boolean = CONFIG.getBoolean("EMAIL_NOTIFICATION")1
     
     def HADOOP_AND_HIVE_ENABLED: Boolean = CONFIG.getBoolean("HADOOP_AND_HIVE_ENABLED")
     

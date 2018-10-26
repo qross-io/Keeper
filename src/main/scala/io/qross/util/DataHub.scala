@@ -55,7 +55,20 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
     }
     
     // ---------- save as ----------
-    
+
+    def saveAsCache(): DataHub = {
+        if (!SOURCES.contains("CACHE")) {
+            SOURCES += "CACHE" -> DataSource.createMemoryDatabase
+        }
+        TARGET = SOURCES("CACHE")
+        this
+    }
+
+    def saveAsDefault(): DataHub = {
+        TARGET = SOURCES("DEFAULT")
+        this
+    }
+
     def saveAs(connectionName: String): DataHub = {
         if (!SOURCES.contains(connectionName)) {
             SOURCES += connectionName -> new DataSource(connectionName)

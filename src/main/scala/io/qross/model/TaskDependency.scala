@@ -10,14 +10,16 @@ import scala.util.{Success, Try}
 
 object TaskDependency {
     
-    def parseDependencyValue(jobId: String, taskId: String, dependencyValue: String, taskTime: String): List[String] = {
+    def parseDependencyValue(jobId: String, taskId: String, executionId: String, dependencyValue: String, taskTime: String): List[String] = {
     
         var content = dependencyValue
         content = content.replace("${jobId}", jobId)
         content = content.replace("${taskId}", taskId)
-    
-        content = content.replace("%QROSS_VERSION", Global.QROSS_VERSION)
-        content = content.replace("%JAVA_BIN_HOME", Global.JAVA_BIN_HOME)
+        content = content.replace("${executionId}", executionId)
+
+        //下面两行不确定有什么用, 10.25注释掉
+        //content = content.replace("%QROSS_VERSION", Global.QROSS_VERSION)
+        //content = content.replace("%JAVA_BIN_HOME", Global.JAVA_BIN_HOME)
         content = content.replace("%QROSS_HOME", Global.QROSS_HOME)
         
         if (content.contains("${") && content.contains("}")) {
