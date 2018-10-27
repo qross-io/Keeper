@@ -10,7 +10,7 @@ import scala.util.{Success, Try}
 
 object TaskDependency {
     
-    def parseDependencyValue(jobId: String, taskId: String, executionId: String, dependencyValue: String, taskTime: String): List[String] = {
+    def parseDependencyValue(jobId: String, taskId: String, dependencyValue: String, taskTime: String): List[String] = {
     
         var content = dependencyValue
         content = content.replace("${jobId}", jobId)
