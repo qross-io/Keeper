@@ -547,6 +547,6 @@ case class DateTime(private var dateTime: String = "", private var formatStyle: 
     }
     
     override def toString: String = {
-        this.getString("yyyy-MM-dd HH:mm:ss.SSS eeee")
+        this.getString("yyyy-MM-dd HH:mm:ss") //.SSS eeee
     }
 }

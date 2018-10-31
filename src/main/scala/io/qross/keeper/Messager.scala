@@ -41,7 +41,7 @@ class Messager extends WorkActor {
                                 dag: "1,2,3",
                                 params: "name1:value1,name2:value2",
                                 commands: "commandId:commandText##$##commandId:commandText",
-                                delay:
+                                delay: 0
                             }
                              */
                         messageKey match {
