@@ -15,7 +15,6 @@ object TaskDependency {
         var content = dependencyValue
         content = content.replace("${jobId}", jobId)
         content = content.replace("${taskId}", taskId)
-        content = content.replace("${executionId}", executionId)
 
         //下面两行不确定有什么用, 10.25注释掉
         //content = content.replace("%QROSS_VERSION", Global.QROSS_VERSION)

@@ -11,7 +11,7 @@ class WorkActor extends Actor {
     
     def setup(): Unit = {}
     def beat(tick: String): Unit = Qross.beat(actorName)
-    def execute(taskId: Long, taskStatus: String): Unit = {}
+    def execute(task: Task): Unit = {}
     def run(taskCommand: DataRow): Unit = {}
     def cleanup(): Unit = {}
     
@@ -27,9 +27,9 @@ class WorkActor extends Actor {
     
     override def receive: Receive = {
         case Tick(minute) => beat(minute)
-        case Task(taskId, status) =>
-                writeDebugging(s"$actorName receive ${status.toUpperCase()} TASK $taskId")
-                execute(taskId, status)
+        case task: Task =>
+                writeDebugging(s"$actorName receive ${task.status.toUpperCase()} TASK ${task.id}")
+                execute(task)
         case TaskCommand(row) =>
             writeDebugging(s" $actorName receive runnable COMMAND $row")
                 run(row)

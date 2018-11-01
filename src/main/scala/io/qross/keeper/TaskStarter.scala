@@ -14,8 +14,8 @@ class TaskStarter extends WorkActor {
         //QrossTask.checkOvertimeOfActions(tick)
     }
     
-    override def execute(taskId: Long, taskStatus: String): Unit = {
-        QrossAction.getTaskCommandsToExecute(taskId, taskStatus)
+    override def execute(task: Task): Unit = {
+        QrossAction.getTaskCommandsToExecute(task)
             .foreach(row => executor ! TaskCommand(row))
                 .clear()
     }

@@ -16,20 +16,22 @@ class TaskProducer extends WorkActor {
         //acknowledge
         Keeper.TO_BE_ACK -= tick
         
-        QrossTask.createAndInitializeTasks(tick).foreach(row =>
-            row.getString("status") match {
-                case TaskStatus.INITIALIZED => checker ! Task(row.getLong("task_id")).INITIALIZED
-                case TaskStatus.READY => starter ! Task(row.getLong("task_id")).READY
+        QrossTask.createAndInitializeTasks(tick).foreach(row => {
+            val task = Task(row.getLong("task_id"), row.getString("status")).of(row.getInt("job_id")).at(row.getString("task_time"), row.getString("record_time"))
+            task.status match {
+                case TaskStatus.INITIALIZED => checker ! task
+                case TaskStatus.READY => starter ! task
                 case _ =>
-            }).clear()
+            }
+        }).clear()
         
         checker ! Tick(tick)
     }
     
-    override def execute(taskId: Long, taskStatus: String): Unit = {
-        taskStatus match {
-            case TaskStatus.INITIALIZED => checker ! Task(taskId).INITIALIZED
-            case TaskStatus.READY => starter ! Task(taskId).READY
+    override def execute(task: Task): Unit = {
+        task.status match {
+            case TaskStatus.INITIALIZED => checker ! task
+            case TaskStatus.READY => starter ! task
             case _ =>
         }
     }

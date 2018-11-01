@@ -11,7 +11,7 @@ object TaskStatus {
     val INSTANT = "instant"
     val NO_COMMANDS = "no_commands"
     //val MANUAL = "manual"
-    val RESTARTING = "restarting"
+    //val RESTARTING = "restarting"
     val INITIALIZED = "initialized"
     val READY = "ready"
     val EXECUTING = "executing"
@@ -34,7 +34,22 @@ object ActionStatus {
 }
 
 case class Task(id: Long, var status: String = TaskStatus.INITIALIZED) {
-    
+
+    var jobId: Int = 0
+    var taskTime: String = ""
+    var recordTime: String = ""
+
+    def of(jobId: Int): Task = {
+        this.jobId = jobId
+        this
+    }
+
+    def at(taskTime: String, recordTime: String): Task = {
+        this.taskTime = taskTime
+        this.recordTime = recordTime
+        this
+    }
+
     def INITIALIZED: Task = {
         this.status = TaskStatus.INITIALIZED
         this
@@ -47,11 +62,6 @@ case class Task(id: Long, var status: String = TaskStatus.INITIALIZED) {
     
     def EXECUTING: Task = {
         this.status = TaskStatus.EXECUTING
-        this
-    }
-    
-    def RESTARTING: Task = {
-        this.status = TaskStatus.RESTARTING
         this
     }
 }

@@ -33,7 +33,7 @@ object Global {
 
     def PYTHON3_HOME: String = CONFIG.getString("PYTHON3_HOME")
     
-    def EMAIL_NOTIFICATION: Boolean = CONFIG.getBoolean("EMAIL_NOTIFICATION")1
+    def EMAIL_NOTIFICATION: Boolean = CONFIG.getBoolean("EMAIL_NOTIFICATION")
     
     def HADOOP_AND_HIVE_ENABLED: Boolean = CONFIG.getBoolean("HADOOP_AND_HIVE_ENABLED")
     

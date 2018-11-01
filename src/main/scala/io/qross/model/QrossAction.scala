@@ -7,11 +7,14 @@ import io.qross.model.QrossTask.DataHubExt
 object QrossAction {
 
     //TaskStarter - execute()
-    def getTaskCommandsToExecute(taskId: Long, status: String): DataTable = synchronized {
+    def getTaskCommandsToExecute(task: Task): DataTable = synchronized {
+
         val ds = new DataSource()
 
-        val job = ds.executeDataRow(s"SELECT id AS job_id, concurrent_limit FROM qross_jobs WHERE id=(SELECT job_id FROM qross_tasks WHERE id=$taskId)")
-        val jobId = job.getInt("job_id")
+        val taskId = task.id
+        val jobId = task.jobId
+        val status = task.status
+        val concurrentLimit = ds.executeSingleValue(s"SELECT concurrent_limit FROM qross_jobs WHERE id=$jobId").getOrElse("1").toInt
 
         if (status == TaskStatus.READY) {
             //job enabled = true
@@ -25,7 +28,6 @@ object QrossAction {
             //exceptional exists -> failed -> restart task
             //waiting exists -> running
 
-            val concurrentLimit = job.getInt("concurrent_limit")
             if (concurrentLimit == 0 || ds.executeDataRow(s"SELECT COUNT(0) AS concurrent FROM qross_tasks WHERE job_id=$jobId AND status='${TaskStatus.EXECUTING}'").getInt("concurrent") < concurrentLimit) {
                 val map = ds.executeHashMap(s"SELECT status, COUNT(0) AS amount FROM qross_tasks_dags WHERE task_id=$taskId GROUP BY status")
                 if (map.isEmpty) {
@@ -34,7 +36,6 @@ object QrossAction {
                 }
                 else if (map.contains(ActionStatus.EXCEPTIONAL) || map.contains(ActionStatus.OVERTIME)) {
                     //restart task if exceptional or overtime
-                    ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.RESTARTING}', start_time=NULL, finish_time=NULL, spent=NULL WHERE id=$taskId")
                     ds.executeNonQuery(s"INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '${if (map.isEmpty) "WHOLE" else "^EXCEPTIONAL"}@$taskId')")
                     TaskRecord.of(jobId, taskId).warn(s"Task $taskId of job $jobId restart because of exception on ready.")
                 }
@@ -56,8 +57,8 @@ object QrossAction {
 
         val executable = ds.executeDataTable(
             s"""SELECT A.action_id, A.job_id, A.task_id, A.command_id, B.task_time, C.command_type, A.command_text, C.overtime, C.retry_limit, D.title, D.owner
-                         FROM (SELECT id AS action_id, job_id, task_id, command_id, command_text FROM qross_tasks_dags WHERE task_id=$taskId AND status='${ActionStatus.WAITING}' AND upstream_ids='') A
-                         INNER JOIN (SELECT id, task_time, restart_times FROM qross_tasks WHERE id=$taskId AND status='${TaskStatus.EXECUTING}') B ON A.task_id=B.id
+                         FROM (SELECT id AS action_id, job_id, task_id, command_id, command_text FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='${task.recordTime}' AND status='${ActionStatus.WAITING}' AND upstream_ids='') A
+                         INNER JOIN (SELECT id, task_time, record_time, restart_times FROM qross_tasks WHERE id=$taskId AND status='${TaskStatus.EXECUTING}') B ON A.task_id=B.id
                          INNER JOIN (SELECT id, command_type, overtime, retry_limit FROM qross_jobs_dags WHERE job_id=$jobId) C ON A.command_id=C.id
                          INNER JOIN (SELECT id, title, owner FROM qross_jobs WHERE id=$jobId) D ON A.job_id=D.id""")
 
@@ -81,6 +82,7 @@ object QrossAction {
         val taskTime = taskCommand.getString("task_time")
         val retryLimit = taskCommand.getInt("retry_limit")
         val overtime = taskCommand.getInt("overtime")
+        val recordTime = taskCommand.getString("record_time")
         val restartTimes = taskCommand.getInt("restart_times")
 
         var commandText = taskCommand.getString("command_text")
@@ -124,7 +126,9 @@ object QrossAction {
         logger.debug(s"START action $actionId - command $commandId of task $taskId - job $jobId: $commandText")
 
         do {
-            if (retry > 0) logger.debug(s"Action $actionId - command $commandId of task $taskId - job $jobId: retry $retry of limit $retryLimit")
+            if (retry > 0) {
+                logger.debug(s"Action $actionId - command $commandId of task $taskId - job $jobId: retry $retry of limit $retryLimit")
+            }
             val start = System.currentTimeMillis()
             var timeout = false
 
@@ -152,7 +156,13 @@ object QrossAction {
             catch {
                 case e: Exception =>
                     e.printStackTrace()
-                    logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId is exceptional: ${e.getMessage}")
+
+                    val buf = new java.io.ByteArrayOutputStream()
+                    e.printStackTrace(new java.io.PrintWriter(buf, true))
+                    logger.err(buf.toString())
+                    buf.close()
+
+                    logger.err(s"Action $actionId - command $commandId of task $taskId - job $jobId is exceptional: ${e.getMessage}")
 
                     exitValue = 2
             }
