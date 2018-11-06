@@ -77,7 +77,7 @@ object CronExp {
 
     def main(args: Array[String]): Unit = {
 
-        writeMessage("NEXT TICK: " + CronExp.parse("0 0 12 ? * thu *").getNextTick(DateTime.now))
+        //writeMessage("NEXT TICK: " + CronExp.parse("0 0 12-18/2 * * ? *").getNextTick(DateTime.of(2018, 11, 2, 13, 0, 0)))
 
         //writeMessage("NEXT TICK: " + CronExp.parse("0 58 7/2 * * FRI *").getNextTick(dateTime))
         //writeMessage("NEXT TICK: " + CronExp.parse("0 7 8,10 * * ? *").getNextTick(dateTime))
@@ -232,6 +232,23 @@ case class CronExp(expression: String = "0 * * * * ? *") {
     
         Option(this.nextTick)
     }
+
+    private def parseMINUSAndSLASH(chronoName: String, section: String, begin: Int, end: Int): Unit = {
+        var m = Try(section.substring(0, section.indexOf(MINUS)).toInt).getOrElse(begin)
+        var n = Try(section.substring(section.indexOf(MINUS) + 1, section.lastIndexOf(SLASH)).toInt).getOrElse(end)
+        var l = Try(section.substring(section.lastIndexOf(SLASH) + 1).toInt).getOrElse(2)
+
+        if (m < begin) m = begin
+        if (m > end) m = end
+        if (n < begin) n = begin
+        if (n > end) n = end
+        if (l < 2) l = 2
+
+        while (m <= n) {
+            everyMatch(chronoName) += m
+            m += l
+        }
+    }
     
     private def parseMINUS(chronoName: String, section: String, begin: Int, end: Int): Unit = {
         var m = Try(section.substring(0, section.indexOf(MINUS)).toInt).getOrElse(begin)
@@ -259,7 +276,7 @@ case class CronExp(expression: String = "0 * * * * ? *") {
     
         if (m < begin) m = begin
         if (m > end) m = end
-        if (n < 1) n = 1
+        if (n < 2) n = 2
         //if (n > end / 2) n = end / 2
     
         while (m <= end) {
@@ -292,7 +309,10 @@ case class CronExp(expression: String = "0 * * * * ? *") {
        
         val sections = value.split(COMMA)
         for (section <- sections) {
-            if (section.contains(MINUS)) {
+            if (section.contains(MINUS) && section.contains(SLASH)) {
+                parseMINUSAndSLASH(chronoName, section, begin, end)
+            }
+            else if (section.contains(MINUS)) {
                 parseMINUS(chronoName, section, begin, end)
             }
             else if (section.contains(SLASH)) {

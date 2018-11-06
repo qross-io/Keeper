@@ -10,18 +10,15 @@ object QrossTask {
     implicit class DataHubExt(dh: DataHub) {
 
         def sendEmail(taskStatus: String): DataHub = {
-            dh.TABLE.foreach(row => TaskEvent.sendMail(taskStatus, row))
-            dh.clear()
+            dh.foreach(row => TaskEvent.sendMail(taskStatus, row)).clear()
         }
 
         def sendEmailWithLogs(taskStatus: String): DataHub = {
-            dh.TABLE.foreach(row => TaskEvent.sendMail(taskStatus, row, dh.BUFFER("logs")))
-            dh.clear()
+            dh.foreach(row => TaskEvent.sendMail(taskStatus, row, dh.BUFFER("logs"))).clear()
         }
 
         def requestApi(taskStatus: String): DataHub = {
-            dh.TABLE.foreach(row =>  TaskEvent.requestApi(taskStatus, row))
-            dh.clear()
+            dh.foreach(row => TaskEvent.requestApi(taskStatus, row)).clear()
         }
 
         def generateDependencies(): DataHub = {
@@ -48,6 +45,21 @@ object QrossTask {
                 })
 
                 dh.put("INSERT INTO qross_tasks_dependencies (job_id, task_id, record_time, dependency_id, dependency_moment, dependency_type, dependency_value) VALUES (?, ?, ?, ?, ?, ?, ?)", table)
+            }
+
+            dh.clear()
+        }
+
+        def restartTask(jobId: Int, taskId: Long, recordTime: String): DataHub = {
+
+            if (dh.nonEmpty) {
+                var delay = 30
+                dh.foreach(row => {
+                    delay = row.getInt("event_value", 30)
+                    row.set("restart_time", DateTime.now.plusMinutes(delay).getString("yyyyMMddHHmm00"))
+                }).put(s"UPDATE qross_tasks SET restart_time='#restart_time', restart_times=restart_times+1 WHERE id=$taskId")
+
+                TaskRecorder.of(jobId, taskId, recordTime).debug(s"Task $taskId of job $jobId at $recordTime will restart after $delay minutes.")
             }
 
             dh.clear()
@@ -344,11 +356,11 @@ object QrossTask {
 
             dh.close()
 
-            TaskRecord.of(jobId, taskId).debug(s"Instant Task $taskId of job $jobId has been created.")
+            TaskRecorder.of(jobId, taskId, recordTime).debug(s"Instant Task $taskId of job $jobId has been created.")
         }
 
         if (jobId  > 0 && taskId > 0) {
-            TaskRecord.of(jobId, taskId).debug(s"Instant Task $taskId of job $jobId will start after $delay seconds.")
+            TaskRecorder.of(jobId, taskId, recordTime).debug(s"Instant Task $taskId of job $jobId will start after $delay seconds.")
             Timer.sleep(if (delay > 60) 60 else delay)
         }
 
@@ -381,18 +393,13 @@ object QrossTask {
         val WHOLE = 1
         val PARTIAL = 2
         val EXCEPTIONAL = 3
-        val ANY = 4
 
-        val restartMode = if (option.toUpperCase() == "WHOLE") {
+        val restartMode = if (option.startsWith("^")) "auto_restart" else "manual_restart"
+        val restartMethod = if (option.toUpperCase().endsWith("WHOLE")) {
             WHOLE
         }
-        else if (option.startsWith("^")) {
-            if (option.toUpperCase() == "^EXCEPTIONAL") {
-                EXCEPTIONAL
-            }
-            else {
-                ANY
-            }
+        else if (option.toUpperCase().endsWith("EXCEPTIONAL")) {
+            EXCEPTIONAL
         }
         else {
             PARTIAL
@@ -417,7 +424,7 @@ object QrossTask {
 
             status = TaskStatus.READY
 
-            restartMode match {
+            restartMethod match {
                 case WHOLE =>
                     //generate before and after dependencies
                     dh.get(s"""SELECT $jobId AS job_id, $taskId AS task_id, '$taskTime' AS task_time, '$recordTime' AS record_time, id AS dependency_id, dependency_moment, dependency_type, dependency_value FROM qross_jobs_dependencies WHERE job_id=$jobId""")
@@ -455,10 +462,10 @@ object QrossTask {
 
             }
 
-            //update
-            dh.openDefault().set(s"UPDATE qross_tasks SET status='$status', restart_times=0, start_mode='manual_restart', record_time='$recordTime', spent=NULL, start_time=NULL, finish_time=NULL WHERE id=$taskId")
+            //update task
+            dh.openDefault().set(s"UPDATE qross_tasks SET status='$status', restart_times=0, start_mode='$restartMode', record_time='$recordTime', spent=NULL, start_time=NULL, finish_time=NULL WHERE id=$taskId")
 
-            TaskRecord.of(jobId, taskId).debug(s"Task $taskId of job $jobId restart with option $option.")
+            TaskRecorder.of(jobId, taskId, recordTime).debug(s"Task $taskId of job $jobId restart with option $option.")
         }
 
         dh.close()
@@ -471,6 +478,7 @@ object QrossTask {
 
         val taskId = task.id
         val jobId = task.jobId
+        val recordTime = task.recordTime
 
         val dh = new DataHub()
 
@@ -486,7 +494,7 @@ object QrossTask {
                 val result = TaskDependency.check(row.getString("dependency_type"), row.getString("dependency_value"), taskId)
                 row.set("ready", result._1)
                 row.set("dependency_value", result._2)
-                TaskRecord.of(jobId, taskId).log(s"Task $taskId of job $jobId dependency ${row.getLong("id")} is ${if (result._1 == "no") "not " else ""}ready.")
+                TaskRecorder.of(jobId, taskId, recordTime).log(s"Task $taskId of job $jobId dependency ${row.getLong("id")} is ${if (result._1 == "no") "not " else ""}ready.")
             }).cache("dependencies")
 
         //update status and others after checking
@@ -511,7 +519,7 @@ object QrossTask {
             if (dh.nonEmpty) {
 
                 status = TaskStatus.CHECKING_LIMIT
-                TaskRecord.of(jobId, taskId).warn(s"Task $taskId of job $jobId reached upper limit of checking limit.")
+                TaskRecorder.of(jobId, taskId, recordTime).warn(s"Task $taskId of job $jobId reached upper limit of checking limit.")
 
                 //update status
                 dh.join(s"""SELECT A.title, A.owner, B.job_id, B.task_time
@@ -548,7 +556,7 @@ object QrossTask {
 
         dh.close()
 
-        TaskRecord.of(jobId, taskId).log(s"Task $taskId of job $jobId status is ${if (status == TaskStatus.INITIALIZED) "not ready" else status} after pre-dependencies checking.")
+        TaskRecorder.of(jobId, taskId, recordTime).log(s"Task $taskId of job $jobId status is ${if (status == TaskStatus.INITIALIZED) "not ready" else status} after pre-dependencies checking.")
 
         status == TaskStatus.READY
     }
@@ -564,7 +572,7 @@ object QrossTask {
                 .get(s"SELECT task_id FROM tasks WHERE status='${TaskStatus.CHECKING_LIMIT}'")
                     .put("UPDATE qross_tasks SET retry_times=0 WHERE id=#task_id")
                 .get(s"SELECT task_id FROM tasks WHERE status='${TaskStatus.INCORRECT}'")
-                    .put("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', 'WHOLE@#task_id')")
+                    .put("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '^WHOLE@#task_id')")
                 .get(s"SELECT task_id FROM tasks WHERE status='${TaskStatus.FAILED}' OR status='${TaskStatus.TIMEOUT}'")
                     .put("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '^EXCEPTIONAL@#task_id')")
         }

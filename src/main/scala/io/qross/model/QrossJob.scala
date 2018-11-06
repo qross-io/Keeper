@@ -17,7 +17,8 @@ object QrossJob {
         ds.close()
     }
 
-    def tickTasks(messageText: String, queryId: String): Unit = {
+    //手工创建时返回某一个区间段的可执行任务, 考虑移到master js
+    def manualTickTasks(messageText: String, queryId: String): Unit = {
         val jobId = messageText.substring(0, messageText.indexOf(":"))
         val beginTime = messageText.substring(messageText.indexOf(":") + 1, messageText.indexOf("#"))
         val endTime = messageText.substring(messageText.indexOf("#"))

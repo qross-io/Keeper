@@ -103,7 +103,7 @@ CREATE TABLE data_types (
     tl MEDIUMTEXT,
     tm LONGBLOB,
     tn LONGTEXT
-);
+)
 
 t1, java.lang.Integer, TINYINT-6
 t2, java.lang.Integer, SMALLINT5

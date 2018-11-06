@@ -1,5 +1,6 @@
-package io.qross.model
+package io.qross.trash
 
+import io.qross.model.{Global, QrossUser}
 import io.qross.util._
 
 import scala.collection.mutable
@@ -45,11 +46,20 @@ class KeeperLogger {
     def store(): Unit = {
         if (exceptions.nonEmpty) {
             //save to database
+            val error = new KeeperException()
             val ds = new DataSource()
             ds.setBatchCommand(s"INSERT INTO qross_keeper_exceptions (exception, create_date) VALUES (?, ?)")
             exceptions.foreach(line => {
-                ds.addBatch(line.exception, line.createDate)
+                if (!error.merge(line)) {
+                    ds.addBatch(error.exception, error.createDate)
+                    
+                    error.exception = line.exception
+                    error.createDate = line.createDate
+                }
             })
+            if (error.nonEmpty) {
+                ds.addBatch(error.exception, error.createDate)
+            }
             ds.executeBatchUpdate()
     
             //email
@@ -93,4 +103,22 @@ object KeeperException {
 class KeeperException(var exception: String = "") {
     if (exception.length > 65535) exception = exception.take(65535)
     var createDate: String = DateTime.now.getString("yyyy-MM-dd")
+    
+    def nonEmpty: Boolean = exception != ""
+    
+    def merge(keeperException: KeeperException): Boolean = {
+        var merged = false
+        if (this.exception == "") {
+            this.exception = keeperException.exception
+            this.createDate = keeperException.createDate
+        }
+        else if (this.createDate == keeperException.createDate) {
+            val text = this.exception + "\r" + keeperException.exception
+            if (text.length < 65535) {
+                this.exception = text
+                merged = true
+            }
+        }
+        merged
+    }
 }

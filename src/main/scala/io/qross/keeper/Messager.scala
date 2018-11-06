@@ -26,7 +26,7 @@ class Messager extends WorkActor {
                         //JOB - MANUAL - job_id:begin_time#end_time
                         messageKey match {
                             case "COMPLEMENT" => QrossJob.tickTasks(messageText.toInt, queryId)
-                            case "MANUAL" => QrossJob.tickTasks(messageText, queryId);
+                            case "MANUAL" => QrossJob.manualTickTasks(messageText, queryId)
                             case _ =>
                         }
                     case "TASK" =>
@@ -73,9 +73,9 @@ class Messager extends WorkActor {
                         //CONNECTION - UPSERT - connection_type.connection_name=connection_string#&#user_name#&#password
                         //CONNECTION - ENABLE/DISABLE/REMOVE - connection_name
                         messageKey match {
-                            case "UPSERT" => JDBCConnection.upsert(messageText);
-                            case "ENABLE" => JDBCConnection.enable(messageText);
-                            case "DISABLE" => JDBCConnection.disable(messageText);
+                            case "UPSERT" => JDBCConnection.upsert(messageText)
+                            case "ENABLE" => JDBCConnection.enable(messageText)
+                            case "DISABLE" => JDBCConnection.disable(messageText)
                             case "REMOVE" => JDBCConnection.remove(messageText)
                             case _ =>
                         }

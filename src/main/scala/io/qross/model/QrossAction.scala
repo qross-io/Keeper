@@ -14,6 +14,7 @@ object QrossAction {
         val taskId = task.id
         val jobId = task.jobId
         val status = task.status
+        val recordTime = task.recordTime
         val concurrentLimit = ds.executeSingleValue(s"SELECT concurrent_limit FROM qross_jobs WHERE id=$jobId").getOrElse("1").toInt
 
         if (status == TaskStatus.READY) {
@@ -36,28 +37,28 @@ object QrossAction {
                 }
                 else if (map.contains(ActionStatus.EXCEPTIONAL) || map.contains(ActionStatus.OVERTIME)) {
                     //restart task if exceptional or overtime
-                    ds.executeNonQuery(s"INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '${if (map.isEmpty) "WHOLE" else "^EXCEPTIONAL"}@$taskId')")
-                    TaskRecord.of(jobId, taskId).warn(s"Task $taskId of job $jobId restart because of exception on ready.")
+                    ds.executeNonQuery(s"INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '${if (map.isEmpty) "^WHOLE" else "^EXCEPTIONAL"}@$taskId')")
+                    TaskRecorder.of(jobId, taskId, recordTime).warn(s"Task $taskId of job $jobId restart because of exception on ready.")
                 }
                 else if (map.contains(ActionStatus.WAITING) || map.contains(ActionStatus.QUEUING) || map.contains(ActionStatus.RUNNING)) {
                     //executing
                     ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.EXECUTING}', start_time=NOW() WHERE id=$taskId")
-                    TaskRecord.of(jobId, taskId).log(s"Task $taskId of job $jobId start executing on ready.")
+                    TaskRecorder.of(jobId, taskId, recordTime).log(s"Task $taskId of job $jobId start executing on ready.")
                 }
                 else {
                     //finished
                     ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.FINISHED}' WHERE id=$taskId")
-                    TaskRecord.of(jobId, taskId).warn(s"Task $taskId of job $jobId changes status to '${TaskStatus.FINISHED}' because of no commands to be execute on ready.")
+                    TaskRecorder.of(jobId, taskId, recordTime).warn(s"Task $taskId of job $jobId changes status to '${TaskStatus.FINISHED}' because of no commands to be execute on ready.")
                 }
             }
             else {
-                TaskRecord.of(jobId, taskId).warn(s"Concurrent reach upper limit of Job $jobId for Task $taskId on ready.")
+                TaskRecorder.of(jobId, taskId, recordTime).warn(s"Concurrent reach upper limit of Job $jobId for Task $taskId on ready.")
             }
         }
 
         val executable = ds.executeDataTable(
             s"""SELECT A.action_id, A.job_id, A.task_id, A.command_id, B.task_time, C.command_type, A.command_text, C.overtime, C.retry_limit, D.title, D.owner
-                         FROM (SELECT id AS action_id, job_id, task_id, command_id, command_text FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='${task.recordTime}' AND status='${ActionStatus.WAITING}' AND upstream_ids='') A
+                         FROM (SELECT id AS action_id, job_id, task_id, command_id, command_text FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='${recordTime}' AND status='${ActionStatus.WAITING}' AND upstream_ids='') A
                          INNER JOIN (SELECT id, task_time, record_time, restart_times FROM qross_tasks WHERE id=$taskId AND status='${TaskStatus.EXECUTING}') B ON A.task_id=B.id
                          INNER JOIN (SELECT id, command_type, overtime, retry_limit FROM qross_jobs_dags WHERE job_id=$jobId) C ON A.command_id=C.id
                          INNER JOIN (SELECT id, title, owner FROM qross_jobs WHERE id=$jobId) D ON A.job_id=D.id""")
@@ -96,13 +97,13 @@ object QrossAction {
         commandText = commandText.replace("%QROSS_HOME", Global.QROSS_HOME)
 
         if (commandText.startsWith("java ")) {
-            commandText = Global.JAVA_BIN_HOME + commandText;
+            commandText = Global.JAVA_BIN_HOME + commandText
         }
         else if (commandText.startsWith("python2 ")) {
-            commandText = Global.PYTHON2_HOME + commandText;
+            commandText = Global.PYTHON2_HOME + commandText
         }
         else if (commandText.startsWith("python3 ")) {
-            commandText = Global.PYTHON3_HOME + commandText;
+            commandText = Global.PYTHON3_HOME + commandText
         }
 
         //replace datetime format
@@ -122,7 +123,7 @@ object QrossAction {
         var next = false
 
         //LET's GO!
-        val logger = TaskRecord.of(jobId, taskId).run(commandId, actionId)
+        val logger = TaskRecorder.of(jobId, taskId, recordTime).run(commandId, actionId)
         logger.debug(s"START action $actionId - command $commandId of task $taskId - job $jobId: $commandText")
 
         do {
@@ -233,9 +234,7 @@ object QrossAction {
                     .get("SELECT * FROM task WHERE EXISTS (SELECT job_id FROM events WHERE event_function='REQUEST_API')")
                         .requestApi(status)
                     .get(s"SELECT event_value, '' AS restart_time FROM events WHERE INSTR(event_function, 'RESTART_')=1 AND $restartTimes<=10")
-                        .foreach(row => {
-                            row.set("restart_time", DateTime.now.plusMinutes(row.getInt("event_value", 30)).getString("yyyyMMddHHmm00"))
-                        }).put(s"UPDATE qross_tasks SET restart_time='#restart_time', restart_times=restart_times+1 WHERE id=$taskId")
+                        .restartTask(jobId, taskId, recordTime)
             }
         }
 
@@ -245,9 +244,9 @@ object QrossAction {
             //return
             taskId
         } else {
-            TaskRecord.of(jobId, taskId).debug(s"Task $taskId of job $jobId finish with status ${status.toUpperCase}.")
+            TaskRecorder.of(jobId, taskId, recordTime).debug(s"Task $taskId of job $jobId finish with status ${status.toUpperCase}.")
             //clear logger
-            TaskRecord.dispose(taskId)
+            TaskRecorder.dispose(taskId)
             //return
             0
         }

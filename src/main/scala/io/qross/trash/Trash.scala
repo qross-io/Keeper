@@ -1,5 +1,8 @@
 package io.qross.trash
 
+import io.qross.util.DataHub
+import io.qross.util.Output.writeMessage
+
 class Trash {
 
     //case ANY => 2018.10.29 remove, merge into PARTIAL
@@ -58,6 +61,34 @@ class Trash {
         dh.set(s"UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='TaskStarter'")
         dh.close()
     }
-    */
 
+    def clearTaskRecords(): Unit = {
+        val dh = new DataHub()
+        dh.openDefault()
+                .get("SELECT id, keep_x_task_records FROM qross_jobs WHERE keep_x_task_records>0")
+                .pass("SELECT job_id, #keep_x_task_records AS keep_x_task_records FROM qross_tasks WHERE job_id=#id GROUP BY job_id HAVING COUNT(0)>#keep_x_task_records", "id" -> 0, "keep_x_task_records" -> 100)
+                .pass("SELECT id AS task_id, job_id FROM qross_tasks WHERE job_id=#job_id ORDER BY id DESC LIMIT #keep_x_task_records,1", "job_id" -> 0, "keep_x_task_records" -> 100)
+                .put("DELETE FROM qross_tasks WHERE job_id=#job_id AND id<=#task_id")
+                .put("DELETE FROM qross_tasks_logs WHERE job_id=#job_id AND task_id<=#task_id")
+                .put("DELETE FROM qross_tasks_dependencies WHERE job_id=#job_id AND task_id<=#task_id")
+                .put("DELETE FROM qross_tasks_dags WHERE job_id=#job_id AND task_id<=#task_id")
+        dh.close()
+
+        writeMessage("Task records cleaned!")
+    }
+
+    def runSystemTasks(tick: String): Unit = {
+    val minute = DateTime(tick)
+
+    if (CronExp(CLEAN_TASK_RECORDS_FREQUENCY).matches(minute)) {
+        clearTaskRecords()
+    }
+
+    if (EMAIL_NOTIFICATION && CronExp(BEATS_MAILING_FREQUENCY).matches(minute)) {
+        sendBeatsMail(minute)
+    }
+
+    DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='GlobalController';")
+    writeMessage("GlobalController beat!")
+    }*/
 }

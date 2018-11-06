@@ -42,7 +42,7 @@ object HDFS {
                 }
             }
         } catch {
-            case e: IOException => e.printStackTrace();
+            case e: IOException => e.printStackTrace()
         }
     
         list.toList

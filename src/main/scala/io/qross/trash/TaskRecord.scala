@@ -1,11 +1,8 @@
-package io.qross.model
+package io.qross.trash
 
 import java.util.concurrent.ConcurrentHashMap
 
 import io.qross.util.{DataSource, DataTable, DateTime, Output}
-
-import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 
 object TaskRecord {
     

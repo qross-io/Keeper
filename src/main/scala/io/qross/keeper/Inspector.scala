@@ -2,8 +2,8 @@ package io.qross.keeper
 
 import io.qross.model.Qross
 
-object Notifier {
+object Inspector {
     def main(args: Array[String]): Unit = {
-        Qross.checkBeats()
+        Qross.checkBeatsAndRecords()
     }
 }

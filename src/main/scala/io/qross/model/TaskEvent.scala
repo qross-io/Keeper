@@ -13,7 +13,7 @@ object TaskEvent {
                 OpenResourceFile(s"/templates/$status.html")
                     .replace("${status}", upperStatus)
                     .replaceWith(row)
-                    .replace("${logs}", TaskRecord.toHTML(logs))
+                    .replace("${logs}", TaskRecorder.toHTML(logs))
                     .writeEmail(s"$upperStatus: ${row.getString("title")} ${row.getString("task_time")} - JobID: ${row.getString("job_id")} - TaskID: ${row.getString("task_id")}")
                     .to(if (receivers.contains("_OWNER")) row.getString("owner") else "")
                     .cc(if (receivers.contains("_MASTER")) Global.MASTER_USER_GROUP else "")
@@ -21,7 +21,7 @@ object TaskEvent {
                     .send()
             }
 
-            TaskRecord.of(row.getInt("job_id"), row.getLong("task_id"))
+            TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time"))
                     .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} send mail on $status")
         }
     }
@@ -70,8 +70,8 @@ object TaskEvent {
                 case _: Throwable => ""
             }
 
-            TaskRecord.of(row.getInt("job_id"), row.getLong("task_id"))
-                    .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} request api on $status, result is { $result }")
+            TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time"))
+                .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} request api on $status, result is { $result }")
         }
     }
 }
