@@ -4,8 +4,9 @@ import io.qross.model._
 import io.qross.util.{DateTime, Output, Properties, Timer}
 
 class Messager extends WorkActor {
-    
+
     private val producer = context.actorSelection("akka://keeper/user/producer")
+    private val processor = context.actorSelection("akka://keeper/user/processor")
     //private val starter = context.actorSelection("akka://keeper/user/starter")
     
     override def beat(tick: String): Unit = {
@@ -15,6 +16,7 @@ class Messager extends WorkActor {
         do {
             MessageBox.check().foreach(row => {
                 val queryId = row.getString("query_id")
+                val sender = row.getString("sender")
                 val messageType = row.getString("message_type").toUpperCase
                 val messageKey = row.getString("message_key").toUpperCase
                 val messageText = row.getString("message_text")
@@ -49,7 +51,11 @@ class Messager extends WorkActor {
                             case "INSTANT" => producer ! QrossTask.createInstantTask(queryId, messageText)
                             case _ =>
                         }
-
+                    case "NOTE" =>
+                        messageKey match {
+                            case "PROCESS" => QrossNote.processNote(sender, messageText.toLong)
+                            case _ =>
+                        }
                     case "USER" =>
                         messageKey match {
                             case "MASTER" => Global.CONFIG.set("MASTER_USER_GROUP", QrossUser.getUsers("master"))

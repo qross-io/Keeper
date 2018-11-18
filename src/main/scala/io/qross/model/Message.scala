@@ -68,4 +68,6 @@ case class Task(id: Long, var status: String = TaskStatus.INITIALIZED) {
 
 case class TaskCommand(row: DataRow)
 
+case class Note(id: Long)
+
 

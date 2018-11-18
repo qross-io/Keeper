@@ -25,6 +25,7 @@ object Keeper {
             system.actorOf(Props[Messager], "messager"),
             system.actorOf(Props[TaskProducer], "producer"),
             system.actorOf(Props[TaskStarter], "starter"),
+            system.actorOf(Props[NoteProcessor], "processor"),
             system.actorOf(Props[TaskLogger], "logger")
         )
         
