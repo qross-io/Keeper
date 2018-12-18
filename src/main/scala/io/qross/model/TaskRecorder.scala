@@ -1,39 +1,39 @@
 package io.qross.model
 
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 
 import io.qross.util.{DataSource, DataTable, DateTime, Output}
 
-import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
-
 object TaskRecorder {
 
-    // Map<taskId, new TaskRecord>
-    //val loggers = new mutable.HashMap[Long, TaskRecord]()
     val loggers = new ConcurrentHashMap[Long, TaskRecorder]()
+    val logs = new ConcurrentLinkedQueue[TaskLog]()
 
     def of(jobId: Int, taskId: Long, recordTime: String): TaskRecorder = {
-        if (!loggers.contains(taskId)) {
-            //loggers += (taskId -> new TaskRecord(jobId, taskId))
+        if (!loggers.containsKey(taskId)) {
             loggers.put(taskId, new TaskRecorder(jobId, taskId, recordTime))
         }
-         loggers.get(taskId)
+        loggers.get(taskId)
     }
 
     def dispose(taskId: Long): Unit = {
         if (loggers.contains(taskId)) {
-            loggers.get(taskId).save()
             loggers.remove(taskId)
         }
     }
 
-    def saveAll(): Unit = {
-        loggers.keySet.forEach(taskId => {
-            if (loggers.contains(taskId) && loggers.get(taskId).overtime) {
-                loggers.get(taskId).save()
+    def save(): Unit = synchronized {
+
+        if (TaskRecorder.logs.size() > 0) {
+            val ds = new DataSource()
+            ds.setBatchCommand(s"INSERT INTO qross_tasks_logs (job_id, task_id, record_time, command_id, action_id, log_type, log_text, create_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+            while(TaskRecorder.logs.size() > 0) {
+                val log = TaskRecorder.logs.poll()
+                ds.addBatch(log.jobId, log.taskId, log.recordTime, log.commandId, log.actionId, log.logType, log.logText, log.logTime)
             }
-        })
+            ds.executeBatchUpdate()
+            ds.close()
+        }
     }
 
     def toHTML(logs: DataTable): String = {
@@ -60,13 +60,6 @@ class TaskRecorder(jobId: Int, taskId: Long, recordTime: String) {
     var commandId = 0
     var actionId = 0L
 
-    //private val logs = new ArrayBuffer[TaskLog]()
-    private val logs = new java.util.concurrent.ConcurrentLinkedQueue[TaskLog]()
-
-    private var tick = System.currentTimeMillis()
-
-    def overtime: Boolean = System.currentTimeMillis() - tick > 1500
-
     def run(commandId: Int, actionId: Long): TaskRecorder = {
         this.commandId = commandId
         this.actionId = actionId
@@ -74,51 +67,41 @@ class TaskRecorder(jobId: Int, taskId: Long, recordTime: String) {
     }
 
     //记录被调度任务运行过程中的输出流
-    def out(info: String): Unit = {
+    def out(info: String): TaskRecorder = {
         record("INFO", info)
     }
 
     //记录被调度任务运行过程中的错误流
-    def err(error: String): Unit = {
+    def err(error: String): TaskRecorder = {
         record("ERROR", error)
     }
 
     //记录被调度任务在执行前后的信息
-    def log(info: String): Unit = {
+    def log(info: String): TaskRecorder = {
+        Output.writeMessage(info)
         record("LOG", info)
     }
 
     //记录被调度任务在执行前后的警告信息，会被记录成系统日志
-    def warn(warning: String): Unit = {
+    def warn(warning: String): TaskRecorder = {
         Output.writeWarning(warning)
         record("WARN", warning)
     }
 
     //记录被调度任务在执行前后的重要信息，会被记录成系统日志
-    def debug(message: String): Unit = {
+    def debug(message: String): TaskRecorder = {
         Output.writeDebugging(message)
         record("DEBUG", message)
     }
     
-    private def record(seal: String, text: String): Unit = {
-        logs.add(new TaskLog(jobId, taskId, recordTime, commandId, actionId, seal, text))
-        if (overtime) {
-            save()
-        }
+    private def record(seal: String, text: String): TaskRecorder = {
+
+        TaskRecorder.logs.add(new TaskLog(jobId, taskId, recordTime, commandId, actionId, seal, text))
+        this
     }
-    
-    def save(): Unit = synchronized {
-        if (logs.size() > 0) {
-            val ds = new DataSource()
-            ds.setBatchCommand(s"INSERT INTO qross_tasks_logs (job_id, task_id, record_time, command_id, action_id, log_type, log_text, create_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-            while(logs.size() > 0) {
-                val log = logs.poll()
-                ds.addBatch(log.jobId, log.taskId, log.recordTime, log.commandId, log.actionId, log.logType, log.logText, log.logTime)
-            }
-            ds.executeBatchUpdate()
-            ds.close()
-        }
-        tick = System.currentTimeMillis()
+
+    def dispose(): Unit = {
+        TaskRecorder.dispose(taskId)
     }
 }
 

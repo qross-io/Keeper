@@ -74,14 +74,6 @@ object CronExp {
         }
         ticks.toList
     }
-
-    def main(args: Array[String]): Unit = {
-
-        //writeMessage("NEXT TICK: " + CronExp.parse("0 0 12-18/2 * * ? *").getNextTick(DateTime.of(2018, 11, 2, 13, 0, 0)))
-
-        //writeMessage("NEXT TICK: " + CronExp.parse("0 58 7/2 * * FRI *").getNextTick(dateTime))
-        //writeMessage("NEXT TICK: " + CronExp.parse("0 7 8,10 * * ? *").getNextTick(dateTime))
-    }
 }
 
 case class CronExp(expression: String = "0 * * * * ? *") {
@@ -276,7 +268,7 @@ case class CronExp(expression: String = "0 * * * * ? *") {
     
         if (m < begin) m = begin
         if (m > end) m = end
-        if (n < 2) n = 2
+        if (n < 1) n = 1
         //if (n > end / 2) n = end / 2
     
         while (m <= end) {

@@ -15,10 +15,6 @@ object TaskDependency {
         var content = dependencyValue
         content = content.replace("${jobId}", jobId)
         content = content.replace("${taskId}", taskId)
-
-        //下面两行不确定有什么用, 10.25注释掉
-        //content = content.replace("%QROSS_VERSION", Global.QROSS_VERSION)
-        //content = content.replace("%JAVA_BIN_HOME", Global.JAVA_BIN_HOME)
         content = content.replace("%QROSS_HOME", Global.QROSS_HOME)
         
         if (content.contains("${") && content.contains("}")) {
@@ -51,7 +47,7 @@ object TaskDependency {
         }
     }
 
-    def check(dependencyType: String, dependencyValue: String, taskId: Long = 0L): (String, String) =  {
+    def check(dependencyType: String, dependencyValue: String, taskId: Long, recordTime: String): (String, String) =  {
         
         var ready = "no"
         val conf = Json(dependencyValue).findDataRow("/")
@@ -78,15 +74,9 @@ object TaskDependency {
                         //pass variables to command in pre-dependency
                         table.lastRow match {
                             case Some(row) =>
-                                /*val line = new DataTable()
-                                row.getFields.foreach(field => {
-                                    line.insertRow("field" -> field, "value" -> row.getString(field))
-                                })
-                                df.tableUpdate(s"UPDATE qross_tasks_dags SET command_text=REPLACE(command_text, '#{#field}', '#value') WHERE task_id=$taskId AND POSITION('#{' IN command_text) > 0", line)
-                                */
                                 val df = new DataSource()
                                 row.getFields.foreach(field => {
-                                    df.addBatchCommand(s"UPDATE qross_tasks_dags SET command_text=REPLACE(command_text, '#{$field}', '${row.getString(field).replace("'", "''")}') WHERE task_id=$taskId AND POSITION('#{' IN command_text) > 0")
+                                    df.addBatchCommand(s"UPDATE qross_tasks_dags SET command_text=REPLACE(command_text, '#{$field}', '${row.getString(field).replace("'", "''")}') WHERE task_id=$taskId AND record_time='$recordTime' AND POSITION('#{' IN command_text) > 0")
                                 })
                                 df.executeBatchCommands()
                                 df.close()

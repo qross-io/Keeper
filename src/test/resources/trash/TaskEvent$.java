@@ -1,6 +1,4 @@
-package io.qross.model
-
-import io.qross.util._
+package io.qross.model;
 
 object TaskEvent {
 
@@ -22,25 +20,32 @@ object TaskEvent {
             }
 
             TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time"))
-                    .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} send mail on $status")
+                    .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> sent a mail on task $status")
         }
     }
 
     def requestApi(status: String, row: DataRow): Unit = {
 
-        var api = status match {
-            case TaskStatus.CHECKING_LIMIT => Global.API_ON_TASK_CHECKING_LIMIT
-            case TaskStatus.FAILED => Global.API_ON_TASK_FAILED
-            case TaskStatus.TIMEOUT => Global.API_ON_TASK_TIMEOUT
-            case TaskStatus.INCORRECT => Global.API_ON_TASK_INCORRECT
-            case TaskStatus.FINISHED => Global.API_ON_TASK_FINISHED
-            case _ => ""
+        var api = row.getString("api")
+
+        if (api == "") {
+            api = status match {
+                case TaskStatus.NEW => Global.API_ON_TASK_NEW
+                case TaskStatus.CHECKING_LIMIT => Global.API_ON_TASK_CHECKING_LIMIT
+                case TaskStatus.READY => Global.API_ON_TASK_READY
+                case TaskStatus.FAILED => Global.API_ON_TASK_FAILED
+                case TaskStatus.TIMEOUT => Global.API_ON_TASK_TIMEOUT
+                case TaskStatus.INCORRECT => Global.API_ON_TASK_INCORRECT
+                case TaskStatus.FINISHED => Global.API_ON_TASK_FINISHED
+                case _ => ""
+            }
         }
 
         if (api != "") {
             var method = "GET"
             var path = "/"
 
+            //api格式 method @ api
             if (api.contains("@")) {
                 method = api.substring(0, api.indexOf("@")).trim.toUpperCase()
                 api = api.substring(api.indexOf("@") + 1).trim
@@ -59,7 +64,7 @@ object TaskEvent {
                         .replace("${retryTimes}", row.getString("retry_times", "0"))
                         .replace("${retryLimit}", row.getString("retry_limit", "0"))
                         .replace("${owner}", row.getString("owner"))
-                        .replace("${taskTime}", row.getString("taskTime"))
+                        .replace("${taskTime}", row.getString("task_time"))
                         .replace("${status}", status)
 
             val result = try {
@@ -71,7 +76,7 @@ object TaskEvent {
             }
 
             TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time"))
-                .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} request api on $status, result is { $result }")
+                .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> requested specified api on task $status, result is { $result }")
         }
     }
 }

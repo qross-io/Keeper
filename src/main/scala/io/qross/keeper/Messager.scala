@@ -21,11 +21,20 @@ class Messager extends WorkActor {
                 val messageKey = row.getString("message_key").toUpperCase
                 val messageText = row.getString("message_text")
                 Output.writeDebugging(s"Got A Message # $queryId # $messageType # $messageKey # $messageText")
+
                 messageType match {
                     case "GLOBAL" => Global.CONFIG.set(messageKey, messageText)
                     case "JOB" =>
                         //JOB - COMPLEMENT - job_id
                         //JOB - MANUAL - job_id:begin_time#end_time
+                        //JOB - CREATE -
+                        // {
+                        //      "project_id": 0,
+                        //      "title": "",
+                        //      "cron_exp": "",
+                        //      "closing_time": "",
+                        //      "command_text": ""
+                        // }
                         messageKey match {
                             case "COMPLEMENT" => QrossJob.tickTasks(messageText.toInt, queryId)
                             case "MANUAL" => QrossJob.manualTickTasks(messageText, queryId)
@@ -43,17 +52,21 @@ class Messager extends WorkActor {
                                 dag: "1,2,3",
                                 params: "name1:value1,name2:value2",
                                 commands: "commandId:commandText##$##commandId:commandText",
-                                delay: 0
+                                delay: 0,
+                                start_time: 'yyyyMMddHHmm00'
                             }
                              */
                         messageKey match {
                             case "RESTART" => producer ! QrossTask.restartTask(messageText.substring(messageText.indexOf("@") + 1).toLong, messageText.substring(0, messageText.indexOf("@")))
-                            case "INSTANT" => producer ! QrossTask.createInstantTask(queryId, messageText)
+                            case "INSTANT" => QrossTask.createInstantTask(queryId, messageText) match {
+                                                case Some(task) => producer ! task
+                                                case None =>
+                                            }
                             case _ =>
                         }
                     case "NOTE" =>
                         messageKey match {
-                            case "PROCESS" => QrossNote.processNote(sender, messageText.toLong)
+                            //case "PROCESS" => QrossNote.processNote(sender, messageText.toLong)
                             case _ =>
                         }
                     case "USER" =>

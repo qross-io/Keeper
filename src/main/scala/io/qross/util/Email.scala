@@ -2,7 +2,7 @@ package io.qross.util
 
 import javax.activation.{DataHandler, FileDataSource}
 import javax.mail.internet._
-import javax.mail.{Message, SendFailedException, Session, Transport}
+import javax.mail._
 import io.qross.model.Global.CONFIG
 
 import scala.collection.mutable
@@ -88,16 +88,28 @@ class Email(private var title: String) {
         this
     }
 
-    def send(): Unit = {
+    def send(): String = {
         try {
-            transfer()
+            val result = transfer()
+            if (result._2 == "") {
+                "Success."
+            }
+            else {
+                s"Success: ${if (result._1 == "") "NONE" else result._1 }, Failure: ${if (result._2 == "") "NONE" else result._2}."
+            }
         }
         catch {
-            case e: Exception => e.printStackTrace()
+            case e: Exception =>
+                e.printStackTrace()
+                "EXCEPTION"
         }
     }
     
-    def transfer(): Unit = {
+    def transfer(): (String, String) = {
+
+        val success = new mutable.HashSet[Address]()
+        val failure = new mutable.HashSet[Address]()
+
         //must setup one receiver as least
         if (toReceivers.nonEmpty) {
     
@@ -153,7 +165,7 @@ class Email(private var title: String) {
     
             message.setSentDate(new java.util.Date())
             message.saveChanges()
-    
+
             val transport: Transport = session.getTransport
             transport.connect(Email.EMAIL_SENDER_ACCOUNT, Email.EMAIL_SENDER_PASSWORD)
             try {
@@ -163,12 +175,17 @@ class Email(private var title: String) {
                 case se: SendFailedException =>
                     se.getInvalidAddresses
                             .foreach(address => {
+                                failure += address
                                 Output.writeException(s"Invalid email address $address")
                             })
                     transport.sendMessage(message, se.getValidUnsentAddresses)
                 case e: Exception => e.printStackTrace()
             }
             transport.close()
+
+            message.getAllRecipients
+                .filter(!failure.contains(_))
+                .foreach(success += _)
     
             title = ""
             content = ""
@@ -177,6 +194,8 @@ class Email(private var title: String) {
             bccReceivers.clear()
             attachments.clear()
         }
+
+        (success.mkString(";"), failure.mkString(";"))
     }
 }
 

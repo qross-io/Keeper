@@ -1,6 +1,5 @@
 package io.qross.util
 
-import io.qross.model.{TaskDependency, TaskEvent}
 import io.qross.util.DataType.DataType
 import io.qross.util.Output._
 
@@ -201,6 +200,7 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
     
     def buffer(tableName: String): DataHub = {
         BUFFER += tableName -> DataTable.from(TABLE)
+        TO_BE_CLEAR = true
         this
     }
     
@@ -291,14 +291,19 @@ class DataHub (defaultSourceName: String = DataSource.DEFAULT) {
             if (default.nonEmpty) {
                 TABLE.addRow(DataRow(default: _*))
             }
-            else {
-                throw new Exception("No data to pass. Please ensure data exists or default value provided.")
-            }
+//            else {
+//                throw new Exception("No data to pass. Please ensure data exists or default value provided.")
+//            }
+        }
+        else {
+            TABLE.cut(CURRENT.tableSelect(querySentence, TABLE))
         }
         
-        TABLE.cut(CURRENT.tableSelect(querySentence, TABLE))
-        
         this
+    }
+
+    def mkString(fieldName: String, delimiter: String = ","): String = {
+        TABLE.mkString(fieldName);
     }
     
     def foreach(callback: (DataRow) => Unit): DataHub = {

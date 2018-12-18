@@ -8,14 +8,12 @@ class TaskStarter extends WorkActor {
     private val executor = context.actorOf(Props[TaskExecutor].withRouter(new BalancingPool(Global.CORES * Global.CONCURRENT_BY_CPU_CORES)), "executor")
     
     override def beat(tick: String): Unit = {
-        //super.beat(tick)
         executor ! Tick(tick)
         QrossTask.checkTasksStatus(tick)
-        //QrossTask.checkOvertimeOfActions(tick)
     }
     
     override def execute(task: Task): Unit = {
-        QrossAction.getTaskCommandsToExecute(task)
+        QrossTask.getTaskCommandsToExecute(task)
             .foreach(row => executor ! TaskCommand(row))
                 .clear()
     }

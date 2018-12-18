@@ -491,7 +491,7 @@ case class DataTable(private val items: DataRow*) {
     def firstRow: Option[DataRow] = if (this.rows.nonEmpty) Some(this.rows(0)) else None
     def lastRow: Option[DataRow] = if (this.rows.nonEmpty) Some(this.rows(this.rows.size - 1)) else None
     
-    def mkString(delimiter: String, fieldName: String): String = {
+    def mkString(fieldName: String, delimiter: String = ","): String = {
         val value = new StringBuilder()
         for (row <- this.rows) {
             if (value.nonEmpty) {

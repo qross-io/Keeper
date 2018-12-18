@@ -39,11 +39,11 @@ dependencies {
 
     compile group: 'org.apache.hive', name: 'hive-jdbc', version: '2.0.0'
     compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.9.4'
+    compile group: 'org.json4s', name: 'json4s-jackson_2.12', version: '3.6.2'
     compile group: 'commons-configuration', name: 'commons-configuration', version: '1.10'
     //compile group: 'mysql', name: 'mysql-connector-java', version: '5.1.40'
     compile group: 'mysql', name: 'mysql-connector-java', version: '8.0.12'
     compile group: 'org.xerial', name: 'sqlite-jdbc', version: '3.20.0'
-    compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.9.4'
 
     compile group: 'org.apache.hadoop', name: 'hadoop-common', version: '2.7.1'
     compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.1'

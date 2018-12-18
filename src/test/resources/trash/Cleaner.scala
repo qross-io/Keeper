@@ -1,4 +1,4 @@
-package io.qross.trash
+package io.qross.trash;
 
 object Cleaner {
     def main(args: Array[String]): Unit = {

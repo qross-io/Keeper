@@ -53,7 +53,11 @@ object Global {
 
     def CHARSET: String = CONFIG.getString("CHARSET")
 
+    def API_ON_TASK_NEW: String = CONFIG.getString("API_ON_TASK_NEW")
+
     def API_ON_TASK_CHECKING_LIMIT: String = CONFIG.getString("API_ON_TASK_CHECKING_LIMIT")
+
+    def API_ON_TASK_READY: String = CONFIG.getString("API_ON_TASK_READY")
 
     def API_ON_TASK_FAILED: String = CONFIG.getString("API_ON_TASK_FAILED")
 

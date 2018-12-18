@@ -1,14 +1,44 @@
 
+2018/12/17 0.5.8 Debug Finished.
+2018/11/6 0.5.8 Code Finished.
+    1. Project
+        1) Now can create Project to manage Jobs.
+    2. Job
+        1) Can setup a time to close job.
+        2) Remove keep_x_task_records. Now can set store or delete task records at onJobClean event.
+        3) Fix 4 cron expression bugs: cross month, tuesday, minutely, hyphen with slash.
+    3. Task
+        1) Record every execution for task, includes DAG, dependencies, events and logs.
+        2) Remove restart mode: ANY.
+        3) Can setup start time for instant task.
+        4) New status: Success. Task status will be updated to "success" if result is correct or no after-dependencies after finished.
+        5) Add creator, create mode and start mode.
+        6) Record more logs: wrong command, auto restart...
+        7) Rewrite task recorder, don't merge any more.
+        8) Ready task will be execute whether job is enabled or not.
+    4. Events
+        1) New event: onTaskNew
+        2) New event: onTaskReady
+        3) New event: onJobClean
+        4) Restart event add option to set maximum restart times.
+        5) Request API supports custom settings.
+        6) Now system will save every fired events.
+    5. System
+        1) Auto fetch global variables of java/python2/python3.
+        2) Will display quiting text until exit when close system.
+        3) New 5 global variables.
+
+
 2018/09/20 Run.
 2018/09/19 Debug Finished.
-2018/09/15 0.5.7 Code Finished. Rewrite about 30 percent codes.
+2018/09/15 0.5.7 Code Finished. Rewrite about 30% codes.
     1) Qross Master release!
     2) Job Events
         a. SEND_MAIL_TO_OWNER/MASTER/KEEPER
         b. REQUEST_API
         c. RESTART_TASK_AFTER
         d. Task status "finished" also supports events
-        d. new global variables
+        e. new global variables
             API_ON_TASK_CHECKING_LIMIT
             API_ON_TASK_FAILED
             API_ON_TASK_TIMEOUT
