@@ -135,15 +135,13 @@ object QrossTask {
 
         def restartTask(taskStatus: String): DataHub = {
 
-            dh.get("SELECT A.job_id, A.task_id, A.record_time, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id")
-                    .put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_value) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '')")
-
             if (dh.nonEmpty) {
+                dh.put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_value) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '')")
                 dh.foreach(row => {
                     val delay = row.getInt("delay", 30)
                     row.set("to_be_start_time", DateTime.now.plusMinutes(delay).getString("yyyyMMddHHmm00"))
 
-                    TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time")).debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> will restart after $delay minutes.").dispose()
+                    TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time")).debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> will restart after $delay minutes by $taskStatus.").dispose()
                 })
                 .put("UPDATE qross_tasks SET to_be_start_time='#to_be_start_time' WHERE id=#task_id")
                 .put("UPDATE qross_tasks_events SET event_option=event_option+1 WHERE task_id=#task_id AND record_time='#record_time'")
@@ -152,7 +150,7 @@ object QrossTask {
             dh.clear()
         }
 
-        def executeQSQL: DataHub = {
+        def executePSQL: DataHub = {
             dh.clear()
         }
     }
@@ -228,7 +226,7 @@ object QrossTask {
         //restart executing tasks when Keeper exit exceptionally.
         dh.openDefault()
             .get(s"SELECT A.task_id, A.record_time FROM (SELECT id AS task_id, job_id, record_time FROM qross_tasks WHERE status='${TaskStatus.EXECUTING}') A INNER JOIN qross_jobs B ON A.job_id=B.id AND B.enabled='yes'")
-                .put(s"UPDATE qross_tasks_dags SET status='${ActionStatus.EXCEPTIONAL}' WHERE task_id=#task_id AND record_time='#record_time' AND status IN ('${ActionStatus.QUEUING}', '${ActionStatus.RUNNING}')")
+                .put(s"UPDATE qross_tasks_dags SET status='${ActionStatus.EXCEPTIONAL}' WHERE task_id=#task_id AND record_time='#record_time' AND status IN ('${ActionStatus.QUEUEING}', '${ActionStatus.RUNNING}')")
                 .put("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '^EXCEPTIONAL@#task_id')")
 
         //update all jobs recent_tasks_status
@@ -368,7 +366,8 @@ object QrossTask {
                 params: "name1:value1,name2:value2",
                 commands: "commandId:commandText##$##commandId:commandText",
                 delay: 5,  //s
-                start_time: 'yyyyMMddHHmm00'
+                start_time: 'yyyyMMddHHmm00',
+                creator: @creator
             }
          */
 
@@ -395,10 +394,10 @@ object QrossTask {
             //create task
             dh.set(s"INSERT INTO qross_tasks (job_id, task_time, record_time, status, creator, create_mode, start_mode, to_be_start_time) VALUES ($jobId, '$taskTime', '$recordTime', '${TaskStatus.INSTANT}', '$creator', 'instant', 'manual_start', '$startTime')")
             //get task id
-            dh.get(s"""SELECT A.task_id, A.job_id, A.task_time, A.record_time, B.title, B.owner, C.dependencies
+            dh.get(s"""SELECT A.task_id, A.job_id, A.task_time, A.record_time, B.title, B.owner, IFNULL(C.dependencies, 0) AS dependencies
                         FROM (SELECT id AS task_id, job_id, task_time, record_time FROM qross_tasks WHERE job_id=$jobId AND task_time='$taskTime' AND status='${TaskStatus.INSTANT}') A
                         INNER JOIN qross_jobs B ON A.job_id=B.id
-                        INNER JOIN (SELECT job_id, COUNT(0) AS dependencies FROM qross_jobs_dependencies WHERE job_id=$jobId AND dependency_moment='before') C ON A.job_id=C.job_id""")
+                        LEFT JOIN (SELECT job_id, COUNT(0) AS dependencies FROM qross_jobs_dependencies WHERE job_id=$jobId AND dependency_moment='before' GROUP BY job_id) C ON A.job_id=C.job_id""")
                 .cache("task_info")
 
             taskId = dh.firstRow.getLong("task_id")
@@ -453,12 +452,10 @@ object QrossTask {
 
             dh.close()
 
-            if (recordTime == "") println("@X 1")
             TaskRecorder.of(jobId, taskId, recordTime).debug(s"Instant Task $taskId of job $jobId at <$recordTime> has been created.")
         }
 
         if (delay > 0 && startTime == "" && jobId  > 0 && taskId > 0) {
-            if (recordTime == "") println("@X 1")
             TaskRecorder.of(jobId, taskId, recordTime).debug(s"Instant Task $taskId of job $jobId at <$recordTime> will start after $delay seconds.")
             Timer.sleep(if (delay > 60) 60 else delay)
         }
@@ -511,7 +508,7 @@ object QrossTask {
         val dh = new DataHub()
 
         //backup records
-        dh.get(s"SELECT record_time, start_mode, status, start_time, finish_time, IFNULL(spent, -1) AS spent FROM qross_tasks WHERE id=$taskId")
+        dh.get(s"SELECT job_id, task_time, record_time, start_mode, status, start_time, finish_time, IFNULL(spent, -1) AS spent FROM qross_tasks WHERE id=$taskId")
             .put(s"INSERT INTO qross_tasks_records (task_id, record_time, start_mode, status, start_time, finish_time, spent) VALUES ($taskId, '#record_time', '#start_mode', '#status', '#start_time', '#finish_time', #spent)")
 
         val row = dh.firstRow
@@ -567,7 +564,6 @@ object QrossTask {
             //update task
             dh.openDefault().set(s"UPDATE qross_tasks SET status='$status', start_mode='$restartMode', record_time='$recordTime', spent=NULL, start_time=NULL, finish_time=NULL WHERE id=$taskId")
 
-            if (recordTime == "") println("@X E")
             TaskRecorder.of(jobId, taskId, recordTime).debug(s"Task $taskId of job $jobId at <$recordTime> restart with option $option.")
         }
 
@@ -597,7 +593,6 @@ object QrossTask {
                 val result = TaskDependency.check(row.getString("dependency_type"), row.getString("dependency_value"), taskId, recordTime)
                 row.set("ready", result._1)
                 row.set("dependency_value", result._2)
-                if (recordTime == "") println("@X C")
                 if (result._1 == "yes") {
                     TaskRecorder.of(jobId, taskId, recordTime).log(s"Task $taskId of job $jobId at <$recordTime> dependency ${row.getLong("id")} is ready.")
                 }
@@ -676,7 +671,6 @@ object QrossTask {
 
         dh.close()
 
-        if (recordTime == "") println("@X D")
         TaskRecorder.of(jobId, taskId, recordTime).log(s"Task $taskId of job $jobId at <$recordTime> status is ${if (status == TaskStatus.INITIALIZED) "not ready" else status} after pre-dependencies checking.")
 
         status == TaskStatus.READY
@@ -740,30 +734,25 @@ object QrossTask {
                 if (map.isEmpty) {
                     //quit if no commands to execute
                     ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.NO_COMMANDS}' WHERE id=$taskId")
-                    if (recordTime == "") println("@X 1")
                     TaskRecorder.of(jobId, taskId, recordTime).warn(s"Task $taskId of job $jobId at <$recordTime> has been  closed because no commands exists on task ready.")
                 }
                 else if (map.contains(ActionStatus.EXCEPTIONAL) || map.contains(ActionStatus.OVERTIME)) {
                     //restart task if exceptional or overtime
                     ds.executeNonQuery(s"INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '^EXCEPTIONAL@$taskId')")
-                    if (recordTime == "") println("@X 2")
                     TaskRecorder.of(jobId, taskId, recordTime).warn(s"Task $taskId of job $jobId at <$recordTime> restart because EXCEPTIONAL commands exists on task ready.")
                 }
-                else if (map.contains(ActionStatus.WAITING) || map.contains(ActionStatus.QUEUING) || map.contains(ActionStatus.RUNNING)) {
+                else if (map.contains(ActionStatus.WAITING) || map.contains(ActionStatus.QUEUEING) || map.contains(ActionStatus.RUNNING)) {
                     //executing
                     ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.EXECUTING}', start_time=NOW() WHERE id=$taskId")
-                    if (recordTime == "") println("@X 3")
                     TaskRecorder.of(jobId, taskId, recordTime).log(s"Task $taskId of job $jobId at <$recordTime> start executing on task ready.")
                 }
                 else {
                     //finished
                     ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.FINISHED}' WHERE id=$taskId")
-                    if (recordTime == "") println("@X 4")
                     TaskRecorder.of(jobId, taskId, recordTime).warn(s"Task $taskId of job $jobId at <$recordTime> changes status to '${TaskStatus.FINISHED}' because all commands has been executed on task ready.")
                 }
             }
             else {
-                if (recordTime == "") println("@X 5")
                 TaskRecorder.of(jobId, taskId, recordTime).warn(s"Concurrent reach upper limit of Job $jobId for Task $taskId at <$recordTime> on task ready.")
             }
         }
@@ -776,7 +765,7 @@ object QrossTask {
                          INNER JOIN (SELECT id, title, owner FROM qross_jobs WHERE id=$jobId) D ON A.job_id=D.id""")
 
         //prepare to run command - start time point
-        ds.tableUpdate(s"UPDATE qross_tasks_dags SET start_time=NOW(), status='${ActionStatus.QUEUING}' WHERE id=#action_id", executable)
+        ds.tableUpdate(s"UPDATE qross_tasks_dags SET start_time=NOW(), status='${ActionStatus.QUEUEING}' WHERE id=#action_id", executable)
 
         ds.close()
 
@@ -836,12 +825,10 @@ object QrossTask {
 
         //LET's GO!
         val logger = TaskRecorder.of(jobId, taskId, recordTime).run(commandId, actionId)
-        if (recordTime == "") println("@X 6")
         logger.debug(s"START action $actionId - command $commandId of task $taskId - job $jobId at <$recordTime>: $commandText")
 
         do {
             if (retry > 0) {
-                if (recordTime == "") println("@X 7")
                 logger.debug(s"Action $actionId - command $commandId of task $taskId - job $jobId at <$recordTime>: retry $retry of limit $retryLimit")
             }
             val start = System.currentTimeMillis()
@@ -859,7 +846,6 @@ object QrossTask {
                     if (overtime > 0 && (System.currentTimeMillis() - start) / 1000 > overtime) {
                         process.destroy() //kill it
                         timeout = true
-                        if (recordTime == "") println("@X A")
                         logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId at <$recordTime> is TIMEOUT: $commandText")
                     }
 
@@ -888,7 +874,6 @@ object QrossTask {
         }
         while (retry < retryLimit && exitValue != 0)
 
-        if (recordTime == "") println("@X 8")
         logger.debug(s"FINISH action $actionId - command $commandId of task $taskId - job $jobId with exitValue $exitValue and status ${if (exitValue == 0) "SUCCESS" else if (exitValue > 0)  "FAILURE" else "TIMEOUT/INTERRUPTED" }")
 
         exitValue match {
@@ -952,7 +937,7 @@ object QrossTask {
                         .sendEmail(status)
                     .get("SELECT A.*, B.event_value AS api, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='REQUEST_API'")
                         .requestApi(status)
-                    .get(s"SELECT A.*, B.event_value AS delay, '' AS to_be_start_time, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B WHERE INSTR(B.event_function, 'RESTART_')=1 AND (B.event_option=0 OR B.current_option<=B.event_option)") //SIGNED is MySQL syntax, but SQLite will ignore it.
+                    .get(s"SELECT A.*, B.event_value AS delay, '' AS to_be_start_time, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B WHERE B.event_function='RESTART_TASK' AND (B.event_option=0 OR B.current_option<=B.event_option)") //SIGNED is MySQL syntax, but SQLite will ignore it.
                         .restartTask(status)
             }
         }
@@ -964,7 +949,6 @@ object QrossTask {
             taskId
         } else {
             //record and clear logger
-            if (recordTime == "") println("@X D")
             TaskRecorder.of(jobId, taskId, recordTime).debug(s"Task $taskId of job $jobId at <$recordTime> finish with status ${status.toUpperCase}.").dispose()
             //return nothing
             0

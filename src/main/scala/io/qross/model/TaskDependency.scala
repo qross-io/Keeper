@@ -179,7 +179,7 @@ object TaskDependency {
                 if (DataSource.queryExists("SELECT id FROM qross_tasks WHERE job_id=? AND task_time=? AND status=?",
                         conf.getInt("jobId"),
                         conf.getString("taskTime"),
-                        conf.getString("status", TaskStatus.FINISHED))) {
+                        conf.getString("status", TaskStatus.SUCCESS))) {
                     ready = "yes"
                 }
         

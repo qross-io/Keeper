@@ -5,7 +5,7 @@
         1) Now can create Project to manage Jobs.
     2. Job
         1) Can setup a time to close job.
-        2) Remove keep_x_task_records. Now can set store or delete task records at onJobClean event.
+        2) Remove keep_x_task_records. Now can set storing or deleting task records at onJobClean event.
         3) Fix 4 cron expression bugs: cross month, tuesday, minutely, hyphen with slash.
     3. Task
         1) Record every execution for task, includes DAG, dependencies, events and logs.

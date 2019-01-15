@@ -39,7 +39,7 @@ object QrossAction {
                     if (recordTime == "") println("@X 2")
                     TaskRecorder.of(jobId, taskId, recordTime).warn(s"Task $taskId of job $jobId at <$recordTime> restart because EXCEPTIONAL commands exists on task ready.")
                 }
-                else if (map.contains(ActionStatus.WAITING) || map.contains(ActionStatus.QUEUING) || map.contains(ActionStatus.RUNNING)) {
+                else if (map.contains(ActionStatus.WAITING) || map.contains(ActionStatus.QUEUEING) || map.contains(ActionStatus.RUNNING)) {
                     //executing
                     ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.EXECUTING}', start_time=NOW() WHERE id=$taskId")
                     if (recordTime == "") println("@X 3")
@@ -66,7 +66,7 @@ object QrossAction {
                          INNER JOIN (SELECT id, title, owner FROM qross_jobs WHERE id=$jobId) D ON A.job_id=D.id""")
 
         //prepare to run command - start time point
-        ds.tableUpdate(s"UPDATE qross_tasks_dags SET start_time=NOW(), status='${ActionStatus.QUEUING}' WHERE id=#action_id", executable)
+        ds.tableUpdate(s"UPDATE qross_tasks_dags SET start_time=NOW(), status='${ActionStatus.QUEUEING}' WHERE id=#action_id", executable)
 
         ds.close()
 

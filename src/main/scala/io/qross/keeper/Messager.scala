@@ -53,7 +53,8 @@ class Messager extends WorkActor {
                                 params: "name1:value1,name2:value2",
                                 commands: "commandId:commandText##$##commandId:commandText",
                                 delay: 0,
-                                start_time: 'yyyyMMddHHmm00'
+                                start_time: 'yyyyMMddHHmm00',
+                                creator: @username
                             }
                              */
                         messageKey match {

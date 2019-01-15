@@ -1,7 +1,7 @@
 package io.qross.trash
 
 
-import io.qross.model.TaskOverall
+import io.qross.model.{QrossTask, TaskOverall}
 import io.qross.util.Json.ListExt
 import io.qross.util.{CronExp, DateTime, OpenResourceFile, Output}
 
@@ -18,7 +18,18 @@ case class Test(var name: String = "", list: ArrayBuffer[Int] = new ArrayBuffer[
 object Test {
     def main(args: Array[String]): Unit = {
 
-        Output.writeLine(OpenResourceFile("/templates/new.html").toString)
+        println("12.345999999199999999991999999999991".toDouble)
+
+        /*QrossTask.createInstantTask("1234567",
+            """{
+              "jobId": 1,
+               "dag": "",
+               "params": "",
+               "commands": "",
+               "delay": 5
+              }""") */
+
+        //Output.writeLine(OpenResourceFile("/templates/new.html").toString)
 
         //TaskOverall.of(1700L).store()
 
