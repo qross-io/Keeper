@@ -1,19 +1,8 @@
 package io.qross.trash
 
 
-import io.qross.model.{ActionStatus, QrossTask, TaskOverall, TaskStatus}
-import io.qross.util.Json.ListExt
+import io.qross.model.{ActionStatus, TaskStatus}
 import io.qross.util._
-
-import scala.collection.mutable.ArrayBuffer
-
-case class Test(var name: String = "", list: ArrayBuffer[Int] = new ArrayBuffer[Int]()) {
-
-    name = "tom"
-    list += 1
-    list += 2
-    list += 3
-}
 
 object Test {
     def main(args: Array[String]): Unit = {
