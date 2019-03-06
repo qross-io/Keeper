@@ -65,7 +65,7 @@ object Global {
 
     def API_ON_TASK_TIMEOUT: String = CONFIG.getString("API_ON_TASK_TIMEOUT")
 
-    def API_ON_TASK_FINISHED: String = CONFIG.getString("API_ON_TASK_FINISHED")
+    def API_ON_TASK_SUCCESS: String = CONFIG.getString("API_ON_TASK_SUCCESS")
     
     def CLEAN_TASK_RECORDS_FREQUENCY: String = CONFIG.getString("CLEAN_TASK_RECORDS_FREQUENCY")
 

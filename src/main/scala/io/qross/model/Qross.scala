@@ -49,8 +49,10 @@ object Qross {
 
         while(dh.get("SELECT actor_name FROM qross_keeper_beats WHERE status='running' LIMIT 1").nonEmpty) {
             writeDebugging(dh.firstRow.getString("actor_name") + " still working.")
+            dh.clear()
             dh.get("SELECT COUNT(0) AS amount FROM qross_tasks WHERE status='executing'")
-            writeDebugging("" + dh.firstRow.getString("amount") + " tasks is still executing.")
+            writeDebugging("There is " + dh.firstRow.getString("amount") + " tasks still executing.")
+            dh.clear()
             Timer.sleep(5F)
         }
 
@@ -134,6 +136,9 @@ object Qross {
                                 //clean database
                                 dh.executeNonQuery(s"DELETE FROM qross_tasks_logs WHERE job_id=$jobId AND task_id<$taskId")
                                 dh.executeNonQuery(s"DELETE FROM qross_tasks_dependencies WHERE job_id=$jobId AND task_id<$taskId")
+                                dh.executeNonQuery(s"DELETE FROM qross_tasks_dags WHERE job_id=$jobId AND task_id<$taskId")
+                                dh.executeNonQuery(s"DELETE FROM qross_tasks_events WHERE job_id=$jobId AND task_id<$taskId")
+                                dh.executeNonQuery(s"DELETE FROM qross_tasks_records WHERE job_id=$jobId AND task_id<$taskId")
                                 rows = dh.executeNonQuery(s"DELETE FROM qross_tasks WHERE job_id=$jobId AND id<$taskId")
                                 dh.executeNonQuery(s"INSERT INTO qross_jobs_clean_records (job_id, method, amount) VALUES ($jobId, '$method', $rows)")
 

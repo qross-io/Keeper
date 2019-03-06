@@ -1,9 +1,9 @@
 package io.qross.trash
 
 
-import io.qross.model.{QrossTask, TaskOverall}
+import io.qross.model.{ActionStatus, QrossTask, TaskOverall, TaskStatus}
 import io.qross.util.Json.ListExt
-import io.qross.util.{CronExp, DateTime, OpenResourceFile, Output}
+import io.qross.util._
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -18,7 +18,24 @@ case class Test(var name: String = "", list: ArrayBuffer[Int] = new ArrayBuffer[
 object Test {
     def main(args: Array[String]): Unit = {
 
-        println("12.345999999199999999991999999999991".toDouble)
+        val dh = new DataHub()
+        //stuck tasks
+        //条件：task正在执行, 所有upstream_ids为空的dag记录
+        dh.get(s"select id, job_id, task_id, command_id, upstream_ids, record_time, UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(update_time) AS span, status FROM qross_tasks_dags WHERE task_id IN (SELECT id FROM qross_tasks WHERE status='${TaskStatus.EXECUTING}')")
+            .cache("dags")
+        dh.openCache()
+            .get(s"SELECT DISTINCT task_id FROM dags WHERE status NOT IN ('${ActionStatus.DONE}', '${ActionStatus.WAITING}')")
+                .put("DELETE FROM dags WHERE task_id=#task_id")
+                .set("DELETE FROM dags WHERE upstream_ids<>''")
+            .get("SELECT job_id, task_id, record_time FROM (SELECT job_id, task_id, record_time, MIN(span) AS span FROM dags GROUP BY job_id, task_id, record_time) A WHERE span>300")
+                .put("INSERT INTO qross_stuck_records (job_id, task_id, record_time) VALUES (#job_id, #task_id, '#record_time') ON DUPLICATE KEY UPDATE check_times=check_times+1")
+        if (dh.nonEmpty) {
+            dh.openDefault()
+                .get("SELECT task_id FROM qross_stuck_records WHERE check_times>=3")
+                    .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}' WHERE id=#task_id AND status='${TaskStatus.EXECUTING}'")
+        }
+
+        dh.close()
 
         /*QrossTask.createInstantTask("1234567",
             """{

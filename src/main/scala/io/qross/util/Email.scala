@@ -101,7 +101,7 @@ class Email(private var title: String) {
         catch {
             case e: Exception =>
                 e.printStackTrace()
-                "EXCEPTION"
+                e.getMessage
         }
     }
     

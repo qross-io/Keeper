@@ -37,7 +37,7 @@ dependencies {
     compile group: 'com.typesafe.akka', name: 'akka-actor_2.12', version: '2.5.12'
     //compile group: 'com.typesafe.akka', name: 'akka-remote_2.12', version: '2.5.12'
 
-    compile group: 'org.apache.hive', name: 'hive-jdbc', version: '2.0.0'
+    //compile group: 'org.apache.hive', name: 'hive-jdbc', version: '2.0.0'
     compile group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.9.4'
     compile group: 'org.json4s', name: 'json4s-jackson_2.12', version: '3.6.2'
     compile group: 'commons-configuration', name: 'commons-configuration', version: '1.10'
