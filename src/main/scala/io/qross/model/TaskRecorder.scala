@@ -6,14 +6,14 @@ import io.qross.util.{DataSource, DataTable, DateTime, Output}
 
 object TaskRecorder {
 
-    val loggers = new ConcurrentHashMap[Long, TaskRecorder]()
-    val logs = new ConcurrentLinkedQueue[TaskLog]()
+    val loggers = new ConcurrentHashMap[(Long, String), TaskRecorder]()
+    val LOGS = new ConcurrentLinkedQueue[TaskLog]()
 
     def of(jobId: Int, taskId: Long, recordTime: String): TaskRecorder = {
-        if (!loggers.containsKey(taskId)) {
-            loggers.put(taskId, new TaskRecorder(jobId, taskId, recordTime))
+        if (!loggers.containsKey((taskId, recordTime))) {
+            loggers.put((taskId, recordTime), new TaskRecorder(jobId, taskId, recordTime))
         }
-        loggers.get(taskId)
+        loggers.get((taskId, recordTime))
     }
 
     def dispose(taskId: Long): Unit = {
@@ -24,11 +24,11 @@ object TaskRecorder {
 
     def save(): Unit = synchronized {
 
-        if (TaskRecorder.logs.size() > 0) {
+        if (TaskRecorder.LOGS.size() > 0) {
             val ds = new DataSource()
             ds.setBatchCommand(s"INSERT INTO qross_tasks_logs (job_id, task_id, record_time, command_id, action_id, log_type, log_text, create_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-            while(TaskRecorder.logs.size() > 0) {
-                val log = TaskRecorder.logs.poll()
+            while(TaskRecorder.LOGS.size() > 0) {
+                val log = TaskRecorder.LOGS.poll()
                 ds.addBatch(log.jobId, log.taskId, log.recordTime, log.commandId, log.actionId, log.logType, log.logText, log.logTime)
             }
             ds.executeBatchUpdate()
@@ -93,10 +93,10 @@ class TaskRecorder(jobId: Int, taskId: Long, recordTime: String) {
         Output.writeDebugging(message)
         record("DEBUG", message)
     }
-    
+
     private def record(seal: String, text: String): TaskRecorder = {
 
-        TaskRecorder.logs.add(new TaskLog(jobId, taskId, recordTime, commandId, actionId, seal, text))
+        TaskRecorder.LOGS.add(new TaskLog(jobId, taskId, recordTime, commandId, actionId, seal, text))
         this
     }
 
