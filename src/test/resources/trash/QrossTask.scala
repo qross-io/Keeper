@@ -21,3 +21,18 @@ def restartTask(jobId: Int, taskId: Long, recordTime: String): DataHub = {
 
     dh.clear()
 }
+
+//complementsTasks
+//update all jobs recent_tasks_status
+dh.openDefault()
+        .get(s"SELECT id AS job_id FROM qross_jobs")
+        .pass("SELECT job_id, GROUP_CONCAT(CONCAT(id, ':', status, '@', task_time) ORDER BY id DESC SEPARATOR ',') AS status FROM (SELECT job_id, id, status, task_time FROM qross_tasks WHERE job_id=#job_id ORDER BY id DESC LIMIT 3) T GROUP BY job_id")
+        .put("UPDATE qross_jobs SET recent_tasks_status='#status' WHERE id=#job_id")
+
+//checkTasksStatus
+//recent tasks status
+dh.openDefault()
+        .get(s"""SELECT job_id FROM qross_tasks WHERE update_time>='${DateTime(tick).minusMinutes(5).getString("yyyy-MM-dd HH:mm:ss")}'
+                UNION SELECT id AS job_id FROM qross_jobs WHERE recent_tasks_status IS NULL""")
+        .pass("SELECT job_id, GROUP_CONCAT(CONCAT(id, ':', status, '@', task_time) ORDER BY id DESC SEPARATOR ',') AS status FROM (SELECT job_id, id, status, task_time FROM qross_tasks WHERE job_id=#job_id ORDER BY id DESC LIMIT 3) T GROUP BY job_id")
+        .put("UPDATE qross_jobs SET recent_tasks_status='#status' WHERE id=#job_id")

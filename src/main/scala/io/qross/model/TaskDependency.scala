@@ -58,29 +58,64 @@ object TaskDependency {
             {
                 "dataSource": "source name"
                 "selectSQL": "select SQL"
-                "updateSQL": "update SQL, support # place holder"
-            }
-             */
+                "updateSQL": "update SQL, support # place holder",
+                "field": "", //如果不设置, 默认第一个字段
+                "operator": "==", //如果不设置，默认"="
+                "value": 0  //如果不设置，则有数据则依赖成立
+            }             */
             case "SQL" =>
                     val ds = new DataSource(conf.getString("dataSource"))
                     val table = ds.executeDataTable(conf.getString("selectSQL"))
                     if (table.nonEmpty) {
-                        ready = "yes"
-                        if (conf.contains("updateSQL") && conf.getString("updateSQL") != "") {
-                            ds.tableUpdate(conf.getString("updateSQL"), table)
+
+                        val field = conf.getString("field", "").trim
+                        val compareValue = conf.getString("value", "").trim
+                        if (compareValue.nonEmpty) {
+                            val currentValue = table.lastRow.get.getStringOption(if ("""^\d+$""".r.findFirstIn(field).nonEmpty) field.toInt - 1 else field).getOrElse("NULL")
+                            if (conf.getString("operator", "==").trim match {
+                                case "=" | "==" => currentValue == compareValue
+                                case "!=" | "<>" => currentValue != compareValue
+                                case "^=" => currentValue.startsWith(compareValue)
+                                case "$=" => currentValue.endsWith(compareValue)
+                                case "*=" => currentValue.contains(compareValue)
+                                case "#=" => Pattern.matches(compareValue, currentValue) //regex match
+                                case operator =>
+                                    (Try(currentValue.toDouble), Try(compareValue.toDouble)) match {
+                                        case (Success(v1), Success(v2)) =>
+                                            operator match {
+                                                case ">" => v1 > v2
+                                                case ">=" => v1 >= v2
+                                                case "<" => v1 < v2
+                                                case "<=" => v1 < v2
+                                                case _ => false
+                                            }
+                                        case _ => false
+                                    }
+                                }) {
+                                    ready = "yes"
+                            }
                         }
-                        conf.set("SELECT", table.count())
-    
-                        //pass variables to command in pre-dependency
-                        table.lastRow match {
-                            case Some(row) =>
-                                val df = new DataSource()
-                                row.getFields.foreach(field => {
-                                    df.addBatchCommand(s"UPDATE qross_tasks_dags SET command_text=REPLACE(command_text, '#{$field}', '${row.getString(field).replace("'", "''")}') WHERE task_id=$taskId AND record_time='$recordTime' AND POSITION('#{' IN command_text) > 0")
-                                })
-                                df.executeBatchCommands()
-                                df.close()
-                            case None =>
+                        else {
+                            ready = "yes"
+                        }
+
+                        if (ready == "yes") {
+                            if (conf.contains("updateSQL") && conf.getString("updateSQL") != "") {
+                                ds.tableUpdate(conf.getString("updateSQL"), table)
+                            }
+                            conf.set("SELECT", table.count())
+
+                            //pass variables to command in pre-dependency
+                            table.lastRow match {
+                                case Some(row) =>
+                                    val df = new DataSource()
+                                    row.getFields.foreach(field => {
+                                        df.addBatchCommand(s"UPDATE qross_tasks_dags SET command_text=REPLACE(command_text, '#{$field}', '${row.getString(field).replace("'", "''")}') WHERE task_id=$taskId AND record_time='$recordTime' AND POSITION('#{' IN command_text) > 0")
+                                    })
+                                    df.executeBatchCommands()
+                                    df.close()
+                                case None =>
+                            }
                         }
                     }
                     else {
@@ -143,7 +178,7 @@ object TaskDependency {
                 
                 val currentValue = json.findValue(conf.getString("path")).toString
                 val compareValue = conf.getString("value")
-                if (conf.getString("operator").trim match {
+                if (conf.getString("operator", "==").trim match {
                     case "=" | "==" => currentValue == compareValue
                     case "!=" | "<>" => currentValue != compareValue
                     case "^=" => currentValue.startsWith(compareValue)

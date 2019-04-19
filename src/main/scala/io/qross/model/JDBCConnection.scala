@@ -2,8 +2,6 @@ package io.qross.model
 
 import io.qross.util.DataSource
 
-import scala.collection.mutable
-
 object JDBCConnection {
     
     def upsert(connectionText: String): Unit = {

@@ -305,7 +305,7 @@ case class DateTime(private var dateTime: String = "", private var formatStyle: 
                 case _ =>
             }
         }
-        else if (value.contains("=")) {
+        else {
             //=
             (field.toUpperCase(), Try(value.toInt)) match {
                 case ("DAY", Success(v)) => if (v > 0) this.setDayOfMonth(v)

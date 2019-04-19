@@ -228,12 +228,6 @@ object QrossTask {
                 .put(s"UPDATE qross_tasks_dags SET status='${ActionStatus.EXCEPTIONAL}' WHERE task_id=#task_id AND record_time='#record_time' AND status IN ('${ActionStatus.QUEUEING}', '${ActionStatus.RUNNING}')")
                 .put("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '^EXCEPTIONAL@#task_id')")
 
-        //update all jobs recent_tasks_status
-        dh.openDefault()
-            .get(s"SELECT id AS job_id FROM qross_jobs")
-            .pass("SELECT job_id, GROUP_CONCAT(CONCAT(id, ':', status, '@', task_time) ORDER BY id DESC SEPARATOR ',') AS status FROM (SELECT job_id, id, status, task_time FROM qross_tasks WHERE job_id=#job_id ORDER BY id DESC LIMIT 3) T GROUP BY job_id")
-            .put("UPDATE qross_jobs SET recent_tasks_status='#status' WHERE id=#job_id")
-
         dh.close()
     }
 
@@ -692,13 +686,6 @@ object QrossTask {
                     .put("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '^EXCEPTIONAL@#task_id')")
         }
         dh.clear()
-
-        //recent tasks status
-        dh.openDefault()
-            .get(s"""SELECT job_id FROM qross_tasks WHERE update_time>='${DateTime(tick).minusMinutes(5).getString("yyyy-MM-dd HH:mm:ss")}'
-                UNION SELECT id AS job_id FROM qross_jobs WHERE recent_tasks_status IS NULL""")
-            .pass("SELECT job_id, GROUP_CONCAT(CONCAT(id, ':', status, '@', task_time) ORDER BY id DESC SEPARATOR ',') AS status FROM (SELECT job_id, id, status, task_time FROM qross_tasks WHERE job_id=#job_id ORDER BY id DESC LIMIT 3) T GROUP BY job_id")
-                .put("UPDATE qross_jobs SET recent_tasks_status='#status' WHERE id=#job_id")
 
         //stuck tasks - executing tasks but no running actions
         //get executing tasks

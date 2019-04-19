@@ -65,7 +65,8 @@ case class DataRow(private val items: (String, Any)*) {
             callback(k, v)
         }
     }
-    
+
+    //by name
     def get(fieldName: String): Option[Any] = {
         if (this.columns.contains(fieldName)) {
             this.columns.get(fieldName)
@@ -75,17 +76,33 @@ case class DataRow(private val items: (String, Any)*) {
         }
     }
 
-    def combine(otherRow: DataRow): DataRow = {
-        for ((field, value) <- otherRow.columns) {
-            this.set(field, value)
+    //by index
+    def get(index: Int): Option[Any] = {
+        if (index < this.columns.size) {
+            Some(this.columns.take(index + 1).last._2)
         }
-        this
+        else {
+            None
+        }
     }
-    
-    def getString(fieldName: String, defaultValue: String = ""): String = this.get(fieldName) match {
-        case Some(value) => if (value != null) value.toString else defaultValue
-        case None => defaultValue
+
+    def getString(fieldName: String, defaultValue: String = ""): String = getStringOption(fieldName).getOrElse(defaultValue)
+    def getString(index: Int, defaultValue: String = ""): String = getStringOption(index).getOrElse(defaultValue)
+    def getStringOption(fieldNameOrIndex: Any): Option[String] = {
+        {
+            if (fieldNameOrIndex.isInstanceOf[Int]) {
+                get(fieldNameOrIndex.asInstanceOf[Int])
+            } else {
+                get(fieldNameOrIndex.asInstanceOf[String])
+            }
+        } match {
+            case Some(value) => if (value != null) Some(value.toString) else None
+            case None => None
+        }
     }
+
+
+    //def getString(index: Int, defaultValue: String = ""): String =
     
     def getInt(fieldName: String, defaultValue: Int = 0): Int = getIntOption(fieldName).getOrElse(defaultValue)
     def getIntOption(fieldName: String): Option[Int] = {
@@ -152,7 +169,7 @@ case class DataRow(private val items: (String, Any)*) {
         val value = getString(fieldName, "no").toLowerCase
         value == "yes" || value == "true" || value == "1" || value == "ok"
     }
-    
+
     def getFields: List[String] = this.fields.keySet.toList
     def getDataTypes: List[DataType] = this.fields.values.toList
     def getValues: List[Any] = this.columns.values.toList
@@ -162,6 +179,13 @@ case class DataRow(private val items: (String, Any)*) {
     def size: Int = this.columns.size
     def isEmpty: Boolean = this.fields.isEmpty
     def nonEmpty: Boolean = this.fields.nonEmpty
+
+    def combine(otherRow: DataRow): DataRow = {
+        for ((field, value) <- otherRow.columns) {
+            this.set(field, value)
+        }
+        this
+    }
     
     def join(delimiter: String): String = {
         val values = new mutable.StringBuilder()

@@ -7,6 +7,9 @@ import io.qross.util._
 object Test {
     def main(args: Array[String]): Unit = {
 
+        println(DateTime("2019-04-03 12:00:00").sharp("MONTH-1#DAY=L#DAY+1 -> yyyyMMdd"))
+
+        /*
         val dh = new DataHub()
         //stuck tasks
         //条件：task正在执行, 所有upstream_ids为空的dag记录
@@ -26,7 +29,7 @@ object Test {
 
         dh.close()
 
-        /*QrossTask.createInstantTask("1234567",
+        QrossTask.createInstantTask("1234567",
             """{
               "jobId": 1,
                "dag": "",
