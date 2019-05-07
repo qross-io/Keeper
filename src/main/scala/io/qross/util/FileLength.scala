@@ -4,10 +4,8 @@ import scala.util.{Success, Try}
 
 object FileLength {
     
-    def main(args: Array[String]): Unit = {
-        val a = 123.45678
-        println(f"$a%.2f")
-    }
+    //val a = 123.45678
+    //println(f"$a%.2f")
     
     def toByteLength(length: String): Long = {
         var size = length

@@ -87,7 +87,7 @@ case class DataRow(private val items: (String, Any)*) {
     }
 
     def getString(fieldName: String, defaultValue: String = ""): String = getStringOption(fieldName).getOrElse(defaultValue)
-    def getString(index: Int, defaultValue: String = ""): String = getStringOption(index).getOrElse(defaultValue)
+    //def getString(index: Int, defaultValue: String = ""): String = getStringOption(index).getOrElse(defaultValue)
     def getStringOption(fieldNameOrIndex: Any): Option[String] = {
         {
             if (fieldNameOrIndex.isInstanceOf[Int]) {
@@ -101,8 +101,6 @@ case class DataRow(private val items: (String, Any)*) {
         }
     }
 
-
-    //def getString(index: Int, defaultValue: String = ""): String =
     
     def getInt(fieldName: String, defaultValue: Int = 0): Int = getIntOption(fieldName).getOrElse(defaultValue)
     def getIntOption(fieldName: String): Option[Int] = {

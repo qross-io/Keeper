@@ -40,10 +40,6 @@ class Email(private var title: String) {
         this
     }
     
-    def readContent(url: String): Email = {
-        this
-    }
-    
     def attach(paths: String*): Email = {
         paths.foreach(path => {
             this.attachments += FilePath.locate(path)

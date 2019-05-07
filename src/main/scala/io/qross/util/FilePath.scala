@@ -23,8 +23,8 @@ object FilePath {
     }
     
     def parse(path: String): String = {
-        var dir = path.replace("\\", "/")
-        dir.replace("%USER_HOME", Global.USER_HOME)
+        path.replace("\\", "/")
+            .replace("%USER_HOME", Global.USER_HOME)
             .replace("%JAVA_BIN_HOME", Global.JAVA_BIN_HOME)
             .replace("%QROSS_HOME", Global.QROSS_HOME)
             .replace("%QROSS_KEEPER_HOME", Global.QROSS_KEEPER_HOME)

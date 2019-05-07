@@ -260,7 +260,7 @@ case class DataTable(private val items: DataRow*) {
         
         val table = DataTable()
         if (groupBy.isEmpty) {
-            var m = MAX()
+            val m = MAX()
             this.rows.foreach(row => {
                 m.compare(row.getDoubleOption(fieldName))
             })

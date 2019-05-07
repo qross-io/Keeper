@@ -3,12 +3,7 @@ package io.qross.util
 import java.util.Calendar
 
 object Timer {
-    
-    def main(args: Array[String]): Unit = {
-        println(System.currentTimeMillis())
-        println(DateTime.now.toEpochSecond)
-    }
-  
+
     //empty or 0 means sleep to next minute
     def sleep(seconds: Float = 0F): Unit = {
         try {

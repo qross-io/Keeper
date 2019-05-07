@@ -1,6 +1,5 @@
 package io.qross.model
 
-import io.qross.util.Output._
 import io.qross.util._
 
 object Global {

@@ -283,7 +283,7 @@ case class DateTime(private var dateTime: String = "", private var formatStyle: 
     def afterOrEquals(otherDateTime: DateTime): Boolean = this.localDateTime.isAfter(otherDateTime.localDateTime) || this.localDateTime.isEqual(otherDateTime.localDateTime)
     
     def copy(): DateTime = {
-        DateTime(this.getString("yyyyMMddHHmmss"))
+        DateTime(this.getString("yyyy-MM-dd HH:mm:ss.SSS"))
     }
     
     def copy(dateTime: DateTime): Unit = {
@@ -543,7 +543,7 @@ case class DateTime(private var dateTime: String = "", private var formatStyle: 
     }
     
     override def equals(other: Any): Boolean = {
-        this.getString("yyyyMMddHHmmss") == other.asInstanceOf[DateTime].getString("yyyyMMddHHmmss")
+        this.getString("yyyyMMddHHmmssSSS") == other.asInstanceOf[DateTime].getString("yyyyMMddHHmmssSSS")
     }
     
     override def toString: String = {
