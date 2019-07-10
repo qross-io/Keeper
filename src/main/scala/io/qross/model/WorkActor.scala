@@ -1,8 +1,8 @@
 package io.qross.model
 
 import akka.actor.Actor
-import io.qross.util.DataRow
-import io.qross.util.Output._
+import io.qross.core.DataRow
+import io.qross.ext.Output._
 
 class WorkActor extends Actor {
     

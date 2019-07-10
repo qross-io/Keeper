@@ -1,7 +1,11 @@
 package io.qross.model
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import io.qross.util._
+import io.qross.core.{DataRow, DataTable}
+import io.qross.fs.FileWriter
+import io.qross.jdbc.DataSource
+import io.qross.net.Json
+import io.qross.setting.Global
+import io.qross.time.DateTime
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -98,7 +102,7 @@ case class TaskOverall (
 
     def store(): Unit = {
         val writer = FileWriter(s"""${Global.QROSS_HOME}keeper/tasks/$jobId/${if (taskTime.length >= 8) taskTime.substring(0, 8) else DateTime.now.getString("yyyyMMdd") }/$taskId.json""")
-        writer.writeLine(Json.toString(this))
+        writer.writeLine(Json.serialize(this))
         //Output.writeLine(Json.toString(this))
         writer.close()
     }

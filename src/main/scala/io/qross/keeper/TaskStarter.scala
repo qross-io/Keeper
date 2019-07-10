@@ -2,6 +2,7 @@ package io.qross.keeper
 import akka.actor.Props
 import akka.routing.BalancingPool
 import io.qross.model._
+import io.qross.setting.Global
 
 class TaskStarter extends WorkActor {
     

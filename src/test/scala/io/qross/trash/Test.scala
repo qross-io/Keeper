@@ -2,12 +2,18 @@ package io.qross.trash
 
 
 import io.qross.model.{ActionStatus, TaskStatus}
-import io.qross.util._
+import io.qross.time._
 
 object Test {
     def main(args: Array[String]): Unit = {
 
-         println(DateTime("2019-04-03 12:00:00").sharp("MONTH-1#DAY=L#DAY+1 -> yyyyMMdd"))
+        //println(DateTime("2019-04-03 12:00:00").sharp("MONTH-1#DAY=L#DAY+1 -> yyyyMMdd"))
+
+        //[^#&](([#&])\(?([a-zA-Z_][a-zA-Z0-9_]+)\)?)
+
+        val now = DateTime.now
+        println(now.copy())
+        //CronExp(row.getString("cron_exp")).getNextTickOrNone("20")
 
         /*
         val dh = new DataHub()

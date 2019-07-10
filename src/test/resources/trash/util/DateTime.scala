@@ -80,7 +80,7 @@ case class DateTime(private var dateTime: String = "", private var formatStyle: 
             case 14 => "yyyyMMddHHmmss"
             case 18 => "yyyyMMddHHmmss.SSS"
             case 19 => "yyyy-MM-dd HH:mm:ss"
-            case 22 => "yyyy-MM-dd HH:mm:ss.SSS"
+            case 23 => "yyyy-MM-dd HH:mm:ss.SSS"
             case _ => "yyyy-MM-dd HH:mm:ss"
         }
     }

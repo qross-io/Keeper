@@ -1,7 +1,15 @@
 package io.qross.model
 
-import io.qross.util.Output._
-import io.qross.util._
+import io.qross.core.{DataHub, DataRow, DataTable}
+import io.qross.ext.Output._
+import io.qross.ext.TypeExt._
+import io.qross.fs.ResourceFile
+import io.qross.jdbc.{DataSource, DataType}
+import io.qross.net.Json
+import io.qross.setting.Global
+import io.qross.sql.{OUTPUT, PSQL}
+import io.qross.time.{CronExp, DateTime, Timer}
+
 import scala.sys.process._
 import scala.util.{Success, Try}
 
@@ -16,10 +24,10 @@ object QrossTask {
                     val receivers = row.getString("receivers")
                     if (receivers != "") {
                         row.set("event_value",
-                            OpenResourceFile(s"/templates/$taskStatus.html")
+                            ResourceFile.open(s"/templates/$taskStatus.html")
                                 .replace("${status}", upperStatus)
                                 .replaceWith(row)
-                                .replace("${logs}", if (dh.BUFFER.contains("logs")) TaskRecorder.toHTML(dh.BUFFER("logs")) else "")
+                                .replace("${logs}", if (dh.containsBuffer("logs")) TaskRecorder.toHTML(dh.takeOut("logs")) else "")
                                 .writeEmail(s"$upperStatus: ${row.getString("title")} ${row.getString("task_time")} - JobID: ${row.getString("job_id")} - TaskID: ${row.getString("task_id")}")
                                 .to(if (receivers.contains("_OWNER")) row.getString("owner") else "")
                                 .cc(if (receivers.contains("_MASTER")) Global.MASTER_USER_GROUP else "")
@@ -58,17 +66,17 @@ object QrossTask {
                 }
 
                 if (api != "") {
-                    var method = "GET"
+                    var data = ""
                     var path = "/"
 
                     //api格式 method @ api
                     if (api.contains("@")) {
-                        method = api.substring(0, api.indexOf("@")).trim.toUpperCase()
-                        api = api.substring(api.indexOf("@") + 1).trim
+                        data = api.takeBefore("@").trim.takeAfter("""(?i)^POST\s""".r).toUpperCase()
+                        api = api.takeAfter("@").trim
                     }
                     if (api.contains("->")) {
-                        path = api.substring(api.indexOf("->") + 2).trim
-                        api = api.substring(0, api.indexOf("->")).trim
+                        path = api.takeAfter("->").trim
+                        api = api.takeBefore("->").trim
                     }
 
                     api = api.replace("${jobId}", row.getString("job_id", "0"))
@@ -84,12 +92,12 @@ object QrossTask {
                             .replace("${status}", taskStatus)
 
                     val result = try {
-                        Json.fromURL(api, method).findValue(path)
-                    }
-                    catch {
-                        case e: Exception => e.getMessage
-                        case _: Throwable => ""
-                    }
+                            Json.fromURL(api, data).parseValue(path)
+                        }
+                        catch {
+                            case e: Exception => e.getMessage
+                            case _: Throwable => ""
+                        }
 
                     TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time"))
                             .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> requested api on task $taskStatus, result is { $result }")
@@ -97,6 +105,16 @@ object QrossTask {
 
                 row.set("event_value", if (api == "") "EMPTY" else api)
             }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_value) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_value')")
+                .clear()
+        }
+
+        def runPSQL(taskStatus: String): DataHub = {
+
+            dh.foreach(row => {
+                var SQL = row.getString("event_value")
+                PSQL.open(SQL).$return(OUTPUT.COMPLEX)
+
+            }).put("")
                 .clear()
         }
 
@@ -148,10 +166,6 @@ object QrossTask {
 
             dh.clear()
         }
-
-        def executePSQL: DataHub = {
-            dh.clear()
-        }
     }
 
     //on keeper start up @ TaskProducer
@@ -165,7 +179,7 @@ object QrossTask {
         val dh = new DataHub()
 
         //get last tick of producer
-        val lastBeat = (Try(dh.openDefault().executeSingleValue("SELECT UNIX_TIMESTAMP(last_beat_time) FROM qross_keeper_beats WHERE actor_name='TaskProducer'").getOrElse("").toLong) match {
+        val lastBeat = (Try(dh.openDefault().executeSingleValue("SELECT UNIX_TIMESTAMP(last_beat_time) FROM qross_keeper_beats WHERE actor_name='TaskProducer'").getOrElse("").toString.toLong) match {
                 case Success(tick) => DateTime.of(tick)
                 case _ => DateTime.now
             }).setSecond(0).setNano(0).plusMinutes(1)
@@ -188,7 +202,7 @@ object QrossTask {
                     }
                     catch {
                         case e: Exception =>
-                            Output.writeException(e.getMessage)
+                            writeException(e.getMessage)
                             List[String]()
                     }
                     ticks.foreach(time => {
@@ -218,7 +232,7 @@ object QrossTask {
                         row.set("next_tick", CronExp(row.getString("cron_exp")).getNextTickOrNone(nextBeat))
                     }
                     catch {
-                        case e: Exception => Output.writeException(e.getMessage)
+                        case e: Exception => writeException(e.getMessage)
                     }
                 }).put("UPDATE qross_jobs SET next_tick='#next_tick' WHERE id=#job_id")
 
@@ -248,7 +262,7 @@ object QrossTask {
                         row.set("next_tick", CronExp(row.getString("cron_exp")).getNextTickOrNone(minute))
                     }
                     catch {
-                        case e: Exception => Output.writeException(e.getMessage)
+                        case e: Exception => writeException(e.getMessage)
                     }
                 ).put("UPDATE qross_jobs SET next_tick='#next_tick' WHERE id=#job_id")
 
@@ -271,7 +285,7 @@ object QrossTask {
                     row.set("next_tick", CronExp(row.getString("cron_exp")).getNextTickOrNone(minute))
                 }
                 catch {
-                    case e: Exception => Output.writeException(e.getMessage)
+                    case e: Exception => writeException(e.getMessage)
                 }
             }).put("UPDATE qross_jobs SET next_tick='#next_tick' WHERE id=#job_id")
 
@@ -364,15 +378,15 @@ object QrossTask {
             }
          */
 
-        val info = Json(message).findDataRow("/")
+        val info = Json(message).parseRow("/")
 
         var status = TaskStatus.EMPTY
 
         val jobId = info.getInt("jobId")
         var taskId = 0L
         val dag = info.getString("dag")
-        val params = Common.parseMapString(info.getString("params"), ",", ":")
-        val commands = Common.parseMapString(info.getString("commands"), "##\\$##", ":")
+        val params = info.getString("params").toHashMap(",", ":")
+        val commands = info.getString("commands").toHashMap("##\\$##", ":")
         val delay = info.getInt("delay")
         val taskTime = DateTime.now.getString("yyyyMMddHHmmss")
         val recordTime = DateTime.now.toString()
@@ -601,7 +615,7 @@ object QrossTask {
             .get("SELECT task_id FROM dependencies WHERE ready='no' GROUP BY task_id HAVING COUNT(0)=0")
                 .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}' WHERE id=#task_id")
 
-        var status: String = dh.openDefault().executeSingleValue(s"SELECT status FROM qross_tasks WHERE id=$taskId").getOrElse(TaskStatus.INITIALIZED)
+        var status: String = dh.openDefault().executeSingleValue(s"SELECT status FROM qross_tasks WHERE id=$taskId").getOrElse(TaskStatus.INITIALIZED).asInstanceOf[String]
 
         if (status == TaskStatus.INITIALIZED)  {
             //check for checking limit
@@ -728,7 +742,7 @@ object QrossTask {
         val jobId = task.jobId
         val status = task.status
         val recordTime = task.recordTime
-        val concurrentLimit = ds.executeSingleValue(s"SELECT concurrent_limit FROM qross_jobs WHERE id=$jobId").getOrElse("1").toInt
+        val concurrentLimit = ds.executeSingleValue(s"SELECT concurrent_limit FROM qross_jobs WHERE id=$jobId").getOrElse(1).asInstanceOf[Int]
 
         if (status == TaskStatus.READY) {
             //job enabled = true
@@ -749,12 +763,12 @@ object QrossTask {
                     ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.NO_COMMANDS}' WHERE id=$taskId")
                     TaskRecorder.of(jobId, taskId, recordTime).warn(s"Task $taskId of job $jobId at <$recordTime> has been  closed because no commands exists on task ready.")
                 }
-                else if (map.contains(ActionStatus.EXCEPTIONAL) || map.contains(ActionStatus.OVERTIME)) {
+                else if (map.containsKey(ActionStatus.EXCEPTIONAL) || map.containsKey(ActionStatus.OVERTIME)) {
                     //restart task if exceptional or overtime
                     ds.executeNonQuery(s"INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '^EXCEPTIONAL@$taskId')")
                     TaskRecorder.of(jobId, taskId, recordTime).warn(s"Task $taskId of job $jobId at <$recordTime> restart because EXCEPTIONAL commands exists on task ready.")
                 }
-                else if (map.contains(ActionStatus.WAITING) || map.contains(ActionStatus.QUEUEING) || map.contains(ActionStatus.RUNNING)) {
+                else if (map.containsKey(ActionStatus.WAITING) || map.containsKey(ActionStatus.QUEUEING) || map.containsKey(ActionStatus.RUNNING)) {
                     //executing
                     ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.EXECUTING}', start_time=NOW() WHERE id=$taskId")
                     TaskRecorder.of(jobId, taskId, recordTime).log(s"Task $taskId of job $jobId at <$recordTime> start executing on task ready.")
@@ -930,7 +944,7 @@ object QrossTask {
                 dh.set(s"UPDATE qross_tasks SET finish_time=NOW(), status='${TaskStatus.FAILED}', checked='no' WHERE id=$taskId")
         }
 
-        val status = dh.executeSingleValue(s"SELECT status FROM qross_tasks WHERE id=$taskId").getOrElse("miss")
+        val status = dh.executeSingleValue(s"SELECT status FROM qross_tasks WHERE id=$taskId").getOrElse("miss").asInstanceOf[String]
         //send notification mail if failed or timeout or incorrect
         if (status == TaskStatus.SUCCESS || status == TaskStatus.FAILED || status == TaskStatus.TIMEOUT || status == TaskStatus.INCORRECT) {
 

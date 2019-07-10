@@ -1,6 +1,6 @@
 package io.qross.model
 
-import io.qross.util.DataRow
+import io.qross.core.DataRow
 
 //case class Message(value: Any)
 

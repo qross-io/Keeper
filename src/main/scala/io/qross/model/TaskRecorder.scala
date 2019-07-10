@@ -2,7 +2,10 @@ package io.qross.model
 
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 
-import io.qross.util.{DataSource, DataTable, DateTime, Output}
+import io.qross.core.DataTable
+import io.qross.ext.Output
+import io.qross.jdbc.DataSource
+import io.qross.time.DateTime
 
 object TaskRecorder {
 
@@ -25,11 +28,13 @@ object TaskRecorder {
     def save(): Unit = synchronized {
 
         if (TaskRecorder.LOGS.size() > 0) {
+            var i = 0
             val ds = new DataSource()
             ds.setBatchCommand(s"INSERT INTO qross_tasks_logs (job_id, task_id, record_time, command_id, action_id, log_type, log_text, create_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-            while(TaskRecorder.LOGS.size() > 0) {
+            while(TaskRecorder.LOGS.size() > 0 && i < 10000) {
                 val log = TaskRecorder.LOGS.poll()
                 ds.addBatch(log.jobId, log.taskId, log.recordTime, log.commandId, log.actionId, log.logType, log.logText, log.logTime)
+                i += 1
             }
             ds.executeBatchUpdate()
             ds.close()
@@ -95,8 +100,10 @@ class TaskRecorder(jobId: Int, taskId: Long, recordTime: String) {
     }
 
     private def record(seal: String, text: String): TaskRecorder = {
-
         TaskRecorder.LOGS.add(new TaskLog(jobId, taskId, recordTime, commandId, actionId, seal, text))
+        if (TaskRecorder.LOGS.size() >= 1000) {
+            TaskRecorder.save()
+        }
         this
     }
 

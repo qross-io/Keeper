@@ -1,9 +1,12 @@
 package io.qross.keeper
 
 import akka.actor.{ActorSystem, PoisonPill, Props}
-import io.qross.model.{Global, Qross, Tick}
-import io.qross.util.{DateTime, Output, Properties, Timer}
-
+import io.qross.ext.Output
+import io.qross.model.{Qross, Tick}
+import io.qross.setting.Global
+import io.qross.setting.Properties
+import io.qross.time.{DateTime, Timer}
+import io.qross.fs.FilePath._
 import scala.collection.immutable.List
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits._
@@ -15,8 +18,10 @@ object Keeper {
     
     def main(args: Array[String]): Unit = {
         
-        //check properties
-        Properties.loadAll(args: _*)
+        //check and load properties
+        for (arg <- args) {
+            Properties.loadLocalFile(arg.locate())
+        }
         
         Qross.start()
         

@@ -1,6 +1,6 @@
 package io.qross.model
 
-import io.qross.util.{DataHub, DataTable}
+import io.qross.core.{DataHub, DataTable}
 
 object MessageBox {
     

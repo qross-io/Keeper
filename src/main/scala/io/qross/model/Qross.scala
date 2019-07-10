@@ -1,7 +1,12 @@
 package io.qross.model
 
-import io.qross.util.Output.{writeDebugging, writeMessage}
-import io.qross.util._
+import io.qross.core.DataHub
+import io.qross.ext.Output._
+import io.qross.fs.ResourceFile
+import io.qross.jdbc.DataSource
+import io.qross.net.Email
+import io.qross.setting.Global
+import io.qross.time.{DateTime, Timer}
 
 object Qross {
     
@@ -78,9 +83,9 @@ object Qross {
                 dh.set("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('GLOBAL', 'QUIT_ON_NEXT_BEAT', 'yes');")
                 //mail info
                 error = "Keeper will restart on next tick. Please wait util all executing task finished."
-                title = s"Keeper Beats Exception: ${dh.mkString("actor_name")} at $tick"
+                title = s"Keeper Beats Exception: ${dh.getColumn("actor_name").mkString(",")} at $tick"
 
-                Output.writeWarning(error)
+                writeWarning(error)
             }
             else if (now.matches(Global.BEATS_MAILING_FREQUENCY)) {
                 //regular
@@ -92,10 +97,10 @@ object Qross {
 
             //send beats mail
             if (toSend && (Global.KEEPER_USER_GROUP != "" || Global.MASTER_USER_GROUP != "")) {
-                OpenResourceFile("/templates/beats.html")
+                ResourceFile.open("/templates/beats.html")
                     .replace("${tick}", tick)
                     .replace("${error}", error)
-                    .replace("${beats}", dh.executeDataTable("SELECT actor_name, status, last_beat_time FROM qross_keeper_beats ORDER BY id DESC").mkString("", " - ", "<br/>"))
+                    .replace("${beats}", dh.executeDataTable("SELECT CONCAT(actor_name, ' - ', status, ' - ', last_beat_time) AS info FROM qross_keeper_beats ORDER BY id DESC").getColumn("info").mkString("<br/>"))
                     .writeEmail(title)
                     .to(if (Global.KEEPER_USER_GROUP != "") Global.KEEPER_USER_GROUP else Global.MASTER_USER_GROUP)
                     .cc(if (Global.KEEPER_USER_GROUP != "") Global.MASTER_USER_GROUP else "")
@@ -107,7 +112,7 @@ object Qross {
                 .get(s"SELECT id FROM qross_jobs WHERE enabled='yes' AND closing_time='${now.getString("yyyyMMddHHmm00")}'")
                     .put("UPDATE qross_jobs SET enabled='no', next_tick='N/A' WHERE id=#id")
                     .foreach(row => {
-                        Output.writeMessage("Job " + row.getString("id") + " has been closed.")
+                        writeMessage("Job " + row.getString("id") + " has been closed.")
                     })
 
             //clean mechanism
@@ -119,7 +124,7 @@ object Qross {
                         .foreach(row => {
                             val jobId = row.getInt("job_id")
                             val offset = row.getInt("offset")
-                            val taskId = dh.executeSingleValue(s"""SELECT id AS task_id FROM qross_tasks WHERE job_id=$jobId ORDER BY id ASC LIMIT $offset,1""").getOrElse("0").toLong
+                            val taskId = dh.executeSingleValue(s"""SELECT id AS task_id FROM qross_tasks WHERE job_id=$jobId ORDER BY id ASC LIMIT $offset,1""").getOrElse(0).asInstanceOf[Long]
 
                             if (taskId > 0) {
                                 val method = row.getString("method").toLowerCase()
@@ -142,7 +147,7 @@ object Qross {
                                 rows = dh.executeNonQuery(s"DELETE FROM qross_tasks WHERE job_id=$jobId AND id<$taskId")
                                 dh.executeNonQuery(s"INSERT INTO qross_jobs_clean_records (job_id, method, amount) VALUES ($jobId, '$method', $rows)")
 
-                                Output.writeDebugging(s"$rows tasks of job $jobId has been ${method}d.")
+                                writeDebugging(s"$rows tasks of job $jobId has been ${method}d.")
                             }
                         }).clear()
             }

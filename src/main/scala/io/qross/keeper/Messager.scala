@@ -1,7 +1,11 @@
 package io.qross.keeper
 
+import io.qross.ext.Output
 import io.qross.model._
-import io.qross.util.{DateTime, Output, Properties, Timer}
+import io.qross.setting.{Configurations, Global, Properties}
+import io.qross.time.{DateTime, Timer}
+import io.qross.fs.FilePath._
+import io.qross.jdbc.JDBC
 
 class Messager extends WorkActor {
 
@@ -23,7 +27,7 @@ class Messager extends WorkActor {
                 Output.writeDebugging(s"Got A Message # $queryId # $messageType # $messageKey # $messageText")
 
                 messageType match {
-                    case "GLOBAL" => Global.CONFIG.set(messageKey, messageText)
+                    case "GLOBAL" => Configurations.set(messageKey, messageText)
                     case "JOB" =>
                         //JOB - COMPLEMENT - job_id
                         //JOB - MANUAL - job_id:begin_time#end_time
@@ -72,31 +76,23 @@ class Messager extends WorkActor {
                         }
                     case "USER" =>
                         messageKey match {
-                            case "MASTER" => Global.CONFIG.set("MASTER_USER_GROUP", QrossUser.getUsers("master"))
-                            case "KEEPER" => Global.CONFIG.set("KEEPER_USER_GROUP", QrossUser.getUsers("keeper"))
+                            case "MASTER" => Configurations.set("MASTER_USER_GROUP", QrossUser.getUsers("master"))
+                            case "KEEPER" => Configurations.set("KEEPER_USER_GROUP", QrossUser.getUsers("keeper"))
                             case _ =>
                         }
 
                     case "PROPERTIES" =>
                         messageKey match {
-                            //PROPERTIES - ADD - local|resources:path
-                            //PROPERTIES - UPDATE - id#local|resources:path
-                            //PROPERTIES - REMOVE - id
-                            //PROPERTIES - REFRESH - local|resources:path
-                            case "ADD" => Properties.addFile(messageText.substring(0, messageText.indexOf(":")), messageText.substring(messageText.indexOf(":") + 1))
-                            case "UPDATE" => Properties.updateFile(messageText.substring(0, messageText.indexOf("#")).toInt, messageText.substring(messageText.indexOf("#") + 1, messageText.indexOf(":")), messageText.substring(messageText.indexOf(":") + 1))
-                            case "REMOVE" => Properties.removeFile(messageText.toInt)
-                            case "REFRESH" => Properties.refreshFile(messageText.toInt)
+                            //PROPERTIES - LOAD - path
+                            case "LOAD" => Properties.loadLocalFile(messageText.locate())
                             case _ =>
                         }
                     case "CONNECTION" =>
                         //CONNECTION - UPSERT - connection_type.connection_name=connection_string#&#user_name#&#password
                         //CONNECTION - ENABLE/DISABLE/REMOVE - connection_name
                         messageKey match {
-                            case "UPSERT" => JDBCConnection.upsert(messageText)
-                            case "ENABLE" => JDBCConnection.enable(messageText)
-                            case "DISABLE" => JDBCConnection.disable(messageText)
-                            case "REMOVE" => JDBCConnection.remove(messageText)
+                            case "SETUP" => JDBC.setup(messageText.toInt)
+                            case "REMOVE" => JDBC.remove(messageText)
                             case _ =>
                         }
                     case _ =>

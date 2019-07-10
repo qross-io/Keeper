@@ -3,7 +3,11 @@ package io.qross.model
 import java.io.File
 import java.util.regex.Pattern
 
-import io.qross.util._
+import io.qross.jdbc.DataSource
+import io.qross.net.Json
+import io.qross.time.DateTime
+import io.qross.ext.TypeExt._
+import io.qross.setting.Global
 
 import scala.collection.mutable
 import scala.util.{Success, Try}
@@ -50,7 +54,7 @@ object TaskDependency {
     def check(dependencyType: String, dependencyValue: String, taskId: Long, recordTime: String): (String, String) =  {
         
         var ready = "no"
-        val conf = Json(dependencyValue).findDataRow("/")
+        val conf = Json(dependencyValue).parseRow("/")
         
         dependencyType.toUpperCase() match {
             
@@ -132,6 +136,7 @@ object TaskDependency {
                 "lastModifiedTimeSpan": "5m"
             }
              */
+                /* to be remove to Cluster Version
             case "HDFS" =>
                 val files = HDFS.list(conf.getString("path"))
                 conf.set("amount", files.size)
@@ -162,7 +167,7 @@ object TaskDependency {
                             ready = "no"
                         }
                     }
-                }
+                } */
         
             /*
             {
@@ -176,7 +181,7 @@ object TaskDependency {
             case "API" =>
                 val json = Json().readURL(conf.getString("url"), conf.getString("post", ""))
                 
-                val currentValue = json.findValue(conf.getString("path")).toString
+                val currentValue = json.parseValue(conf.getString("path")).toString
                 val compareValue = conf.getString("value")
                 if (conf.getString("operator", "==").trim match {
                     case "=" | "==" => currentValue == compareValue
@@ -228,8 +233,8 @@ object TaskDependency {
                 val file = new File(conf.getString("path"))
                 if (file.exists()) {
                     conf.set("exists", "yes")
-                    conf.set("length", FileLength.toHumanizedString(file.length()))
-                    if (file.length() >= FileLength.toByteLength(conf.getString("minLength"))) {
+                    conf.set("length", file.length().toHumanized)
+                    if (file.length() >= conf.getString("minLength").toByteLength) {
                         ready = "yes"
                     }
                 }

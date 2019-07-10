@@ -1,6 +1,10 @@
 package io.qross.model
 
-import io.qross.util._
+import io.qross.ext.Output
+import io.qross.fs.{FileWriter, ResourceFile}
+import io.qross.jdbc.DataSource
+import io.qross.setting.Global
+import io.qross.time.DateTime
 
 import scala.collection.mutable
 
@@ -53,18 +57,17 @@ class KeeperLogger {
             ds.executeBatchUpdate()
     
             //email
-            val map = ds.executeHashMap("SELECT conf_key, conf_value FROM qross_conf WHERE conf_key IN ('EMAIL_NOTIFICATION', 'COMPANY_NAME', 'EMAIL_EXCEPTIONS_TO_DEVELOPER')")
-            if (map("EMAIL_NOTIFICATION") == "yes") {
-                OpenResourceFile("/templates/exception.html")
-                    .replace("${companyName}", map("COMPANY_NAME"))
+            val info = ds.executeDataRow("SELECT conf_key, conf_value FROM qross_conf WHERE conf_key IN ('EMAIL_NOTIFICATION', 'COMPANY_NAME', 'EMAIL_EXCEPTIONS_TO_DEVELOPER')")
+            if (info.getBoolean("EMAIL_NOTIFICATION")) {
+                ResourceFile.open("/templates/exception.html")
+                    .replace("${companyName}", info.getString("COMPANY_NAME"))
                     .replace("${exceptions}", KeeperException.toHTML(exceptions))
-                    .writeEmail(s"KEEPER EXCEPTION: ${map("COMPANY_NAME")} ${DateTime.now.toString}")
+                    .writeEmail(s"KEEPER EXCEPTION: ${info.getString("COMPANY_NAME")} ${DateTime.now.toString}")
                     .to(QrossUser.getUsers("master"))
-                    .cc(if (map("EMAIL_EXCEPTIONS_TO_DEVELOPER") == "yes") "Developer<garfi-wu@outlook.com>" else "")
+                    .cc(if (info.getBoolean("EMAIL_EXCEPTIONS_TO_DEVELOPER")) "Developer<garfi-wu@outlook.com>" else "")
                     .send()
             }
-            map.clear()
-            
+
             ds.close()
             
             timer = 0L

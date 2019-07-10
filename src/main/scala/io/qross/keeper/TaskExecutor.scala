@@ -1,7 +1,7 @@
 package io.qross.keeper
 
-import io.qross.model.{QrossTask, Task, WorkActor}
-import io.qross.util.DataRow
+import io.qross.core.DataRow
+import io.qross.model.{QrossTask, WorkActor}
 
 class TaskExecutor extends WorkActor {
 

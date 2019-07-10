@@ -1,7 +1,8 @@
 package io.qross.model
 
-import io.qross.util.Output._
-import io.qross.util.{DataSource, DataTable, DateTime}
+import io.qross.core.DataTable
+import io.qross.ext.Output._
+import io.qross.jdbc.DataSource
 
 object Beats {
     
