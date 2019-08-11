@@ -2,7 +2,7 @@ package io.qross.model
 
 import io.qross.jdbc.DataSource
 import io.qross.time.{CronExp, DateTime}
-import io.qross.net.Json._
+import io.qross.ext.TypeExt.ListExt
 
 object QrossJob {
     
@@ -25,7 +25,7 @@ object QrossJob {
         val endTime = messageText.substring(messageText.indexOf("#"))
 
         val ds = new DataSource()
-        val cronExp = ds.executeSingleValue(s"SELECT cron_exp FROM qross_jobs WHERE id=$jobId").getOrElse("").asInstanceOf[String]
+        val cronExp = ds.executeSingleValue(s"SELECT cron_exp FROM qross_jobs WHERE id=$jobId").asText
         val json = CronExp.getTicks(cronExp, beginTime, endTime).toJson.replace("'", "''")
         ds.executeNonQuery(s"INSERT INTO qross_query_result (query_id, result) VALUES ('$queryId', '$json')")
         ds.close()

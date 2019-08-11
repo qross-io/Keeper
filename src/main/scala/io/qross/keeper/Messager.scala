@@ -6,6 +6,9 @@ import io.qross.setting.{Configurations, Global, Properties}
 import io.qross.time.{DateTime, Timer}
 import io.qross.fs.FilePath._
 import io.qross.jdbc.JDBC
+import io.qross.ext.TypeExt._
+
+import scala.util.{Success, Try}
 
 class Messager extends WorkActor {
 
@@ -61,12 +64,18 @@ class Messager extends WorkActor {
                                 creator: @username
                             }
                              */
+                        //TASK - KILL - actionId
                         messageKey match {
-                            case "RESTART" => producer ! QrossTask.restartTask(messageText.substring(messageText.indexOf("@") + 1).toLong, messageText.substring(0, messageText.indexOf("@")))
+                            case "RESTART" => producer ! QrossTask.restartTask(messageText.takeAfter("@").toLong, messageText.takeBefore("@"))
                             case "INSTANT" => QrossTask.createInstantTask(queryId, messageText) match {
                                                 case Some(task) => producer ! task
                                                 case None =>
                                             }
+                            case "KILL" =>
+                                Try(messageText.toLong) match {
+                                    case Success(actionId) => QrossTask.TO_BE_KILLED += actionId
+                                    case _ =>
+                                }
                             case _ =>
                         }
                     case "NOTE" =>

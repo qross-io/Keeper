@@ -6,6 +6,6 @@ object QrossUser {
     
     // Get users by role
     def getUsers(role: String): String = {
-        DataSource.querySingleValue(s"SELECT GROUP_CONCAT(CONCAT(username, '<', email, '>') SEPARATOR ';') AS users FROM qross_users WHERE role='$role'").getOrElse("").asInstanceOf[String]
+        DataSource.QROSS.querySingleValue(s"SELECT GROUP_CONCAT(CONCAT(username, '<', email, '>') SEPARATOR ';') AS users FROM qross_users WHERE role='$role'").asText("")
     }
 }

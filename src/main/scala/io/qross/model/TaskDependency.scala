@@ -71,11 +71,17 @@ object TaskDependency {
                     val ds = new DataSource(conf.getString("dataSource"))
                     val table = ds.executeDataTable(conf.getString("selectSQL"))
                     if (table.nonEmpty) {
-
-                        val field = conf.getString("field", "").trim
-                        val compareValue = conf.getString("value", "").trim
+                        val field = conf.getString("field").trim()
+                        val compareValue = conf.getString("value").trim()
                         if (compareValue.nonEmpty) {
-                            val currentValue = table.lastRow.get.getStringOption(if ("""^\d+$""".r.findFirstIn(field).nonEmpty) field.toInt - 1 else field).getOrElse("NULL")
+                            val currentValue = {
+                                if (field == "") {
+                                    table.getFirstCellStringValue("NULL")
+                                }
+                                else {
+                                    table.firstRow.get.getString(field, "NULL")
+                                }
+                            }
                             if (conf.getString("operator", "==").trim match {
                                 case "=" | "==" => currentValue == compareValue
                                 case "!=" | "<>" => currentValue != compareValue
@@ -216,7 +222,7 @@ object TaskDependency {
             }
             */
             case "TASK" =>
-                if (DataSource.queryExists("SELECT id FROM qross_tasks WHERE job_id=? AND task_time=? AND status=?",
+                if (DataSource.QROSS.queryExists("SELECT id FROM qross_tasks WHERE job_id=? AND task_time=? AND status=?",
                         conf.getInt("jobId"),
                         conf.getString("taskTime"),
                         conf.getString("status", TaskStatus.SUCCESS))) {

@@ -23,6 +23,7 @@ object TaskStatus {
     val SUCCESS = "success"
     val IGNORE = "ignore"
     val EMPTY = ""
+    val INTERRUPTED = "interrupted"
 }
 
 object ActionStatus {
@@ -32,6 +33,7 @@ object ActionStatus {
     val EXCEPTIONAL = "exceptional"
     val OVERTIME = "overtime"
     val DONE = "done"
+    val KILLED = "killed"
 }
 
 case class Task(id: Long, var status: String = TaskStatus.INITIALIZED) {

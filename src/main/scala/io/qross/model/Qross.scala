@@ -5,6 +5,7 @@ import io.qross.ext.Output._
 import io.qross.fs.ResourceFile
 import io.qross.jdbc.DataSource
 import io.qross.net.Email
+import io.qross.sql.PSQL._
 import io.qross.setting.Global
 import io.qross.time.{DateTime, Timer}
 
@@ -33,22 +34,22 @@ object Qross {
     
     def run(actor: String, message: String = ""): Unit = {
         writeDebugging(actor + " start! " + message)
-        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET status='running',start_time=NOW() WHERE actor_name='$actor'")
+        DataSource.QROSS.queryUpdate(s"UPDATE qross_keeper_beats SET status='running',start_time=NOW() WHERE actor_name='$actor'")
     }
     
     def beat(actor: String): Unit = {
         writeMessage(actor + " beat!")
-        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='$actor'")
+        DataSource.QROSS.queryUpdate(s"UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='$actor'")
     }
     
     def quit(actor: String): Unit = {
         writeDebugging(s"$actor quit!")
-        DataSource.queryUpdate(s"UPDATE qross_keeper_beats SET status='rest', quit_time=NOW() WHERE actor_name='$actor'")
+        DataSource.QROSS.queryUpdate(s"UPDATE qross_keeper_beats SET status='rest', quit_time=NOW() WHERE actor_name='$actor'")
         
     }
     
     def waitAndStop(): Unit = {
-        val dh = new DataHub()
+        val dh = DataHub.Qross
         dh.get("SELECT id FROM qross_keeper_running_records ORDER BY id DESC LIMIT 1")
             .put("UPDATE qross_keeper_running_records SET status='stopping', stop_time=NOW(), duration=TIMESTAMPDIFF(SECOND, start_time, NOW()) WHERE id=#id")
 
@@ -70,7 +71,7 @@ object Qross {
         val tick = now.getString("yyyy-MM-dd HH:mm:ss")
         now.setSecond(0)
 
-        val dh = new DataHub()
+        val dh = DataHub.Qross
         if (dh.executeExists("SELECT id FROM qross_keeper_running_records WHERE id=(SELECT id FROM qross_keeper_running_records ORDER BY id DESC LIMIT 1) AND status='running'")) {
 
             var error = ""
@@ -124,7 +125,7 @@ object Qross {
                         .foreach(row => {
                             val jobId = row.getInt("job_id")
                             val offset = row.getInt("offset")
-                            val taskId = dh.executeSingleValue(s"""SELECT id AS task_id FROM qross_tasks WHERE job_id=$jobId ORDER BY id ASC LIMIT $offset,1""").getOrElse(0).asInstanceOf[Long]
+                            val taskId = dh.executeSingleValue(s"""SELECT id AS task_id FROM qross_tasks WHERE job_id=$jobId ORDER BY id ASC LIMIT $offset,1""").asInteger
 
                             if (taskId > 0) {
                                 val method = row.getString("method").toLowerCase()
@@ -139,6 +140,18 @@ object Qross {
                                 }
 
                                 //clean database
+                                dh.run(s"""
+                                      DELETE FROM qross_tasks_logs WHERE job_id=$jobId AND task_id<$taskId;
+                                      DELETE FROM qross_tasks_dependencies WHERE job_id=$jobId AND task_id<$taskId;
+                                      DELETE FROM qross_tasks_dags WHERE job_id=$jobId AND task_id<$taskId;
+                                      DELETE FROM qross_tasks_events WHERE job_id=$jobId AND task_id<$taskId;
+                                      DELETE FROM qross_tasks_records WHERE job_id=$jobId AND task_id<$taskId;
+                                      SET $$rows := DELETE FROM qross_tasks WHERE job_id=$jobId AND id<$taskId;
+                                      INSERT INTO qross_jobs_clean_records (job_id, method, amount) VALUES ($jobId, '$method', $$rows);
+                                      PRINT DEBUG $$rows + ' tasks of job $jobId has been ${method}d.'
+                                    """)
+
+                                /*
                                 dh.executeNonQuery(s"DELETE FROM qross_tasks_logs WHERE job_id=$jobId AND task_id<$taskId")
                                 dh.executeNonQuery(s"DELETE FROM qross_tasks_dependencies WHERE job_id=$jobId AND task_id<$taskId")
                                 dh.executeNonQuery(s"DELETE FROM qross_tasks_dags WHERE job_id=$jobId AND task_id<$taskId")
@@ -148,6 +161,7 @@ object Qross {
                                 dh.executeNonQuery(s"INSERT INTO qross_jobs_clean_records (job_id, method, amount) VALUES ($jobId, '$method', $rows)")
 
                                 writeDebugging(s"$rows tasks of job $jobId has been ${method}d.")
+                                */
                             }
                         }).clear()
             }

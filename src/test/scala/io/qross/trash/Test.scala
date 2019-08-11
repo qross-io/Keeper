@@ -1,22 +1,26 @@
 package io.qross.trash
 
 
-import io.qross.model.{ActionStatus, TaskStatus}
+import java.sql.Timestamp
+import java.time.LocalDateTime
+
+import io.qross.model.{ActionStatus, Qross, TaskStatus}
 import io.qross.time._
 
 object Test {
     def main(args: Array[String]): Unit = {
 
+        //Qross.checkBeatsAndRecords()
+
         //println(DateTime("2019-04-03 12:00:00").sharp("MONTH-1#DAY=L#DAY+1 -> yyyyMMdd"))
 
         //[^#&](([#&])\(?([a-zA-Z_][a-zA-Z0-9_]+)\)?)
 
-        val now = DateTime.now
-        println(now.copy())
+        println(DateTime.now.toEpochSecond)
         //CronExp(row.getString("cron_exp")).getNextTickOrNone("20")
 
         /*
-        val dh = new DataHub()
+        val dh = DataHub.Qross
         //stuck tasks
         //条件：task正在执行, 所有upstream_ids为空的dag记录
         dh.get(s"select id, job_id, task_id, command_id, upstream_ids, record_time, UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(update_time) AS span, status FROM qross_tasks_dags WHERE task_id IN (SELECT id FROM qross_tasks WHERE status='${TaskStatus.EXECUTING}')")
@@ -28,7 +32,7 @@ object Test {
             .get("SELECT job_id, task_id, record_time FROM (SELECT job_id, task_id, record_time, MIN(span) AS span FROM dags GROUP BY job_id, task_id, record_time) A WHERE span>300")
                 .put("INSERT INTO qross_stuck_records (job_id, task_id, record_time) VALUES (#job_id, #task_id, '#record_time') ON DUPLICATE KEY UPDATE check_times=check_times+1")
         if (dh.nonEmpty) {
-            dh.openDefault()
+            dh.openQross()
                 .get("SELECT task_id FROM qross_stuck_records WHERE check_times>=3")
                     .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}' WHERE id=#task_id AND status='${TaskStatus.EXECUTING}'")
         }
@@ -56,7 +60,7 @@ object Test {
 
         //val list = List[String]("1", "2", "3")
 
-        //val dh = new DataHub()
+        //val dh = DataHub.Qross
         //dh.close()
         /*println(DateTime.now.getString("yyyyMMdd/HH"))
 
