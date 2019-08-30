@@ -17,25 +17,25 @@ object TaskDependency {
     def parseDependencyValue(jobId: String, taskId: String, dependencyValue: String, taskTime: String): List[String] = {
     
         var content = dependencyValue
-        content = content.replace("${jobId}", jobId)
-        content = content.replace("${taskId}", taskId)
+        content = content.replace("#{jobId}", jobId)
+        content = content.replace("#{taskId}", taskId)
         content = content.replace("%QROSS_HOME", Global.QROSS_HOME)
         
-        if (content.contains("${") && content.contains("}")) {
+        if (content.contains("#{") && content.contains("}")) {
             val values = new mutable.TreeSet[String]()
             val semi = new java.util.LinkedList[String]()
             semi.offer(content)
             
             while (!semi.isEmpty) {
                 val value = semi.poll()
-                val ahead = value.substring(0, value.indexOf("${"))
-                var exp = value.substring(value.indexOf("${") + 2)
+                val ahead = value.substring(0, value.indexOf("#{"))
+                var exp = value.substring(value.indexOf("#{") + 2)
                 val latter = exp.substring(exp.indexOf("}") + 1)
                 exp = exp.substring(0, exp.indexOf("}"))
                 
-                DateTime(taskTime).shark(exp).foreach(value => {
+                new DateTime(taskTime).shark(exp).foreach(value => {
                         val replacement = ahead + value + latter
-                        if (latter.contains("${") && latter.contains("}")) {
+                        if (latter.contains("#{") && latter.contains("}")) {
                             semi.offer(replacement)
                         }
                         else {

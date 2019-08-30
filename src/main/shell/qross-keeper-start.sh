@@ -10,5 +10,5 @@ then
     /srv/jdk1.8/bin/java -cp /qross/qross-keeper-0.5.8.jar io.qross.keeper.Protector
 else
     echo "qross keeper is running....." >> "/qross/keeper/beats/${day}.log"
-    /srv/jdk1.8/bin/java -cp /qross/qross-keeper-0.5.8.jar io.qross.keeper.Inspector
 fi
+/srv/jdk1.8/bin/java -cp /qross/qross-keeper-0.5.8.jar io.qross.keeper.Inspector

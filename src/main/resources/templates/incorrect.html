@@ -18,16 +18,16 @@
     </style>
 </head>
 <body>
-<div id="title">${title} ${task_time} <span class="${status}">${status}</span> </div>
+<div id="title">#{title} #{task_time} <span class="#{status}">#{status}</span> </div>
 <div id="details">
-        <span>JobID</span> &nbsp; ${job_id} &nbsp; &nbsp;
-        <span>TaskID</span> &nbsp; ${task_id} &nbsp; &nbsp;
-        <span>CommandID</span> &nbsp; ${command_id} &nbsp; &nbsp;
-        <span>ActionID</span> &nbsp; ${action_id} <br />
-        <span>CommandText</span> &nbsp; ${command_text}
+        <span>JobID</span> &nbsp; #{job_id} &nbsp; &nbsp;
+        <span>TaskID</span> &nbsp; #{task_id} &nbsp; &nbsp;
+        <span>CommandID</span> &nbsp; #{command_id} &nbsp; &nbsp;
+        <span>ActionID</span> &nbsp; #{action_id} <br />
+        <span>CommandText</span> &nbsp; #{command_text}
 </div>
     <div id="logs">
-        ${logs}
+        #{logs}
     </div>
 </body>
 </html>

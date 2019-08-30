@@ -2,12 +2,12 @@ package io.qross.model
 
 import io.qross.core.DataHub
 import io.qross.ext.Output._
-import io.qross.fs.ResourceFile
+import io.qross.fs.{Directory, ResourceFile}
 import io.qross.jdbc.DataSource
 import io.qross.net.Email
-import io.qross.sql.PSQL._
+import io.qross.pql.PQL._
 import io.qross.setting.Global
-import io.qross.time.{DateTime, Timer}
+import io.qross.time.{ChronExp, DateTime, Timer}
 
 object Qross {
     
@@ -67,9 +67,9 @@ object Qross {
     
     def checkBeatsAndRecords(): Unit = {
 
-        val now = DateTime.now
+        var now = DateTime.now
         val tick = now.getString("yyyy-MM-dd HH:mm:ss")
-        now.setSecond(0)
+        now = now.setSecond(0)
 
         val dh = DataHub.Qross
         if (dh.executeExists("SELECT id FROM qross_keeper_running_records WHERE id=(SELECT id FROM qross_keeper_running_records ORDER BY id DESC LIMIT 1) AND status='running'")) {
@@ -99,9 +99,9 @@ object Qross {
             //send beats mail
             if (toSend && (Global.KEEPER_USER_GROUP != "" || Global.MASTER_USER_GROUP != "")) {
                 ResourceFile.open("/templates/beats.html")
-                    .replace("${tick}", tick)
-                    .replace("${error}", error)
-                    .replace("${beats}", dh.executeDataTable("SELECT CONCAT(actor_name, ' - ', status, ' - ', last_beat_time) AS info FROM qross_keeper_beats ORDER BY id DESC").getColumn("info").mkString("<br/>"))
+                    .replace("#{tick}", tick)
+                    .replace("#{error}", error)
+                    .replace("#{beats}", dh.executeDataTable("SELECT CONCAT(actor_name, ' - ', status, ' - ', last_beat_time) AS info FROM qross_keeper_beats ORDER BY id DESC").getColumn("info").mkString("<br/>"))
                     .writeEmail(title)
                     .to(if (Global.KEEPER_USER_GROUP != "") Global.KEEPER_USER_GROUP else Global.MASTER_USER_GROUP)
                     .cc(if (Global.KEEPER_USER_GROUP != "") Global.MASTER_USER_GROUP else "")
@@ -115,6 +115,17 @@ object Qross {
                     .foreach(row => {
                         writeMessage("Job " + row.getString("id") + " has been closed.")
                     })
+                //open job
+                .get(s"SELECT id, opening_time, cron_exp, next_tick FROM qross_jobs WHERE enabled='no' AND opening_time<>'' AND CAST(opening_time AS SIGNED)-${now.getString("yyyyMMddHHmm00")}=1")
+                .foreach(row => {
+                    row.set("next_tick", ChronExp(row.getString("cron_exp")).getNextTickOrNone(row.getDateTime("opening_time")))
+                })
+                .put("UPDATE qross_jobs SET enabled='yes', next_tick='#next_tick' WHERE id=#id")
+
+            //disk space monitor
+            if (now.matches(Global.DISK_MONITOR_FREQUENCY)) {
+                dh.set(s"INSERT INTO qross_space_monitor (moment, logs_space_usage, backup_space_usage, temp_space_usage) VALUES ('${now.getString("yyyy-MM-dd HH:mm:ss")}', ${Directory.spaceUsage("%QROSS_KEEPER_HOME/logs/")}, ${Directory.spaceUsage("%QROSS_KEEPER_HOME/tasks/")}, ${Directory.spaceUsage("%QROSS_WORKER_HOME/temp/")})")
+            }
 
             //clean mechanism
             if (now.matches(Global.CLEAN_TASK_RECORDS_FREQUENCY)) {
@@ -150,18 +161,6 @@ object Qross {
                                       INSERT INTO qross_jobs_clean_records (job_id, method, amount) VALUES ($jobId, '$method', $$rows);
                                       PRINT DEBUG $$rows + ' tasks of job $jobId has been ${method}d.'
                                     """)
-
-                                /*
-                                dh.executeNonQuery(s"DELETE FROM qross_tasks_logs WHERE job_id=$jobId AND task_id<$taskId")
-                                dh.executeNonQuery(s"DELETE FROM qross_tasks_dependencies WHERE job_id=$jobId AND task_id<$taskId")
-                                dh.executeNonQuery(s"DELETE FROM qross_tasks_dags WHERE job_id=$jobId AND task_id<$taskId")
-                                dh.executeNonQuery(s"DELETE FROM qross_tasks_events WHERE job_id=$jobId AND task_id<$taskId")
-                                dh.executeNonQuery(s"DELETE FROM qross_tasks_records WHERE job_id=$jobId AND task_id<$taskId")
-                                rows = dh.executeNonQuery(s"DELETE FROM qross_tasks WHERE job_id=$jobId AND id<$taskId")
-                                dh.executeNonQuery(s"INSERT INTO qross_jobs_clean_records (job_id, method, amount) VALUES ($jobId, '$method', $rows)")
-
-                                writeDebugging(s"$rows tasks of job $jobId has been ${method}d.")
-                                */
                             }
                         }).clear()
             }

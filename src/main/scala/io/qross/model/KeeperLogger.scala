@@ -60,8 +60,8 @@ class KeeperLogger {
             val info = ds.executeDataRow("SELECT conf_key, conf_value FROM qross_conf WHERE conf_key IN ('EMAIL_NOTIFICATION', 'COMPANY_NAME', 'EMAIL_EXCEPTIONS_TO_DEVELOPER')")
             if (info.getBoolean("EMAIL_NOTIFICATION")) {
                 ResourceFile.open("/templates/exception.html")
-                    .replace("${companyName}", info.getString("COMPANY_NAME"))
-                    .replace("${exceptions}", KeeperException.toHTML(exceptions))
+                    .replace("#{companyName}", info.getString("COMPANY_NAME"))
+                    .replace("#{exceptions}", KeeperException.toHTML(exceptions))
                     .writeEmail(s"KEEPER EXCEPTION: ${info.getString("COMPANY_NAME")} ${DateTime.now.toString}")
                     .to(QrossUser.getUsers("master"))
                     .cc(if (info.getBoolean("EMAIL_EXCEPTIONS_TO_DEVELOPER")) "Developer<garfi-wu@outlook.com>" else "")

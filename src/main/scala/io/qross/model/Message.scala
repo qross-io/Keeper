@@ -36,6 +36,14 @@ object ActionStatus {
     val KILLED = "killed"
 }
 
+object ProcessStatus {
+    val NEW = "new"
+    val EXECUTING = "executing"
+    val FAILED = "failed"
+    val SUCCESS = "success"
+    val KILLED = "killed"
+}
+
 case class Task(id: Long, var status: String = TaskStatus.INITIALIZED) {
 
     var jobId: Int = 0
@@ -72,5 +80,7 @@ case class Task(id: Long, var status: String = TaskStatus.INITIALIZED) {
 case class TaskCommand(row: DataRow)
 
 case class Note(id: Long)
+
+case class Process(noteId: Long, id: Long)
 
 

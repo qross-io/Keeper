@@ -9,7 +9,7 @@ class TaskLogger extends WorkActor {
 
         super.beat(actorName)
 
-        val nextMinute = DateTime(tick).plusMinutes(1).toEpochSecond
+        val nextMinute = new DateTime(tick).plusMinutes(1).toEpochSecond
         do {
             TaskRecorder.save()
         }

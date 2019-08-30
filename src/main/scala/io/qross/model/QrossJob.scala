@@ -1,8 +1,8 @@
 package io.qross.model
 
 import io.qross.jdbc.DataSource
-import io.qross.time.{CronExp, DateTime}
-import io.qross.ext.TypeExt.ListExt
+import io.qross.time.{ChronExp, DateTime}
+import io.qross.ext.TypeExt._
 
 object QrossJob {
     
@@ -10,10 +10,10 @@ object QrossJob {
     def tickTasks(jobId: Int, queryId: String): Unit = {
         val ds = new DataSource()
         val job = ds.executeDataRow(s"SELECT cron_exp, CAST(switch_time AS CHAR) AS switch_time FROM qross_jobs WHERE id=$jobId")
-        val json = CronExp.getTicks(
+        val json = ChronExp.getTicks(
                 job.getString("cron_exp"),
                 job.getString("switch_time"),
-                DateTime.now.getString("yyyy-MM-dd HH:mm:ss")).toJson.replace("'", "''")
+                DateTime.now.getString("yyyy-MM-dd HH:mm:ss")).toJsonString.replace("'", "''")
         ds.executeNonQuery(s"INSERT INTO qross_query_result (query_id, result) VALUES ('$queryId', '$json')")
         ds.close()
     }
@@ -26,7 +26,7 @@ object QrossJob {
 
         val ds = new DataSource()
         val cronExp = ds.executeSingleValue(s"SELECT cron_exp FROM qross_jobs WHERE id=$jobId").asText
-        val json = CronExp.getTicks(cronExp, beginTime, endTime).toJson.replace("'", "''")
+        val json = ChronExp.getTicks(cronExp, beginTime, endTime).toJsonString.replace("'", "''")
         ds.executeNonQuery(s"INSERT INTO qross_query_result (query_id, result) VALUES ('$queryId', '$json')")
         ds.close()
     }

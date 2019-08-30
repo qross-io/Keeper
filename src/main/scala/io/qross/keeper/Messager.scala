@@ -19,11 +19,11 @@ class Messager extends WorkActor {
     override def beat(tick: String): Unit = {
         super.beat(tick)
         
-        val nextMinute = DateTime(tick).plusMinutes(1).toEpochSecond
+        val nextMinute = new DateTime(tick).plusMinutes(1).toEpochSecond
         do {
             MessageBox.check().foreach(row => {
                 val queryId = row.getString("query_id")
-                val sender = row.getString("sender")
+                val sender = row.getInt("sender")
                 val messageType = row.getString("message_type").toUpperCase
                 val messageKey = row.getString("message_key").toUpperCase
                 val messageText = row.getString("message_text")
@@ -80,7 +80,16 @@ class Messager extends WorkActor {
                         }
                     case "NOTE" =>
                         messageKey match {
-                            //case "PROCESS" => QrossNote.processNote(sender, messageText.toLong)
+                            case "PROCESS" =>
+                                Try(messageText.toLong) match {
+                                    case Success(noteId) => processor ! QrossNote.process(noteId, sender)
+                                    case _ =>
+                                }
+                            case "KILL" =>
+                                Try(messageText.toLong) match {
+                                    case Success(noteId) => QrossNote.TO_BE_KILLED += noteId
+                                    case _ =>
+                                }
                             case _ =>
                         }
                     case "USER" =>
@@ -89,7 +98,6 @@ class Messager extends WorkActor {
                             case "KEEPER" => Configurations.set("KEEPER_USER_GROUP", QrossUser.getUsers("keeper"))
                             case _ =>
                         }
-
                     case "PROPERTIES" =>
                         messageKey match {
                             //PROPERTIES - LOAD - path

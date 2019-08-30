@@ -30,8 +30,9 @@ object Keeper {
             system.actorOf(Props[Messager], "messager"),
             system.actorOf(Props[TaskProducer], "producer"),
             system.actorOf(Props[TaskStarter], "starter"),
-            //system.actorOf(Props[NoteProcessor], "processor"),
-            system.actorOf(Props[TaskLogger], "logger")
+            system.actorOf(Props[NoteProcessor], "processor"),
+            system.actorOf(Props[TaskLogger], "logger"),
+            system.actorOf(Props[Monitor], "monitor")
         )
         
         while (!Global.QUIT_ON_NEXT_BEAT) {

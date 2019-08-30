@@ -4,7 +4,7 @@ apply plugin: 'idea'
 apply plugin: "com.github.johnrengelman.shadow"
 
 group = 'io.qross'
-version = '0.5.9'
+version = '0.6.0'
 sourceCompatibility = 1.8
 
 //archivesBaseName = "qross-keeper"
@@ -41,7 +41,9 @@ repositories {
 dependencies {
 	compile group: 'org.scala-lang', name: 'scala-library', version: '2.12.8'
 
-    compile group: 'com.typesafe.akka', name: 'akka-actor_2.12', version: '2.5.22'
+    compile group: 'com.typesafe.akka', name: 'akka-actor_2.12', version: '2.5.23'
+    compile group: 'com.typesafe.akka', name: 'akka-http_2.12',   version: '10.1.9+3-8c13e4b3+20190823-1353'
+    compile group: 'com.typesafe.akka', name: 'akka-stream_2.12', version: '2.5.23'
     //compile group: 'com.typesafe.akka', name: 'akka-remote_2.12', version: '2.5.22'
 
     //compile group: 'org.apache.hive', name: 'hive-jdbc', version: '2.0.0'
@@ -63,7 +65,7 @@ dependencies {
 
     //libraryDependencies += "org.apache.poi" % "poi-ooxml" % "3.17" //for office 2017
 
-    compile (group: 'io.qross', name: 'qross-psql', version: '0.5.9-42-SNAPSHOT')
+    compile (group: 'io.qross', name: 'qross-pql', version: '0.5.9-70-SNAPSHOT')
 }
 
 shadowJar {
