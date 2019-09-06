@@ -1,15 +1,18 @@
 package io.qross.keeper
 
 import akka.actor.{ActorSystem, PoisonPill, Props}
+import akka.http.scaladsl.Http
+import akka.stream.ActorMaterializer
 import io.qross.ext.Output
 import io.qross.model.{Qross, Tick}
 import io.qross.setting.Global
 import io.qross.setting.Properties
 import io.qross.time.{DateTime, Timer}
 import io.qross.fs.FilePath._
+
 import scala.collection.immutable.List
 import scala.collection.mutable
-import scala.concurrent.ExecutionContext.Implicits._
+import scala.concurrent.ExecutionContextExecutor
 
 object Keeper {
     
@@ -24,8 +27,8 @@ object Keeper {
         }
         
         Qross.start()
-        
-        val system = ActorSystem("keeper")
+
+        implicit val system: ActorSystem = ActorSystem("keeper")
         val actors = List(
             system.actorOf(Props[Messager], "messager"),
             system.actorOf(Props[TaskProducer], "producer"),
@@ -34,6 +37,12 @@ object Keeper {
             system.actorOf(Props[TaskLogger], "logger"),
             system.actorOf(Props[Monitor], "monitor")
         )
+
+        //for akka http
+        implicit val materializer: ActorMaterializer = ActorMaterializer()
+        implicit val executionContext: ExecutionContextExecutor = system.dispatcher
+        //akka http
+        val bindingFuture = Http().bindAndHandle(Router.rests(system),"0.0.0.0", Global.KEEPER_HTTP_PORT)
         
         while (!Global.QUIT_ON_NEXT_BEAT) {
             // mm:00
@@ -64,6 +73,8 @@ object Keeper {
 
         Qross.waitAndStop()
 
-        system.terminate().onComplete(_ => Output.writeDebugging("Qross Keeper shut down!"))
+        bindingFuture.flatMap(_.unbind()).onComplete(_ => {
+            system.terminate().onComplete(_ => Output.writeDebugging("Qross Keeper shut down!"))
+        })
     }
 }

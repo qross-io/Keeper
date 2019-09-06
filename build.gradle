@@ -42,7 +42,7 @@ dependencies {
 	compile group: 'org.scala-lang', name: 'scala-library', version: '2.12.8'
 
     compile group: 'com.typesafe.akka', name: 'akka-actor_2.12', version: '2.5.23'
-    compile group: 'com.typesafe.akka', name: 'akka-http_2.12',   version: '10.1.9+3-8c13e4b3+20190823-1353'
+    compile group: 'com.typesafe.akka', name: 'akka-http_2.12', version: '10.1.9'
     compile group: 'com.typesafe.akka', name: 'akka-stream_2.12', version: '2.5.23'
     //compile group: 'com.typesafe.akka', name: 'akka-remote_2.12', version: '2.5.22'
 
@@ -65,7 +65,7 @@ dependencies {
 
     //libraryDependencies += "org.apache.poi" % "poi-ooxml" % "3.17" //for office 2017
 
-    compile (group: 'io.qross', name: 'qross-pql', version: '0.5.9-70-SNAPSHOT')
+    compile (group: 'io.qross', name: 'qross-pql', version: '0.5.9-74-SNAPSHOT')
 }
 
 shadowJar {

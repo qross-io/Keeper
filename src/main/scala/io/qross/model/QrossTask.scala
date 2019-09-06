@@ -200,7 +200,7 @@ object QrossTask {
         last beat -> server offline -> now -> server online -> next beat
         */
 
-        val dh = DataHub.Qross
+        val dh = DataHub.QROSS
 
         //get last tick of producer
         val lastBeat = (Try(dh.executeSingleValue("SELECT UNIX_TIMESTAMP(last_beat_time) FROM qross_keeper_beats WHERE actor_name='TaskProducer'").asInteger) match {
@@ -274,7 +274,7 @@ object QrossTask {
     def createAndInitializeTasks(tick: String): DataTable = {
         val minute = new DateTime(tick)
 
-        val dh = DataHub.Qross
+        val dh = DataHub.QROSS
 
         //update empty next_tick - it will be empty when create a new job
         //update outdated jobs - it will occur when you enable a job from disabled
@@ -420,7 +420,7 @@ object QrossTask {
         //maybe convert failure
         if (jobId > 0) {
 
-            val dh = DataHub.Qross
+            val dh = DataHub.QROSS
 
             //create task
             dh.set(s"INSERT INTO qross_tasks (job_id, task_time, record_time, status, creator, create_mode, start_mode, to_be_start_time) VALUES ($jobId, '$taskTime', '$recordTime', '${TaskStatus.INSTANT}', '$creator', 'instant', 'manual_start', '$startTime')")
@@ -538,7 +538,7 @@ object QrossTask {
             PARTIAL
         }
 
-        val dh = DataHub.Qross
+        val dh = DataHub.QROSS
 
         //backup records
         dh.get(s"SELECT job_id, task_time, record_time, start_mode, status, start_time, finish_time, IFNULL(spent, -1) AS spent FROM qross_tasks WHERE id=$taskId")
@@ -613,7 +613,7 @@ object QrossTask {
         val jobId = task.jobId
         val recordTime = task.recordTime
 
-        val dh = DataHub.Qross
+        val dh = DataHub.QROSS
 
         //update task status to ready if all dependencies are ready
         dh.set(s"UPDATE qross_tasks SET status='${TaskStatus.READY}' WHERE id=$taskId AND NOT EXISTS (SELECT task_id FROM qross_tasks_dependencies WHERE task_id=$taskId AND record_time='$recordTime' AND dependency_moment='before' AND ready='no')")
@@ -715,7 +715,7 @@ object QrossTask {
     }
 
     def checkTasksStatus(tick: String): Unit = {
-        val dh = DataHub.Qross
+        val dh = DataHub.QROSS
 
         //tasks to be restart
         dh.get(s"SELECT id AS task_id, status FROM qross_tasks WHERE to_be_start_time='$tick'")
@@ -753,9 +753,9 @@ object QrossTask {
         dh.openQross()
         if (dh.nonEmpty) {
             //reset status to READY if reach 3 times
-            dh.get("SELECT id, task_id FROM qross_stuck_records WHERE check_times>=3 AND reseted='no'")
+            dh.get("SELECT id, task_id FROM qross_stuck_records WHERE check_times>=3 AND renewed='no'")
                 .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}' WHERE id=#task_id AND status='${TaskStatus.EXECUTING}'")
-                .put(s"UPDATE qross_stuck_records SET reseted='yes' where id=#id")
+                .put(s"UPDATE qross_stuck_records SET renewed='yes' where id=#id")
         }
 
         writeMessage("TaskStarter beat!")
@@ -835,7 +835,7 @@ object QrossTask {
     //TaskExecutor
     def executeTaskCommand(taskCommand: DataRow): Task = {
 
-        val dh = DataHub.Qross
+        val dh = DataHub.QROSS
 
         val jobId = taskCommand.getInt("job_id")
         val taskId = taskCommand.getLong("task_id")
@@ -1015,10 +1015,6 @@ object QrossTask {
                         .runPQL(status)
             }
         }
-
-        dh.openQross()
-            .get(s"""SELECT GROUP_CONCAT(CONCAT(id, ':', status)) AS recent_status FROM (SELECT id, status FROM qross_tasks WHERE job_id=$jobId ORDER BY id DESC LIMIT 3) T""")
-                .put(s"UPDATE qross_jobs SET recent_tasks_status='#recent_status' WHERE id=$jobId")
 
         dh.close()
 

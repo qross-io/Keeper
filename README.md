@@ -3,7 +3,7 @@ A lightweight tool to manage, schedule your job or workflow.
 
 Full Features:
 1. Powered by Scala and Akka.
-2. Shell command job supported, will supports PL/SQL in future.
+2. Shell command and PQL job supported
 3. Cron & Sharp expression of DateTime for job configuration.
 4. Supports endless task without schedule.
 5. Five types dependencies before execution.
@@ -13,3 +13,4 @@ Full Features:
 8. Retry on failure.
 9. Mail notification.
 10. Running Logs of Tasks.
+11. Restful API.

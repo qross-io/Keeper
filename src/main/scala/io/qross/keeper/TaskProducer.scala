@@ -3,11 +3,11 @@ package io.qross.keeper
 import akka.actor.Props
 import akka.routing.BalancingPool
 import io.qross.model._
-import io.qross.setting.Global
+import io.qross.setting.Environment
 
 class TaskProducer extends WorkActor {
     
-    private val checker = context.actorOf(Props[TaskChecker].withRouter(new BalancingPool(Global.CORES)), "checker")
+    private val checker = context.actorOf(Props[TaskChecker].withRouter(new BalancingPool(Environment.cpuThreads)), "checker")
     private val starter = context.actorSelection("akka://keeper/user/starter")
         
     override def setup(): Unit = QrossTask.complementTasks()

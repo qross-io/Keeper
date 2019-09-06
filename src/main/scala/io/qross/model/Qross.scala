@@ -49,7 +49,7 @@ object Qross {
     }
     
     def waitAndStop(): Unit = {
-        val dh = DataHub.Qross
+        val dh = DataHub.QROSS
         dh.get("SELECT id FROM qross_keeper_running_records ORDER BY id DESC LIMIT 1")
             .put("UPDATE qross_keeper_running_records SET status='stopping', stop_time=NOW(), duration=TIMESTAMPDIFF(SECOND, start_time, NOW()) WHERE id=#id")
 
@@ -71,7 +71,7 @@ object Qross {
         val tick = now.getString("yyyy-MM-dd HH:mm:ss")
         now = now.setSecond(0)
 
-        val dh = DataHub.Qross
+        val dh = DataHub.QROSS
         if (dh.executeExists("SELECT id FROM qross_keeper_running_records WHERE id=(SELECT id FROM qross_keeper_running_records ORDER BY id DESC LIMIT 1) AND status='running'")) {
 
             var error = ""
@@ -130,27 +130,15 @@ object Qross {
             //clean mechanism
             if (now.matches(Global.CLEAN_TASK_RECORDS_FREQUENCY)) {
 
-                dh.get("""SELECT A.job_id, A.method, A.to_keep_records, B.task_records, (B.task_records-A.to_keep_records) AS offset
-                   FROM (SELECT job_id, event_value AS method, event_option AS to_keep_records FROM qross_jobs_events WHERE event_name='onJobClean' AND event_function='CLEAN_TASK_RECORDS') A
-                   INNER JOIN (SELECT job_id, COUNT(0) AS task_records FROM qross_tasks GROUP BY job_id) B ON A.job_id=B.job_id AND B.task_records>A.to_keep_records""")
+                dh.executeDataTable(
+                    """SELECT B.job_id, A.keep_x_task_records FROM qross_jobs A
+                       INNER JOIN (SELECT job_id, COUNT(0) AS task_amount FROM qross_tasks B ON A.id=B.job_id WHERE B.task_amount>A.keep_x_task_records""")
                         .foreach(row => {
                             val jobId = row.getInt("job_id")
-                            val offset = row.getInt("offset")
-                            val taskId = dh.executeSingleValue(s"""SELECT id AS task_id FROM qross_tasks WHERE job_id=$jobId ORDER BY id ASC LIMIT $offset,1""").asInteger
+                            val offset = row.getInt("keep_x_task_records")
+                            val taskId = dh.executeSingleValue(s"""SELECT id AS task_id FROM qross_tasks WHERE job_id=$jobId ORDER BY id ASC LIMIT $offset,1""").asInteger(0)
 
                             if (taskId > 0) {
-                                val method = row.getString("method").toLowerCase()
-                                var rows = 0
-
-                                //backup records
-                                if (method == "store") {
-                                    dh.executeDataTable(s"SELECT id FROM qross_tasks WHERE job_id=$jobId AND id<$taskId")
-                                            .foreach(row => {
-                                                TaskOverall.of(row.getLong("id")).store()
-                                            })
-                                }
-
-                                //clean database
                                 dh.run(s"""
                                       DELETE FROM qross_tasks_logs WHERE job_id=$jobId AND task_id<$taskId;
                                       DELETE FROM qross_tasks_dependencies WHERE job_id=$jobId AND task_id<$taskId;
@@ -158,11 +146,26 @@ object Qross {
                                       DELETE FROM qross_tasks_events WHERE job_id=$jobId AND task_id<$taskId;
                                       DELETE FROM qross_tasks_records WHERE job_id=$jobId AND task_id<$taskId;
                                       SET $$rows := DELETE FROM qross_tasks WHERE job_id=$jobId AND id<$taskId;
-                                      INSERT INTO qross_jobs_clean_records (job_id, method, amount) VALUES ($jobId, '$method', $$rows);
-                                      PRINT DEBUG $$rows + ' tasks of job $jobId has been ${method}d.'
+                                      INSERT INTO qross_jobs_clean_records (job_id, amount) VALUES ($jobId, $$rows);
+                                      PRINT DEBUG $$rows + ' tasks of job $jobId has been deleted.'
                                     """)
                             }
-                        }).clear()
+                        })
+            }
+
+            //store logs to disk every hour xx:10
+            if (now.getMinute == 10) {
+                dh.get(s"""SELECT job_id, id AS task_id, create_time FROM qross_tasks WHERE update_time<'${now.minusDays(1).getString("yyyy-MM-dd HH:mm:00")}' AND stored='no'""")
+                    .foreach(row => {
+                        TaskStorage.store(
+                            row.getInt("job_id"),
+                            row.getLong("task_id"),
+                            row.getString("create_time"),
+                            dh.executeDataTable(s"SELECT * FROM qross_tasks_logs WHERE task_id=" + row.getLong("task_id"))
+                        )
+                    })
+                    .put("DELETE FROM qross_tasks_logs WHERE task_id=#task_id")
+                    .put("UPDATE qross_tasks SET stored='yes' WHERE id=#task_id")
             }
         }
         

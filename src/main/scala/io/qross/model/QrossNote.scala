@@ -30,7 +30,7 @@ object QrossNote {
         val logger = NoteRecorder.of(proc.noteId, proc.id)
         val stamp = System.currentTimeMillis()
 
-        val dh = DataHub.Qross
+        val dh = DataHub.QROSS
 
         //delete redundant logs
         dh.get(s"SELECT id FROM qross_processes WHERE note_id=${proc.noteId}") //ORDER BY id DESC LIMIT 3,1

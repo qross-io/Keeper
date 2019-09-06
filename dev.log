@@ -1,4 +1,36 @@
 
+2019/9/4 0.6.0 Code Finished.
+    1. PQL launched! Includes PQL Job, PQL Task Event, PQL Note, PQL Embedded.
+    2. 可以编写 PQL Note 来运行即时任务, 实时查询和计算, 并可将Note保存为PQL Job
+    3. 使用Http API代替Message机制, Message将在0.6.1版本中移除
+    4. Job
+        1) 现在支持Chron表达式, 比Cron表达式更强大
+        2) 任务记录上限回归, 多余的任务记录将永远从数据库中删除
+        3) 现在Job可以设置生效时间
+        4) onJobClean事件被移除
+    5. Task
+        1) 最近的三次任务 status 计算移除, 会在Master查询时计算
+        2) 可以杀掉正在运行的任务
+    6. Task运行日志清理机制更新
+        1) 除任务日志外, Task的其他数据将一直保存在数据库中
+        2) 数据库中只保留最近24小时的日志, 超过24小时的日志将被备份的磁盘中
+    7. Monitor hardware resource of server and big table.
+        1) CPU usage
+        2) System memory usage
+        3) JVM memory usage
+        4) Disk space usage of Keeper logs
+        5) Disk space usage of task logs
+        6) Disk space usage of temp directory
+        7) Logs count
+        8) Executing tasks
+        9) Running actions
+    8. New global variables
+        1) DISK_MONITOR_FREQUENCY
+        2) EMAIL_TEMPLATE_PATH
+        3) KEEPER_HTTP_ADDRESS
+        4) KEEPER_HTTP_PORT
+    9. Fix some bugs.
+
 2019/3/6 0.5.8 Run
 2019/3/6 0.5.8 Debug Finished.
 2018/11/6 0.5.8 Code Finished.

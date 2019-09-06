@@ -1,43 +1,38 @@
 package io.qross.trash
 
 
-import java.sql.Timestamp
-import java.time.LocalDateTime
+import java.net.InetAddress
 
-import io.qross.model.{ActionStatus, Qross, TaskStatus}
+import akka.actor.ActorSystem
+import akka.stream.ActorMaterializer
 import io.qross.time._
+import akka.http.scaladsl.{Http, server}
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.server.Directives._
+import io.qross.keeper.Router
+import io.qross.net.Json
+
+import scala.concurrent.ExecutionContextExecutor
+import scala.io.StdIn
 
 object Test {
     def main(args: Array[String]): Unit = {
 
+
+        implicit val system: ActorSystem = ActorSystem("api-server")
+        implicit val materializer: ActorMaterializer = ActorMaterializer()
+        implicit val executionContext: ExecutionContextExecutor = system.dispatcher
+
+
+        val bindingFuture = Http().bindAndHandle(Router.rests(system),"0.0.0.0",7700)
+        StdIn.readLine()
+        bindingFuture.flatMap(_.unbind()).onComplete(_=>system.terminate())
+
+        //Server.startServer("localhost",8080,actorSystem)
+
         //Qross.checkBeatsAndRecords()
 
-        //println(DateTime("2019-04-03 12:00:00").sharp("MONTH-1#DAY=L#DAY+1 -> yyyyMMdd"))
-
-        //[^#&](([#&])\(?([a-zA-Z_][a-zA-Z0-9_]+)\)?)
-
-        println(DateTime.now.toEpochSecond)
-        //CronExp(row.getString("cron_exp")).getNextTickOrNone("20")
-
         /*
-        val dh = DataHub.Qross
-        //stuck tasks
-        //条件：task正在执行, 所有upstream_ids为空的dag记录
-        dh.get(s"select id, job_id, task_id, command_id, upstream_ids, record_time, UNIX_TIMESTAMP(NOW()) - UNIX_TIMESTAMP(update_time) AS span, status FROM qross_tasks_dags WHERE task_id IN (SELECT id FROM qross_tasks WHERE status='${TaskStatus.EXECUTING}')")
-            .cache("dags")
-        dh.openCache()
-            .get(s"SELECT DISTINCT task_id FROM dags WHERE status NOT IN ('${ActionStatus.DONE}', '${ActionStatus.WAITING}')")
-                .put("DELETE FROM dags WHERE task_id=#task_id")
-                .set("DELETE FROM dags WHERE upstream_ids<>''")
-            .get("SELECT job_id, task_id, record_time FROM (SELECT job_id, task_id, record_time, MIN(span) AS span FROM dags GROUP BY job_id, task_id, record_time) A WHERE span>300")
-                .put("INSERT INTO qross_stuck_records (job_id, task_id, record_time) VALUES (#job_id, #task_id, '#record_time') ON DUPLICATE KEY UPDATE check_times=check_times+1")
-        if (dh.nonEmpty) {
-            dh.openQross()
-                .get("SELECT task_id FROM qross_stuck_records WHERE check_times>=3")
-                    .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}' WHERE id=#task_id AND status='${TaskStatus.EXECUTING}'")
-        }
-
-        dh.close()
 
         QrossTask.createInstantTask("1234567",
             """{
@@ -60,7 +55,7 @@ object Test {
 
         //val list = List[String]("1", "2", "3")
 
-        //val dh = DataHub.Qross
+        //val dh = DataHub.QROSS
         //dh.close()
         /*println(DateTime.now.getString("yyyyMMdd/HH"))
 
