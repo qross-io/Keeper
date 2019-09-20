@@ -65,7 +65,7 @@ dependencies {
 
     //libraryDependencies += "org.apache.poi" % "poi-ooxml" % "3.17" //for office 2017
 
-    compile (group: 'io.qross', name: 'qross-pql', version: '0.5.9-74-SNAPSHOT')
+    compile (group: 'io.qross', name: 'qross-pql', version: '0.6.0-2-SNAPSHOT')
 }
 
 shadowJar {

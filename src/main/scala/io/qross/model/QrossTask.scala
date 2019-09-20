@@ -161,7 +161,7 @@ object QrossTask {
                         row.getString("dependency_value"),
                         row.getString("task_time"))
                             .foreach(value =>
-                                table.insertRow("job_id" -> row.getInt("job_id"),
+                                table.insert("job_id" -> row.getInt("job_id"),
                                     "task_id" -> row.getLong("task_id"),
                                     "record_time" -> row.getString("record_time"),
                                     "dependency_id" -> row.getInt("dependency_id"),
@@ -230,7 +230,7 @@ object QrossTask {
                             List[String]()
                     }
                     ticks.foreach(time => {
-                        table.insertRow(
+                        table.insert(
                             "job_id" -> jobId,
                             "next_tick" -> time
                         )
