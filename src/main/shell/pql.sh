@@ -1,1 +1,1 @@
-/srv/jdk1.8/bin/java -jar /qross/qross-worker-0.5.9.jar $*
+/srv/jdk1.8/bin/java -jar /qross/qross-worker-0.6.0.jar $*

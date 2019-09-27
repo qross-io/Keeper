@@ -1,7 +1,7 @@
 package io.qross.keeper
 
 import io.qross.core.DataRow
-import io.qross.model.{QrossTask, WorkActor}
+import io.qross.model.{QrossJob, QrossTask, WorkActor}
 
 class TaskExecutor extends WorkActor {
 
@@ -9,6 +9,9 @@ class TaskExecutor extends WorkActor {
         val task = QrossTask.executeTaskCommand(command)
         if (task.id > 0) {
             sender ! task
+        }
+        else if (task.id < 0) {
+            QrossJob.queueEndlessJob(task.jobId)
         }
     }
 }

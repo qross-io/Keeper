@@ -1,13 +1,15 @@
 
-2019/9/4 0.6.0 Code Finished.
+2019/9/25 0.6.0 Code Finished.
     1. PQL launched! Includes PQL Job, PQL Task Event, PQL Note, PQL Embedded.
     2. 可以编写 PQL Note 来运行即时任务, 实时查询和计算, 并可将Note保存为PQL Job
-    3. 使用Http API代替Message机制, Message将在0.6.1版本中移除
+    3. 新的任务类型, 无限循环任务
     4. Job
         1) 现在支持Chron表达式, 比Cron表达式更强大
         2) 任务记录上限回归, 多余的任务记录将永远从数据库中删除
         3) Can set a time to active the job.
         4) Event onJobClean has been removed.
+        5) 任务类型重新设定：现在区分计划任务、手工触发任务、依赖触发任务、无限循环任务
+        6) 任务DAG设定时, 现在使用Sharp表达式进行传参
     5. Task
         1) Task can be killed now!
         2) Recent tasks status has removed to Master.
@@ -24,10 +26,7 @@
         7) Logs count
         8) Executing tasks
         9) Running actions
-    8. New global variables.
-        1) DISK_MONITOR_FREQUENCY
-        2) KEEPER_HTTP_ADDRESS
-        3) KEEPER_HTTP_PORT
+    8. 3 new global variables.
     9. Fix some bugs.
 
 2019/3/6 0.5.8 Run

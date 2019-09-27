@@ -1,16 +1,10 @@
 package io.qross.trash
 
 
-import java.net.InetAddress
-
 import akka.actor.ActorSystem
+import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
-import io.qross.time._
-import akka.http.scaladsl.{Http, server}
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.Directives._
-import io.qross.keeper.Router
-import io.qross.net.Json
+import io.qross.model.{QrossTask, Task, TaskStatus}
 
 import scala.concurrent.ExecutionContextExecutor
 import scala.io.StdIn
@@ -19,14 +13,16 @@ object Test {
     def main(args: Array[String]): Unit = {
 
 
-        implicit val system: ActorSystem = ActorSystem("api-server")
-        implicit val materializer: ActorMaterializer = ActorMaterializer()
-        implicit val executionContext: ExecutionContextExecutor = system.dispatcher
+        QrossTask.getTaskCommandsToExecute(Task(12L, TaskStatus.READY).of(544))
 
-
-        val bindingFuture = Http().bindAndHandle(Router.rests(system),"0.0.0.0",7700)
-        StdIn.readLine()
-        bindingFuture.flatMap(_.unbind()).onComplete(_=>system.terminate())
+//        implicit val system: ActorSystem = ActorSystem("api-server")
+//        implicit val materializer: ActorMaterializer = ActorMaterializer()
+//        implicit val executionContext: ExecutionContextExecutor = system.dispatcher
+//
+//
+//        val bindingFuture = Http().bindAndHandle(Router.rests(system),"0.0.0.0",7700)
+//        StdIn.readLine()
+//        bindingFuture.flatMap(_.unbind()).onComplete(_=>system.terminate())
 
         //Server.startServer("localhost",8080,actorSystem)
 

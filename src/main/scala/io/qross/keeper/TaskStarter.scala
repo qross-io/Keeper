@@ -19,9 +19,3 @@ class TaskStarter extends WorkActor {
                 .clear()
     }
 }
-
-object TaskStarter {
-    def main(args: Array[String]): Unit = {
-        QrossTask.getTaskCommandsToExecute(Task(1900, TaskStatus.EXECUTING).of(1).at("20190227154800", "2019-02-27 15:48:00"))
-    }
-}

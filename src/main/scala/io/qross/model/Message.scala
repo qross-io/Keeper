@@ -6,6 +6,13 @@ import io.qross.core.DataRow
 
 case class Tick(minute: String)
 
+object JobType {
+    val SCHEDULED = "scheduled"
+    val ENDLESS = "endless"
+    val DEPENDENT = "dependent"
+    val MANUAL = "manual"
+}
+
 object TaskStatus {
     val NEW = "new"
     val INSTANT = "instant"
@@ -82,5 +89,3 @@ case class TaskCommand(row: DataRow)
 case class Note(id: Long)
 
 case class Process(noteId: Long, id: Long)
-
-

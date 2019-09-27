@@ -10,7 +10,7 @@ import io.qross.ext.TypeExt._
 
 import scala.util.{Success, Try}
 
-class Messager extends WorkActor {
+class Messenger extends WorkActor {
 
     private val producer = context.actorSelection("akka://keeper/user/producer")
     private val processor = context.actorSelection("akka://keeper/user/processor")

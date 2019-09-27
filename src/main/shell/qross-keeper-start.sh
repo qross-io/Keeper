@@ -7,8 +7,8 @@ then
     #ps -ef | grep "io.qross.keeper.Protector" | grep -v grep | awk '{print $2}' | xargs kill -9
     #/srv/jdk1.8/bin/java -cp /home/panda/qross-keeper-0.5.4.jar io.qross.keeper.Protector --debug --cluster --properties /data/config/qinling/databases.properties
     #`date +%F`.log
-    /srv/jdk1.8/bin/java -cp /qross/qross-keeper-0.5.8.jar io.qross.keeper.Protector
+    /srv/jdk1.8/bin/java -cp /qross/qross-keeper-0.6.0.jar io.qross.keeper.Protector
 else
     echo "qross keeper is running....." >> "/qross/keeper/beats/${day}.log"
 fi
-/srv/jdk1.8/bin/java -cp /qross/qross-keeper-0.5.8.jar io.qross.keeper.Inspector
+/srv/jdk1.8/bin/java -cp /qross/qross-keeper-0.6.0.jar io.qross.keeper.Inspector
