@@ -1,19 +1,19 @@
 package io.qross.trash
 
 
-import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
-import akka.stream.ActorMaterializer
-import io.qross.model.{QrossTask, Task, TaskStatus}
-
-import scala.concurrent.ExecutionContextExecutor
-import scala.io.StdIn
+import io.qross.model.{Qross, QrossTask, Task, TaskStatus}
+import io.qross.time.{ChronExp, DateTime}
+import io.qross.ext.TypeExt._
 
 object Test {
+
     def main(args: Array[String]): Unit = {
 
+        //ChronExp("WEEKLY 7 10-23:0/2").getNextTick(DateTime.now).print
 
-        QrossTask.getTaskCommandsToExecute(Task(12L, TaskStatus.READY).of(544))
+        Qross.checkBeatsAndRecords();
+
+        //QrossTask.getTaskCommandsToExecute(Task(12L, TaskStatus.READY).of(544).at("20190927101800", "2019-09-27 10:18:00.018"))
 
 //        implicit val system: ActorSystem = ActorSystem("api-server")
 //        implicit val materializer: ActorMaterializer = ActorMaterializer()

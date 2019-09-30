@@ -102,7 +102,7 @@
     1) add qross properties management.
         a. rename qross.ds.properties to qross.properties.
         b. all properties now stored at qross_properties.
-        c. Messager now supports properties commands.
+        c. Messenger now supports properties commands.
     2) rewrite beats checking.
         a. running or exceptional beats mail.
         b. move it from system job to deamon.
@@ -139,7 +139,7 @@
     5) Rewrite beat method of TaskChecker/TaskExecutor, and beats every minutely tick only.
     6) Record retry times of running action.
     7) Keep x task records now is a job configuration.
-    8) Messager supports Qross users commands
+    8) Messenger supports Qross users commands
     9) Remove checking_retry_limit from job configuration, now it is a dependency configuration.
     10) Remove exeucting_retry_limit from job configuration, now it is a command configuration.
     other) Notification mail now highlight task status at title.

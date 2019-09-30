@@ -59,7 +59,7 @@ object Qross {
             dh.get("SELECT COUNT(0) AS amount FROM qross_tasks WHERE status='executing'")
             writeDebugging("There is " + dh.firstRow.getString("amount") + " tasks still executing.")
             dh.clear()
-            Timer.sleep(5F)
+            Timer.sleep(5000)
         }
 
         dh.close()
@@ -67,7 +67,8 @@ object Qross {
     
     def checkBeatsAndRecords(): Unit = {
 
-        var now = DateTime.now
+        //var now = DateTime.now
+        var now = DateTime.of(2019, 9, 30, 16, 15, 0)
         val tick = now.getString("yyyy-MM-dd HH:mm:ss")
         now = now.setSecond(0)
 
@@ -77,8 +78,9 @@ object Qross {
             var error = ""
             var toSend = true
             var title = ""
-            
-            dh.get("SELECT actor_name FROM qross_keeper_beats WHERE actor_name IN ('Keeper', 'Messager', 'TaskProducer', 'TaskStarter', 'TaskChecker', 'TaskExecutor', 'TaskLogger') AND status='rest'")
+
+            //irregular - will restart Keeper
+            dh.get("SELECT actor_name FROM qross_keeper_beats WHERE actor_name IN ('Keeper', 'Messenger', 'TaskProducer', 'TaskStarter', 'TaskChecker', 'TaskExecutor', 'TaskLogger') AND status='rest'")
             if (dh.nonEmpty) {
                 //quit system and auto restart
                 dh.set("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('GLOBAL', 'QUIT_ON_NEXT_BEAT', 'yes');")
@@ -110,17 +112,18 @@ object Qross {
 
             //close job if expire
             dh.clear()
-                .get(s"SELECT id FROM qross_jobs WHERE enabled='yes' AND closing_time='${now.getString("yyyyMMddHHmm00")}'")
-                    .put("UPDATE qross_jobs SET enabled='no', next_tick='N/A' WHERE id=#id")
+                .get(s"SELECT id FROM qross_jobs WHERE enabled='yes' AND closing_time<>'' AND TIMESTAMPDIFF(MINUTE, '${now.getString("yyyy-MM-dd HH:mm:00")}', closing_time)<=1")
+                    .put("UPDATE qross_jobs SET enabled='no', next_tick='N/A', closing_time='' WHERE id=#id")
                     .foreach(row => {
                         writeMessage("Job " + row.getString("id") + " has been closed.")
                     })
                 //open job
-                .get(s"SELECT id, opening_time, cron_exp, next_tick FROM qross_jobs WHERE enabled='no' AND opening_time<>'' AND CAST(opening_time AS SIGNED)-${now.getString("yyyyMMddHHmm00")}=1")
+                .get(s"SELECT id, opening_time, cron_exp, next_tick FROM qross_jobs WHERE enabled='no' AND opening_time<>'' AND TIMESTAMPDIFF(MINUTE, '${now.getString("yyyy-MM-dd HH:mm:00")}', opening_time)<=1")
                 .foreach(row => {
                     row.set("next_tick", ChronExp(row.getString("cron_exp")).getNextTickOrNone(row.getDateTime("opening_time")))
+                    writeMessage("Job " + row.getString("id") + " is opening.")
                 })
-                .put("UPDATE qross_jobs SET enabled='yes', next_tick='#next_tick' WHERE id=#id")
+                .put("UPDATE qross_jobs SET enabled='yes', next_tick='#next_tick', opening_time='' WHERE id=#id")
 
             //disk space monitor
             if (now.matches(Global.DISK_MONITOR_FREQUENCY)) {

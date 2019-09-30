@@ -3,7 +3,7 @@ package io.qross.model
 import io.qross.core.DataHub
 import io.qross.jdbc.DataSource
 import io.qross.setting.Global
-import io.qross.time.{DateTime, Timer}
+import io.qross.time.Timer
 
 import scala.collection.mutable
 import scala.sys.process._
@@ -59,7 +59,7 @@ object QrossNote {
                     logger.warn(s"Note ${proc.noteId} (Process ${proc.id}) has been KILLED.")
                 }
 
-                Timer.sleep(1)
+                Timer.sleep(1000)
             }
 
             exitValue = process.exitValue()

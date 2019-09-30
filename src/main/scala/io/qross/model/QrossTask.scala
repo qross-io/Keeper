@@ -10,6 +10,7 @@ import io.qross.pql.PQL
 import io.qross.pql.Solver._
 import io.qross.setting.Global
 import io.qross.time.{ChronExp, DateTime, Timer}
+import io.qross.time.TimeSpan._
 
 import scala.collection.mutable
 import scala.sys.process._
@@ -457,8 +458,8 @@ object QrossTask {
         val jobId = info.getInt("jobId")
         var taskId = 0L
         val dag = info.getString("dag")
-        val params = info.getString("params").toHashMap(",", ":")
-        val commands = info.getString("commands").toHashMap("##\\$##", ":")
+        val params = info.getString("params").$split(",", ":")
+        val commands = info.getString("commands").$split("##\\$##", ":")
         val delay = info.getInt("delay")
         val taskTime = DateTime.now.getString("yyyyMMddHHmmss")
         val recordTime = DateTime.now.toString()
@@ -538,7 +539,7 @@ object QrossTask {
 
         if (delay > 0 && startTime == "" && jobId  > 0 && taskId > 0) {
             TaskRecorder.of(jobId, taskId, recordTime).debug(s"Instant Task $taskId of job $jobId at <$recordTime> will start after $delay seconds.")
-            Timer.sleep(if (delay > 60) 60 else delay)
+            Timer.sleep({ if (delay > 60) 60 else delay } seconds)
         }
 
         if (startTime == "") {
@@ -716,7 +717,7 @@ object QrossTask {
                     s"""SELECT A.job_id, A.event_name, A.event_function, A.event_value, A.event_option, IFNULL(B.current_option, 0) AS current_option FROM
                         (SELECT job_id, event_name, event_function, event_value, event_option FROM qross_jobs_events WHERE job_id=$jobId AND event_name='onTaskCheckingLimit' AND enabled='yes') A
                             LEFT JOIN
-                        (SELECT job_id, event_function, COUNT(0) AS current_option FROM qross_tasks_events WHERE task_id=$taskId AND event_name='onTaskCheckingLimit' AND archived=0 GROUP BY job_id, event_function) B
+                        (SELECT job_id, event_function, COUNT(0) AS current_option FROM qross_tasks_events WHERE task_id=$taskId AND event_name='onTaskCheckingLimit' GROUP BY job_id, event_function) B
                         ON A.job_id=B.job_id AND A.event_function=B.event_function
                      """)
 
@@ -836,7 +837,7 @@ object QrossTask {
             //waiting exists -> running
 
             if (concurrentLimit == 0 || ds.executeDataRow(s"SELECT COUNT(0) AS concurrent FROM qross_tasks WHERE job_id=$jobId AND status='${TaskStatus.EXECUTING}'").getInt("concurrent") < concurrentLimit) {
-                val map = ds.executeHashMap(s"SELECT status, COUNT(0) AS amount FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='$recordTime' GROUP BY status")
+                val map = ds.executeDataMap[String, Int](s"SELECT status, COUNT(0) AS amount FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='$recordTime' GROUP BY status")
                 if (map.isEmpty) {
                     //quit if no commands to execute
                     ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.NO_COMMANDS}' WHERE id=$taskId")
@@ -964,7 +965,7 @@ object QrossTask {
                         logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId at <$recordTime> has been KILLED: $commandText")
                     }
 
-                    Timer.sleep(1)
+                    Timer.sleep(1 seconds)
                 }
 
                 exitValue = process.exitValue()
@@ -1047,7 +1048,7 @@ object QrossTask {
             dh.get(s"""SELECT A.job_id, A.event_name, A.event_function, A.event_value, A.event_option, IFNULL(B.current_option, 0) AS current_option FROM
                     (SELECT job_id, event_name, event_function, event_value, event_option FROM qross_jobs_events WHERE job_id=$jobId AND event_name='onTask${status.capitalize}' AND enabled='yes') A
                         LEFT JOIN
-                    (SELECT job_id, event_function, COUNT(0) AS current_option FROM qross_tasks_events WHERE task_id=$taskId AND event_name='onTask${status.capitalize}' AND archived=0 GROUP BY job_id, event_function) B
+                    (SELECT job_id, event_function, COUNT(0) AS current_option FROM qross_tasks_events WHERE task_id=$taskId AND event_name='onTask${status.capitalize}' GROUP BY job_id, event_function) B
                     ON A.job_id=B.job_id AND A.event_function=B.event_function""")
             if (dh.nonEmpty) {
                 dh.cache("events")

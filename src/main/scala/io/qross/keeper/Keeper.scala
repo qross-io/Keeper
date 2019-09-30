@@ -1,14 +1,11 @@
 package io.qross.keeper
 
 import akka.actor.{ActorSystem, PoisonPill, Props}
-import akka.http.scaladsl.Http
-import akka.stream.ActorMaterializer
 import io.qross.ext.Output
-import io.qross.model.{Qross, Tick}
-import io.qross.setting.Global
-import io.qross.setting.Properties
-import io.qross.time.{DateTime, Timer}
 import io.qross.fs.FilePath._
+import io.qross.model.{Qross, Tick}
+import io.qross.setting.{Global, Properties}
+import io.qross.time.{DateTime, Timer}
 
 import scala.collection.immutable.List
 import scala.collection.mutable
@@ -42,7 +39,7 @@ object Keeper {
 
         while (!Global.QUIT_ON_NEXT_BEAT) {
             // mm:00
-            Timer.sleep()
+            Timer.sleepToNextMinute()
             Qross.beat("Keeper")
     
             //retransmission if producer hasn't received tick

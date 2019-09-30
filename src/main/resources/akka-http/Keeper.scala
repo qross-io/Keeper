@@ -46,7 +46,7 @@ object Keeper {
         
         while (!Global.QUIT_ON_NEXT_BEAT) {
             // mm:00
-            Timer.sleep()
+            Timer.sleepToNextMinute()
             Qross.beat("Keeper")
     
             //retransmission if producer hasn't received tick
