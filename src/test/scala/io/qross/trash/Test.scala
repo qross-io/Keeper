@@ -5,13 +5,18 @@ import io.qross.model.{Qross, QrossTask, Task, TaskStatus}
 import io.qross.time.{ChronExp, DateTime}
 import io.qross.ext.TypeExt._
 
+import scala.collection.mutable
+
 object Test {
 
     def main(args: Array[String]): Unit = {
 
         //ChronExp("WEEKLY 7 10-23:0/2").getNextTick(DateTime.now).print
 
-        Qross.checkBeatsAndRecords();
+        val a = List[Int](1, 2, 3, 4)
+        val b = List[String]("A", "B", "C")
+        b.zipAll(a, 0, "_").foreach(println)
+
 
         //QrossTask.getTaskCommandsToExecute(Task(12L, TaskStatus.READY).of(544).at("20190927101800", "2019-09-27 10:18:00.018"))
 

@@ -43,7 +43,7 @@ object QrossJob {
 
         val ds = DataSource.QROSS
 
-        val map = ds.queryDataMap[Int, Int](s"SELECT id AS job_id, intervals FROM qross_jobs WHERE job_type='${JobType.ENDLESS}' AND enabled='yes'")
+        val map = ds.queryDataMap[Int, Int](s"SELECT id AS job_id, CAST(cron_exp AS SIGNED) AS intervals FROM qross_jobs WHERE job_type='${JobType.ENDLESS}' AND enabled='yes'")
         //remove
         ENDLESS_JOBS
                 .keys
