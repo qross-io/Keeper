@@ -518,6 +518,8 @@ object QrossTask {
                 dh.openCache()
                     .get(s"SELECT job_id, (CASE WHEN dependencies>0 THEN '${TaskStatus.INITIALIZED}' ELSE '${TaskStatus.READY}' END) AS status FROM task_info")
                         .put(s"UPDATE qross_tasks SET status='#status' WHERE id=$taskId")
+
+                dh.openQross()
                     .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
 
                 status = dh.firstRow.getString("status")
