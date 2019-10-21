@@ -35,7 +35,7 @@ class KeeperLogger {
     
     private def save(): Unit = {
         if (logs.nonEmpty) {
-            FileWriter(Global.QROSS_KEEPER_HOME + "logs/" + DateTime.now.getString("yyyyMMdd/HH") + ".log", deleteFileIfExists = false)
+            FileWriter(Global.QROSS_HOME + "logs/" + DateTime.now.getString("yyyyMMdd/HH") + ".log", deleteFileIfExists = false)
                 .writeLines(logs)
                 .close()
     
@@ -49,7 +49,7 @@ class KeeperLogger {
     def store(): Unit = {
         if (exceptions.nonEmpty) {
             //save to database
-            val ds = new DataSource()
+            val ds = DataSource.QROSS
             ds.setBatchCommand(s"INSERT INTO qross_keeper_exceptions (exception, create_date) VALUES (?, ?)")
             exceptions.foreach(line => {
                 ds.addBatch(line.exception, line.createDate)

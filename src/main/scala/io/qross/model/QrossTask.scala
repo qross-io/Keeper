@@ -27,7 +27,7 @@ object QrossTask {
                 if (Global.EMAIL_NOTIFICATION) {
                     val receivers = row.getString("receivers")
                     if (receivers != "") {
-                        row.set("event_value",
+                        row.set("event_result",
                             ResourceFile.open(s"/templates/$taskStatus.html")
                                 .replace("#{status}", upperStatus)
                                 .replaceWith(row)
@@ -42,13 +42,13 @@ object QrossTask {
                                 .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> sent a mail on task $taskStatus")
                     }
                     else {
-                        row.set("event_value", "NO RECEIVERS")
+                        row.set("event_result", "NO RECEIVERS")
                     }
                 }
                 else {
-                    row.set("event_value", "EMAIL NOTIFICATION has closed.")
+                    row.set("event_result", "EMAIL NOTIFICATION has closed.")
                 }
-            }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_value) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_value')")
+            }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_limits, event_value, event_result) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_limits', '#receivers', '#event_result')")
                 .clear()
         }
 
@@ -73,7 +73,7 @@ object QrossTask {
                     var data = ""
                     var path = "/"
 
-                    //api格式 method @ api
+                    //api格式 method @ api -> /path
                     if (api.contains("@")) {
                         data = api.takeBefore("@").trim.takeAfter("""(?i)^POST\s""".r).toUpperCase()
                         api = api.takeAfter("@").trim
@@ -83,16 +83,7 @@ object QrossTask {
                         api = api.takeBefore("->").trim
                     }
 
-                    api = api.replace("#{jobId}", row.getString("job_id", "0"))
-                            .replace("#{taskId}", row.getString("task_id", "0"))
-                            .replace("#{commandId}", row.getString("command_id", "0"))
-                            .replace("#{actionId}", row.getString("action_id", "0"))
-                            .replace("#{status}", taskStatus)
-                            .replace("#{title}", row.getString("title"))
-                            .replace("#{retryTimes}", row.getString("retry_times", "0"))
-                            .replace("#{retryLimit}", row.getString("retry_limit", "0"))
-                            .replace("#{owner}", row.getString("owner"))
-                            .replace("#{taskTime}", row.getString("task_time"))
+                    api = api.replaceArguments(row)
 
                     val result = try {
                             Json.fromURL(api, data).parseValue(path)
@@ -105,80 +96,39 @@ object QrossTask {
                     TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time"))
                             .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> requested api on task $taskStatus, result is { $result }")
 
-                    row.set("event_value", result)
+                    row.set("event_result", result)
                 }
                 else {
-                    row.set("event_value", "EMPTY")
+                    row.set("event_result", "EMPTY API")
                 }
-            }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_value) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_value')")
+            }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_limits, event_value, event_result) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_limits', '#api', '#event_result')")
                 .clear()
         }
 
         def runPQL(taskStatus: String): DataHub = {
             dh.foreach(row => {
-                val SQL = row.getString("pql").replaceArguments(
-                    Map[String, String](
-                        "jobId" -> row.getString("job_id", "0"),
-                        "taskId" -> row.getString("task_id", "0"),
-                        "commandId" -> row.getString("command_id", "0"),
-                        "actionId" -> row.getString("action_id", "0"),
-                        "status" -> taskStatus,
-                        "title" -> row.getString("title"),
-                        "retryTimes" -> row.getString("retry_times", "0"),
-                        "retryLimit" -> row.getString("retry_limit", "0"),
-                        "owner" -> row.getString("owner"),
-                        "taskTime" -> row.getString("task_time")
-                ))
+                val SQL = row.getString("pql").replaceArguments(row)
 
                 //execute
                 try {
-                    new PQL(SQL, dh).$run()
+                    row.set("event_result", new PQL(SQL, DataHub.DEFAULT).set(row).run().toString)
                 }
                 catch {
-                    case e: Exception => e.printStackTrace()
+                    case e: Exception =>
+                        row.set("event_result", e.getMessage)
+                        e.printStackTrace()
                 }
 
                 TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time"))
                         .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> execute PQL on task $taskStatus.")
-            }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_value) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_value')")
-                .clear()
-        }
-
-        def generateDependencies(): DataHub = {
-            if (dh.nonEmpty) {
-                val table = DataTable.withFields("job_id" -> DataType.INTEGER,
-                                                        "task_id" -> DataType.INTEGER,
-                                                        "record_time" -> DataType.TEXT,
-                                                        "dependency_id" -> DataType.INTEGER,
-                                                        "dependency_moment" -> DataType.TEXT,
-                                                        "dependency_type" -> DataType.TEXT,
-                                                        "dependency_value" -> DataType.TEXT)
-
-                dh.foreach(row => {
-                    TaskDependency.parseDependencyValue(
-                        row.getString("job_id"),
-                        row.getString("task_id"),
-                        row.getString("dependency_value"),
-                        row.getString("task_time"))
-                            .foreach(value =>
-                                table.insert("job_id" -> row.getInt("job_id"),
-                                    "task_id" -> row.getLong("task_id"),
-                                    "record_time" -> row.getString("record_time"),
-                                    "dependency_id" -> row.getInt("dependency_id"),
-                                    "dependency_moment" -> row.getString("dependency_moment"),
-                                    "dependency_type" -> row.getString("dependency_type"),
-                                    "dependency_value" -> value)
-                            )
-                }).put("INSERT INTO qross_tasks_dependencies (job_id, task_id, record_time, dependency_id, dependency_moment, dependency_type, dependency_value) VALUES (?, ?, ?, ?, ?, ?, ?)", table)
-            }
-
-            dh.clear()
+            }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_limits, event_value, event_result) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_limits', '#pql', '#event_result')")
+                    .clear()
         }
 
         def restartTask(taskStatus: String): DataHub = {
 
             if (dh.nonEmpty) {
-                dh.put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_value) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '')")
+                dh.put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_limits, event_value, event_result) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_limits', '#delay', 'RESTARTED.')")
                 .foreach(row => {
                     val delay = row.getInt("delay", 30)
                     row.set("to_be_start_time", DateTime.now.plusMinutes(delay).getString("yyyyMMddHHmm00"))
@@ -186,6 +136,33 @@ object QrossTask {
                     TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time")).debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> will restart after $delay minutes by $taskStatus.").dispose()
                 })
                 .put("UPDATE qross_tasks SET to_be_start_time='#to_be_start_time' WHERE id=#task_id")
+            }
+
+            dh.clear()
+        }
+
+
+        def generateDependencies(): DataHub = {
+
+            if (dh.nonEmpty) {
+                val PQL = new PQL("", DataHub.DEFAULT)
+
+                dh.foreach(row => {
+                    PQL.set(row)
+                    try {
+                        row.set("dependency_value",
+                            row.getString("dependency_value")
+                                    .replaceArguments(row)
+                                    .$restore(PQL, "\""), DataType.TEXT)
+                    }
+                    catch {
+                        case e: Exception =>
+                            TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time"))
+                                    .err("Wrong dependency value of configuration.")
+                                    .err(e.getMessage)
+
+                    }
+                }).put("INSERT INTO qross_tasks_dependencies (job_id, task_id, record_time, dependency_id, dependency_moment, dependency_type, dependency_value) VALUES (#job_id, #task_id, '#record_time', #dependency_id, '#dependency_moment', '#dependency_type', '#dependency_value')")
             }
 
             dh.clear()
@@ -248,6 +225,7 @@ object QrossTask {
         dh.openCache()
             .get(s"SELECT A.job_id, A.next_tick FROM missed_tasks A LEFT JOIN exists_tasks B ON A.job_id=B.job_id AND A.next_tick=B.task_time WHERE B.job_id IS NULL")
                 .put(s"INSERT INTO qross_tasks (job_id, task_time, record_time, creator, create_mode, start_mode) VALUES (?, ?, '${DateTime.now}', '#keeper', 'complement', 'auto_start')")
+                .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T) WHERE id=#job_id")
 
         //get next tick for all jobs
         dh.openCache()
@@ -293,15 +271,16 @@ object QrossTask {
 
         //create tasks without cron_exp
         //excluding jobs with executing tasks
-        dh.set(
-                s"""INSERT INTO qross_tasks (job_id, task_time, record_time, creator, create_mode, start_mode) SELECT id, '${DateTime.now.getString("yyyyMMddHHmmss")}', '${DateTime.now}', '#keeper', 'trigger', 'auto_start' FROM qross_jobs
-                     WHERE job_type='${JobType.DEPENDENT}' AND enabled='yes' AND id NOT IN (SELECT DISTINCT job_id FROM qross_tasks WHERE task_time=''
-                      AND status NOT IN ('${TaskStatus.FINISHED}', '${TaskStatus.INCORRECT}', '${TaskStatus.FAILED}', '${TaskStatus.TIMEOUT}', '${TaskStatus.SUCCESS}'))""")
+        dh.get(s"""SELECT id AS job_id FROM qross_jobs WHERE job_type='${JobType.DEPENDENT}' AND enabled='yes' AND id NOT IN (SELECT DISTINCT job_id FROM qross_tasks WHERE
+                                    status NOT IN ('${TaskStatus.FINISHED}', '${TaskStatus.INCORRECT}', '${TaskStatus.FAILED}', '${TaskStatus.TIMEOUT}', '${TaskStatus.SUCCESS}'))""")
+            .put(s"INSERT INTO qross_tasks (job_id, task_time, record_time, creator, create_mode, start_mode) VALUES (#job_id, '${DateTime.now.getString("yyyyMMddHHmmss")}', '${DateTime.now}', '#keeper', 'trigger', 'auto_start')")
+            .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T) WHERE id=#job_id")
 
         //jobs with cron_exp
         dh.get(s"SELECT id AS job_id, cron_exp, next_tick FROM qross_jobs WHERE next_tick='$tick' AND job_type='${JobType.SCHEDULED}' AND enabled='yes' AND id NOT IN (SELECT job_id FROM qross_tasks WHERE task_time='$tick')")
             //create schedule tasks
                 .put(s"INSERT INTO qross_tasks (job_id, task_time, record_time, creator, create_mode, start_mode) VALUES (#job_id, '#next_tick', '${DateTime.now}', '#keeper', 'schedule', 'auto_start')")
+                .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T) WHERE id=#job_id")
             //get next tick and update
             .foreach(row => {
                 try {
@@ -326,18 +305,19 @@ object QrossTask {
                 //update status
                 .get("SELECT GROUP_CONCAT(job_id) AS job_ids FROM tasks")
             .openQross()
-                .pass("SELECT job_id, event_name, event_function, event_limits, event_value FROM qross_jobs_events FORCE INDEX (qross_jobs_events_select) WHERE job_id IN (#job_ids) AND enabled='yes' AND event_name='onTaskNew'")
+                .pass("SELECT job_id, event_name, event_function, event_limits, event_value FROM qross_jobs_events FORCE INDEX (idx_qross_jobs_events_select) WHERE job_id IN (#job_ids) AND enabled='yes' AND event_name='onTaskNew'")
             if (dh.nonEmpty) {
                 dh.cache("events")
                 //onTaskNew Event
                 dh.openCache()
-                        .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS receivers, B.event_name, B.event_function, '' AS event_value FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='SEND_MAIL_TO' AND INSTR(B.event_limits, A.start_mode)>0")
+                    .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS receivers, B.event_name, B.event_function, B.event_limits, '' AS event_result FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='SEND_MAIL_TO' AND INSTR(B.event_limits, A.start_mode)>0")
                         .sendEmail(TaskStatus.NEW)
-                        .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS api, B.event_name, B.event_function, '' AS event_value FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND event_function='REQUEST_API' AND INSTR(B.event_limits, A.start_mode)>0")
+                    .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS api, B.event_name, B.event_function, B.event_limits, '' AS event_result FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND event_function='REQUEST_API' AND INSTR(B.event_limits, A.start_mode)>0")
                         .requestApi(TaskStatus.NEW)
-                        .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS pql, B.event_name, B.event_function, '' AS event_value FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND event_function='EXECUTE_PQL' AND INSTR(B.event_limits, A.start_mode)>0")
+                    .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS pql, B.event_name, B.event_function, B.event_limits, '' AS event_result FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND event_function='EXECUTE_PQL' AND INSTR(B.event_limits, A.start_mode)>0")
                         .runPQL(TaskStatus.NEW)
             }
+            dh.clear()
 
             // ----- dependencies -----
 
@@ -359,21 +339,23 @@ object QrossTask {
             dh.openCache()
                 .get("SELECT IFNULL(GROUP_CONCAT(DISTINCT job_id), 0) AS job_ids FROM tasks")
             dh.openQross()
-                .pass("SELECT id AS command_id, command_text, job_id, upstream_ids FROM qross_jobs_dags WHERE job_id IN (#job_ids)")
+                .pass("SELECT id AS command_id, command_text, args, job_id, upstream_ids FROM qross_jobs_dags WHERE job_id IN (#job_ids)")
                     .cache("dags")
 
             //generate DAGs
             dh.openCache()
-                .get("SELECT A.job_id, A.task_id, A.record_time, B.command_id, B.command_text, B.upstream_ids FROM tasks A INNER JOIN dags B ON A.job_id=B.job_id")
-                    .put("INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, upstream_ids) VALUES (?, ?, ?, ?, ?, ?)")
+                .get("SELECT A.job_id, A.task_id, A.record_time, B.command_id, B.command_text, B.args, B.upstream_ids FROM tasks A INNER JOIN dags B ON A.job_id=B.job_id")
+                    .put("INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, args, upstream_ids) VALUES (?, ?, ?, ?, ?, ?, ?)")
 
             //update tasks status
-            dh.get(s"SELECT task_id, (CASE WHEN dependencies>0 THEN '${TaskStatus.INITIALIZED}' ELSE '${TaskStatus.READY}' END) AS status FROM tasks")
+            dh.get(s"SELECT job_id, task_id, (CASE WHEN dependencies>0 THEN '${TaskStatus.INITIALIZED}' ELSE '${TaskStatus.READY}' END) AS status FROM tasks")
                 .put("UPDATE qross_tasks SET status='#status' WHERE id=#task_id")
+                .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T) WHERE id=#job_id")
 
             //Master will can't turn on job if no commands to execute - 2018.9.8
-            dh.get("SELECT A.task_id FROM tasks A LEFT JOIN dags B ON A.job_id=B.job_id WHERE B.job_id IS NULL")
+            dh.get("SELECT A.job_id, A.task_id FROM tasks A LEFT JOIN dags B ON A.job_id=B.job_id WHERE B.job_id IS NULL")
                 .put(s"UPDATE qross_tasks SET status='${TaskStatus.NO_COMMANDS}' WHERE id=#task_id")
+                .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T) WHERE id=#job_id")
 
         }
         // ---------- finishing ----------
@@ -399,42 +381,44 @@ object QrossTask {
         val taskTime = recordTime.getString("yyyyMMddHHmmss")
 
         dh.set(s"INSERT INTO qross_tasks (job_id, task_time, record_time, creator, create_mode, start_mode) VALUES ($jobId, '$taskTime', '$recordTime', '#keeper', 'interval', 'auto_start')")
+            .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
+
+        val taskId = dh.executeSingleValue(s"SELECT id FROM qross_tasks WHERE job_id=$jobId AND task_time='$taskTime'").asInteger
 
         //get all new tasks
         dh.get(
             s"""SELECT A.task_id, A.job_id, B.title, B.owner, A.task_time, A.record_time, A.start_mode
-                               FROM (SELECT id AS task_id, job_id, task_time, record_time, start_mode FROM qross_tasks WHERE job_id=$jobId AND status='${TaskStatus.NEW}') A
+                               FROM (SELECT id AS task_id, job_id, task_time, record_time, start_mode FROM qross_tasks WHERE id=$taskId) A
                                INNER JOIN qross_jobs B ON B.id=$jobId AND A.job_id=B.id""")
-                .cache("tasks")
-
-        val taskId = dh.firstCellLongValue
+                .cache("task_info")
 
         dh.get(s"SELECT job_id, event_name, event_function, event_limits, event_value FROM qross_jobs_events WHERE job_id=$jobId AND enabled='yes' AND event_name='onTaskNew'")
         if (dh.nonEmpty) {
             dh.cache("events")
             //onTaskNew Event
             dh.openCache()
-                    .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS receivers, B.event_name, B.event_function, '' AS event_value FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='SEND_MAIL_TO' AND INSTR(B.event_limits, A.start_mode)>0")
+                .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS receivers, B.event_name, B.event_function, B.event_limits, '' AS event_result FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='SEND_MAIL_TO' AND INSTR(B.event_limits, A.start_mode)>0")
                     .sendEmail(TaskStatus.NEW)
-                    .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS api, B.event_name, B.event_function, '' AS event_value FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND event_function='REQUEST_API' AND INSTR(B.event_limits, A.start_mode)>0")
+                .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS api, B.event_name, B.event_function, B.event_limits, '' AS event_result FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND event_function='REQUEST_API' AND INSTR(B.event_limits, A.start_mode)>0")
                     .requestApi(TaskStatus.NEW)
-                    .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS pql, B.event_name, B.event_function, '' AS event_value FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND event_function='EXECUTE_PQL' AND INSTR(B.event_limits, A.start_mode)>0")
+                .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS pql, B.event_name, B.event_function, B.event_limits, '' AS event_result FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND event_function='EXECUTE_PQL' AND INSTR(B.event_limits, A.start_mode)>0")
                     .runPQL(TaskStatus.NEW)
         }
+        dh.clear()
 
         // ---------- DAGs ----------
         dh.openQross()
-            .get(s"SELECT id AS command_id, command_text, job_id, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId")
+            .get(s"SELECT id AS command_id, command_text, args, job_id, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId")
                 .cache("dags")
-
         //generate DAGs
         dh.openCache()
-            .get("SELECT A.job_id, A.task_id, A.record_time, B.command_id, B.command_text, B.upstream_ids FROM tasks A INNER JOIN dags B ON A.job_id=B.job_id")
-                .put("INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, upstream_ids) VALUES (?, ?, ?, ?, ?, ?)")
+            .get("SELECT A.job_id, A.task_id, A.record_time, B.command_id, B.command_text, B.args, B.upstream_ids FROM task_info A INNER JOIN dags B ON A.job_id=B.job_id")
+                .put("INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, args, upstream_ids) VALUES (?, ?, ?, ?, ?, ?, ?)")
 
         //update tasks status
         dh.openQross()
             .set(s"UPDATE qross_tasks SET status='${TaskStatus.READY}' WHERE id=$taskId")
+            .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
 
         dh.close()
 
@@ -477,6 +461,7 @@ object QrossTask {
 
             //create task
             dh.set(s"INSERT INTO qross_tasks (job_id, task_time, record_time, status, creator, create_mode, start_mode, to_be_start_time) VALUES ($jobId, '$taskTime', '$recordTime', '${TaskStatus.INSTANT}', '$creator', 'instant', 'manual_start', '$startTime')")
+                .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
             //get task id
             dh.get(s"""SELECT A.task_id, A.job_id, A.task_time, A.record_time, A.start_mode, B.title, B.owner, IFNULL(C.dependencies, 0) AS dependencies
                         FROM (SELECT id AS task_id, job_id, task_time, record_time, start_mode FROM qross_tasks WHERE job_id=$jobId AND task_time='$taskTime' AND status='${TaskStatus.INSTANT}') A
@@ -494,13 +479,14 @@ object QrossTask {
                     dh.cache("events")
                     //onTaskNew event
                     dh.openCache()
-                            .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS receivers, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_name='onTaskNew' AND B.event_function='SEND_MAIL_TO' AND INSTR(B.event_limits, A.start_mode)>0")
+                        .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS receivers, B.event_limits, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_name='onTaskNew' AND B.event_function='SEND_MAIL_TO' AND INSTR(B.event_limits, A.start_mode)>0")
                             .sendEmail(TaskStatus.NEW)
-                            .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS api, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_name='onTaskNew' AND B.event_function='REQUEST_API' AND INSTR(B.event_limits, A.start_mode)>0")
+                        .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS api, B.event_limits, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_name='onTaskNew' AND B.event_function='REQUEST_API' AND INSTR(B.event_limits, A.start_mode)>0")
                             .requestApi(TaskStatus.NEW)
-                            .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS pql, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_name='onTaskNew' AND B.event_function='EXECUTE_PQL' AND INSTR(B.event_limits, A.start_mode)>0")
+                        .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS pql, B.event_limits, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_name='onTaskNew' AND B.event_function='EXECUTE_PQL' AND INSTR(B.event_limits, A.start_mode)>0")
                             .runPQL(TaskStatus.NEW)
                 }
+                dh.clear()
 
                 //dependencies
                 dh.openQross()
@@ -508,7 +494,7 @@ object QrossTask {
                         .generateDependencies()
 
                 //DAG
-                dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId" + (if (dag != "") s" AND id IN ($dag)" else ""))
+                dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, args, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId" + (if (dag != "") s" AND id IN ($dag)" else ""))
                 //replace params and commands
                 if (params.nonEmpty || commands.nonEmpty) {
                     dh.foreach(row => {
@@ -520,7 +506,7 @@ object QrossTask {
                         }
                     })
                 }
-                dh.put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?)")
+                dh.put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, args, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?, ?)")
 
                 //upstream_ids
                 if (dag != "") {
@@ -530,8 +516,9 @@ object QrossTask {
 
                 //task status
                 dh.openCache()
-                    .get(s"SELECT (CASE WHEN dependencies>0 THEN '${TaskStatus.INITIALIZED}' ELSE '${TaskStatus.READY}' END) AS status FROM task_info")
+                    .get(s"SELECT job_id, (CASE WHEN dependencies>0 THEN '${TaskStatus.INITIALIZED}' ELSE '${TaskStatus.READY}' END) AS status FROM task_info")
                         .put(s"UPDATE qross_tasks SET status='#status' WHERE id=$taskId")
+                    .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
 
                 status = dh.firstRow.getString("status")
             }
@@ -620,8 +607,8 @@ object QrossTask {
                         .generateDependencies()
 
                     //generate dags
-                    dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId")
-                        .put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?)")
+                    dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, args, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId")
+                        .put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, args, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?, ?)")
 
                     dh.openCache().get("SELECT task_id FROM dependencies WHERE dependency_moment='before'")
                     if (dh.nonEmpty) {
@@ -629,8 +616,8 @@ object QrossTask {
                     }
 
                 case PARTIAL =>
-                    dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId AND id IN ($option)")
-                        .put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?)")
+                    dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, args, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId AND id IN ($option)")
+                        .put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, args, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?, ?)")
                     .get(s"SELECT id FROM qross_jobs_dags WHERE job_id=$jobId AND id NOT IN ($option)")
                         .put(s"UPDATE qross_tasks_dags SET upstream_ids=REPLACE(upstream_ids, '(#id)', '') WHERE task_id=$taskId AND record_time='$recordTime")
 
@@ -640,18 +627,16 @@ object QrossTask {
                         .generateDependencies()
 
                     dh.get(s"SELECT IFNULL(GROUP_CONCAT(command_id), 0) AS command_ids FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='$prevRecordTime' AND status IN ('exceptional', 'overtime', 'waiting')")
-                        .pass(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId AND id IN (#command_ids)")
-                            .put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?)")
+                        .pass(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, args, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId AND id IN (#command_ids)")
+                            .put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, args, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?, ?)")
                         .get(s"SELECT command_id FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='$prevRecordTime' AND status='done'")
                             .put(s"UPDATE qross_tasks_dags SET upstream_ids=REPLACE(upstream_ids, '(#command_id)', '') WHERE task_id=$taskId AND record_time='$recordTime'")
-                    //prev version code
-                    //dh.set(s"UPDATE qross_tasks_dags SET status='waiting' WHERE task_id=$taskId AND status IN ('exceptional', 'overtime')")
-
-
             }
 
             //update task
-            dh.openQross().set(s"UPDATE qross_tasks SET status='$status', start_mode='$restartMode', record_time='$recordTime', spent=NULL, start_time=NULL, finish_time=NULL WHERE id=$taskId")
+            dh.openQross()
+                .set(s"UPDATE qross_tasks SET status='$status', start_mode='$restartMode', record_time='$recordTime', spent=NULL, start_time=NULL, finish_time=NULL WHERE id=$taskId")
+                .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
 
             TaskRecorder.of(jobId, taskId, recordTime).debug(s"Task $taskId of job $jobId at <$recordTime> restart with option $option.")
         }
@@ -672,10 +657,11 @@ object QrossTask {
 
         //update task status to ready if all dependencies are ready
         dh.set(s"UPDATE qross_tasks SET status='${TaskStatus.READY}' WHERE id=$taskId AND NOT EXISTS (SELECT task_id FROM qross_tasks_dependencies WHERE task_id=$taskId AND record_time='$recordTime' AND dependency_moment='before' AND ready='no')")
+            .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
         //check dependencies
         dh.openQross()
             .get(
-                s"""SELECT A.id, A.task_id, A.dependency_type, A.dependency_value, A.ready, B.task_time
+                s"""SELECT A.id, A.job_id, A.task_id, A.dependency_type, A.dependency_value, A.ready, B.task_time
                     FROM (SELECT id, job_id, task_id, dependency_type, dependency_value, ready FROM qross_tasks_dependencies WHERE task_id=$taskId AND record_time='$recordTime' AND dependency_moment='before' AND ready='no') A
                     INNER JOIN (SELECT id, task_time FROM qross_tasks where id=$taskId) B ON A.task_id=B.id""")
             .foreach(row => {
@@ -693,8 +679,10 @@ object QrossTask {
                 .put("UPDATE qross_tasks_dependencies SET ready='yes' WHERE id=#id")
             .get("SELECT dependency_value, id FROM dependencies WHERE ready='no'")
                 .put("UPDATE qross_tasks_dependencies SET dependency_value=?, retry_times=retry_times+1 WHERE id=?")
-            .get("SELECT task_id FROM dependencies WHERE ready='no' GROUP BY task_id HAVING COUNT(0)=0")
+            .get("SELECT job_id, task_id FROM dependencies WHERE ready='no' GROUP BY task_id HAVING COUNT(0)=0")
                 .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}' WHERE id=#task_id")
+                .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T) WHERE id=#job_id")
+
 
         var status: String = dh.openQross().executeSingleValue(s"SELECT status FROM qross_tasks WHERE id=$taskId").asText(TaskStatus.INITIALIZED)
 
@@ -708,6 +696,8 @@ object QrossTask {
             if (dh.nonEmpty) {
                 status = TaskStatus.CHECKING_LIMIT
                 dh.set(s"UPDATE qross_tasks SET status='${TaskStatus.CHECKING_LIMIT}', checked='no' WHERE id=$taskId")
+                    .set(s"UPDATE qross_jobs SET unchecked_exceptional_tasks=IFNULL((SELECT GROUP_CONCAT(unchecked_exceptional_status ORDER BY unchecked_exceptional_status) AS exceptional_status FROM (SELECT CONCAT(`status`, ':', COUNT(0)) AS unchecked_exceptional_status FROM qross_tasks WHERE job_id=$jobId AND checked='no' GROUP BY `status`) T), '') WHERE id=$jobId;")
+                    .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
 
                 TaskRecorder.of(jobId, taskId, recordTime).warn(s"Task $taskId of job $jobId at <$recordTime> reached upper limit of checking limit.").dispose()
 
@@ -717,26 +707,24 @@ object QrossTask {
                             INNER JOIN (SELECT id AS task_id, job_id, task_time, record_time, start_mode FROM qross_tasks WHERE id=$taskId) B ON A.id=B.job_id""", "job_id" -> "job_id")
                         .cache("task_info")
 
-                //execute event
-                dh.get(
-                    s"""SELECT A.job_id, A.event_name, A.event_function, A.event_limits, A.event_value, A.event_option, IFNULL(B.current_option, 0) AS current_option FROM
+                //execute onTaskCheckingLimit event
+                dh.get(s"""SELECT A.job_id, A.event_name, A.event_function, A.event_limits, A.event_value, A.event_option, IFNULL(B.current_option, 0) AS current_option FROM
                         (SELECT job_id, event_name, event_function, event_limits, event_value, event_option FROM qross_jobs_events WHERE job_id=$jobId AND enabled='yes' AND event_name='onTaskCheckingLimit') A
                             LEFT JOIN
                         (SELECT job_id, event_function, COUNT(0) AS current_option FROM qross_tasks_events WHERE task_id=$taskId AND event_name='onTaskCheckingLimit' GROUP BY job_id, event_function) B
-                        ON A.job_id=B.job_id AND A.event_function=B.event_function
-                     """)
+                        ON A.job_id=B.job_id AND A.event_function=B.event_function""")
 
                 if (dh.nonEmpty) {
                     dh.cache("events")
                     //onTaskCheckingLimit
                     dh.openCache()
-                        .get("SELECT A.*, B.event_value AS receivers, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id WHERE event_function='SEND_MAIL_TO' AND INSTR(B.event_limits, A.start_mode)>0")
+                        .get("SELECT A.*, B.event_value AS receivers, B.event_limits, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id WHERE event_function='SEND_MAIL_TO' AND INSTR(B.event_limits, A.start_mode)>0")
                             .sendEmail(TaskStatus.CHECKING_LIMIT)
-                        .get("SELECT A.*, B.event_value AS api, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='REQUEST_API' AND INSTR(B.event_limits, A.start_mode)>0")
+                        .get("SELECT A.*, B.event_value AS api, B.event_limits, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='REQUEST_API' AND INSTR(B.event_limits, A.start_mode)>0")
                             .requestApi(TaskStatus.CHECKING_LIMIT)
-                        .get("SELECT A.*, B.event_value AS delay, B.event_name, B.event_function, '' AS to_be_start_time FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='RESTART_CHECKING_AFTER' AND (B.event_option=0 OR B.current_option<B.event_option) AND INSTR(B.event_limits, A.start_mode)>0")
+                        .get("SELECT A.*, B.event_value AS delay, B.event_name, B.event_function, B.event_limits, '' AS to_be_start_time FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='RESTART_CHECKING_AFTER' AND (B.event_option=0 OR B.current_option<B.event_option) AND INSTR(B.event_limits, A.start_mode)>0")
                             .restartTask(TaskStatus.CHECKING_LIMIT)
-                        .get("SELECT A.*, B.event_value AS pql, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_PQL' AND INSTR(B.event_limits, A.start_mode)>0")
+                        .get("SELECT A.*, B.event_value AS pql, B.event_limits, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_PQL' AND INSTR(B.event_limits, A.start_mode)>0")
                             .runPQL(TaskStatus.CHECKING_LIMIT)
                 }
             }
@@ -752,11 +740,11 @@ object QrossTask {
                         INNER JOIN (SELECT id AS task_id,  job_id, task_time, record_time, start_mode FROM qross_tasks WHERE id=$taskId) B ON A.id=B.job_id""")
                         .cache("task_info")
                 dh.openCache()
-                    .get(s"SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS receivers, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND A.status='${TaskStatus.READY}' AND B.event_name='onTaskReady' AND B.event_function='SEND_MAIL_TO' AND INSTR(B.event_limits, A.start_mode)>0")
+                    .get(s"SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS receivers, B.event_limits, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND A.status='${TaskStatus.READY}' AND B.event_name='onTaskReady' AND B.event_function='SEND_MAIL_TO' AND INSTR(B.event_limits, A.start_mode)>0")
                         .sendEmail(TaskStatus.READY)
-                    .get(s"SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS api, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND A.status='${TaskStatus.READY}' AND B.event_name='onTaskReady' AND B.event_function='REQUEST_API' AND INSTR(B.event_limits, A.start_mode)>0")
+                    .get(s"SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS api, B.event_limits, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND A.status='${TaskStatus.READY}' AND B.event_name='onTaskReady' AND B.event_function='REQUEST_API' AND INSTR(B.event_limits, A.start_mode)>0")
                         .requestApi(TaskStatus.READY)
-                    .get(s"SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS pql, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND A.status='${TaskStatus.READY}' AND B.event_name='onTaskReady' AND B.event_function='EXECUTE_PQL' AND INSTR(B.event_limits, A.start_mode)>0")
+                    .get(s"SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS pql, B.event_limits, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND A.status='${TaskStatus.READY}' AND B.event_name='onTaskReady' AND B.event_function='EXECUTE_PQL' AND INSTR(B.event_limits, A.start_mode)>0")
                         .runPQL(TaskStatus.READY)
             }
         }
@@ -772,12 +760,13 @@ object QrossTask {
         val dh = DataHub.QROSS
 
         //tasks to be restart
-        dh.get(s"SELECT id AS task_id, status FROM qross_tasks WHERE to_be_start_time='$tick'")
+        dh.get(s"SELECT id AS task_id, job_id,  status FROM qross_tasks WHERE to_be_start_time='$tick'")
         if (dh.nonEmpty) {
             dh.cache("tasks")
             dh.openCache()
-                .get(s"SELECT task_id FROM tasks WHERE status='${TaskStatus.CHECKING_LIMIT}'")
+                .get(s"SELECT job_id, task_id FROM tasks WHERE status='${TaskStatus.CHECKING_LIMIT}'")
                     .put(s"UPDATE qross_tasks SET retry_times=0, status='${TaskStatus.INITIALIZED}' WHERE id=#task_id")
+                    .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T) WHERE id=#job_id")
                 .get(s"SELECT task_id FROM tasks WHERE status='${TaskStatus.INCORRECT}'")
                     .put("INSERT INTO qross_message_box (message_type, message_key, message_text) VALUES ('TASK', 'RESTART', '^WHOLE@#task_id')")
                 .get(s"SELECT task_id FROM tasks WHERE status='${TaskStatus.FAILED}' OR status='${TaskStatus.TIMEOUT}'")
@@ -792,6 +781,7 @@ object QrossTask {
             s"""select id, job_id, task_id, command_id, upstream_ids, record_time, TIMESTAMPDIFF(SECOND, update_time, NOW()) AS span, status
                | FROM qross_tasks_dags WHERE task_id IN (SELECT id FROM qross_tasks WHERE status='${TaskStatus.EXECUTING}')""".stripMargin)
                 .cache("dags")
+
         dh.openCache()
                 //check done and waiting actions only
             //.get(s"SELECT DISTINCT task_id FROM dags WHERE status NOT IN ('${ActionStatus.DONE}', '${ActionStatus.WAITING}')")
@@ -807,8 +797,9 @@ object QrossTask {
         dh.openQross()
         if (dh.nonEmpty) {
             //reset status to READY if reach 3 times
-            dh.get("SELECT id, task_id FROM qross_stuck_records WHERE check_times>=3 AND renewed='no'")
+            dh.get("SELECT id, job_id, task_id FROM qross_stuck_records WHERE check_times>=3 AND renewed='no'")
                 .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}' WHERE id=#task_id AND status='${TaskStatus.EXECUTING}'")
+                .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T) WHERE id=#job_id")
                 .put(s"UPDATE qross_stuck_records SET renewed='yes' where id=#id")
         }
 
@@ -821,7 +812,7 @@ object QrossTask {
     //TaskStarter - execute()
     def getTaskCommandsToExecute(task: Task): DataTable = synchronized {
 
-        val ds = new DataSource()
+        val ds = DataSource.QROSS
 
         val taskId = task.id
         val jobId = task.jobId
@@ -846,6 +837,7 @@ object QrossTask {
                 if (map.isEmpty) {
                     //quit if no commands to execute
                     ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.NO_COMMANDS}' WHERE id=$taskId")
+
                     TaskRecorder.of(jobId, taskId, recordTime).warn(s"Task $taskId of job $jobId at <$recordTime> has been  closed because no commands exists on task ready.")
                 }
                 else if (map.contains(ActionStatus.EXCEPTIONAL) || map.contains(ActionStatus.OVERTIME)) {
@@ -863,6 +855,8 @@ object QrossTask {
                     ds.executeNonQuery(s"UPDATE qross_tasks SET status='${TaskStatus.FINISHED}' WHERE id=$taskId")
                     TaskRecorder.of(jobId, taskId, recordTime).warn(s"Task $taskId of job $jobId at <$recordTime> changes status to '${TaskStatus.FINISHED}' because all commands has been executed on task ready.")
                 }
+                //recent tasks status
+                ds.executeNonQuery(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
             }
             else {
                 TaskRecorder.of(jobId, taskId, recordTime).warn(s"Concurrent reach upper limit of Job $jobId for Task $taskId at <$recordTime> on task ready.")
@@ -870,8 +864,8 @@ object QrossTask {
         }
 
         val executable = ds.executeDataTable(
-            s"""SELECT A.action_id, A.job_id, A.task_id, A.command_id, B.task_time, B.record_time, B.start_mode, C.command_type, A.command_text, C.overtime, C.retry_limit, D.job_type, D.title, D.owner
-                         FROM (SELECT id AS action_id, job_id, task_id, command_id, command_text FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='$recordTime' AND status='${ActionStatus.WAITING}' AND upstream_ids='') A
+            s"""SELECT A.action_id, A.job_id, A.task_id, A.command_id, B.task_time, B.record_time, B.start_mode, C.command_type, A.command_text, A.args, C.overtime, C.retry_limit, D.job_type, D.title, D.owner
+                         FROM (SELECT id AS action_id, job_id, task_id, command_id, command_text, args FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='$recordTime' AND status='${ActionStatus.WAITING}' AND upstream_ids='') A
                          INNER JOIN (SELECT id, task_time, record_time, start_mode FROM qross_tasks WHERE id=$taskId AND status='${TaskStatus.EXECUTING}') B ON A.task_id=B.id
                          INNER JOIN (SELECT id, command_type, overtime, retry_limit FROM qross_jobs_dags WHERE job_id=$jobId) C ON A.command_id=C.id
                          INNER JOIN (SELECT id, title, job_type, owner FROM qross_jobs WHERE id=$jobId) D ON A.job_id=D.id""")
@@ -902,17 +896,39 @@ object QrossTask {
         val recordTime = taskCommand.getString("record_time")
         val commandType = taskCommand.getString("command_type")
 
-        var commandText = taskCommand.getString("command_text")
-                                     .replace("#{jobId}", s"$jobId")
-                                     .replace("#{taskId}", s"$taskId")
-                                     .replace("#{taskTime}", taskTime)
+        //LET's GO!
+        val logger = TaskRecorder.of(jobId, taskId, recordTime).run(commandId, actionId)
+
+        var commandText = taskCommand.getString("command_text").replaceArguments(taskCommand)
+        var args = taskCommand.getString("args").replaceArguments(taskCommand)
+        var error = false
+
+        val PQL = new PQL("", DataHub.DEFAULT)
+
+        if (args != "") {
+            try {
+                args = args.$restore(PQL, "") //按PQL计算, 支持各种PQL嵌入式表达式, 但不保留引号
+            }
+            catch {
+                case e: Exception =>
+                    logger.err(e.getMessage)
+                    error = true
+            }
+        }
 
         if (commandType == "shell") {
             commandText = commandText.replace("%JAVA_BIN_HOME", Global.JAVA_BIN_HOME)
                                      .replace("%QROSS_HOME", Global.QROSS_HOME)
+                                     .replace("%PQL", Global.PQL)
+
             //在Keeper中处理的好处是在命令的任何地方都可嵌入表达式
-            if (commandText.contains("${") && commandText.contains("}")) {
-                commandText.$restore(new PQL("", DataHub.DEFAULT), "") //按PQL计算, 支持各种PQL嵌入式表达式, 但不保留引号
+            try {
+                commandText = commandText.$restore(PQL, "") //按PQL计算, 支持各种PQL嵌入式表达式, 但不保留引号
+            }
+            catch {
+                case e: Exception =>
+                    logger.err(e.getMessage)
+                    error = true
             }
 
             //auto add environment variable to ahead
@@ -927,80 +943,89 @@ object QrossTask {
             }
         }
 
-        dh.set(s"UPDATE qross_tasks_dags SET status='${ActionStatus.RUNNING}', command_text=?, run_time=NOW(), waiting=TIMESTAMPDIFF(SECOND, start_time, NOW()) WHERE id=$actionId", commandText)
+        dh.set(s"UPDATE qross_tasks_dags SET status='${if (error) ActionStatus.WRONG else ActionStatus.RUNNING}', command_text=?, args=?, run_time=NOW(), waiting=TIMESTAMPDIFF(SECOND, start_time, NOW()) WHERE id=$actionId", commandText, args)
 
         if (commandType == "pql") {
-            commandText = Global.JAVA_BIN_HOME + s"java -jar ${Global.QROSS_HOME}qross-worker-${Global.QROSS_VERSION}.jar --task $actionId"
+            commandText = Global.PQL + s" --task $actionId"
+        }
+        else {
+            //Get full command text
+            commandText += " " + args
         }
 
-        var retry = -1
         var exitValue = 1
-        var next = false
-        var killed = false
+        var continue = false
+        var retry = -1
 
-        //LET's GO!
-        val logger = TaskRecorder.of(jobId, taskId, recordTime).run(commandId, actionId)
-        logger.debug(s"START action $actionId - command $commandId of task $taskId - job $jobId at <$recordTime>: $commandText")
+        if (error) {
+            logger.err("Error occurred in command text or arguments, please check.")
+        }
+        else {
+            var killed = false
 
-        do {
-            if (retry > 0) {
-                logger.debug(s"Action $actionId - command $commandId of task $taskId - job $jobId at <$recordTime>: retry $retry of limit $retryLimit")
-            }
-            val start = System.currentTimeMillis()
-            var timeout = false
+            logger.debug(s"START action $actionId - command $commandId of task $taskId - job $jobId at <$recordTime>: $commandText")
 
-            try {
-                val process = commandText.run(ProcessLogger(out => {
-                    logger.out(out)
-                }, err => {
-                    logger.err(err)
-                }))
+            do {
+                if (retry > 0) {
+                    logger.debug(s"Action $actionId - command $commandId of task $taskId - job $jobId at <$recordTime>: retry $retry of limit $retryLimit")
+                }
+                val start = System.currentTimeMillis()
+                var timeout = false
 
-                while (process.isAlive()) {
-                    //if timeout
-                    if (overtime > 0 && (System.currentTimeMillis() - start) / 1000 > overtime) {
-                        process.destroy() //kill it
-                        timeout = true
-                        logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId at <$recordTime> is TIMEOUT: $commandText")
+                try {
+                    val process = commandText.run(ProcessLogger(out => {
+                        logger.out(out)
+                    }, err => {
+                        logger.err(err)
+                    }))
+
+                    while (process.isAlive()) {
+                        //if timeout
+                        if (overtime > 0 && (System.currentTimeMillis() - start) / 1000 > overtime) {
+                            process.destroy() //kill it
+                            timeout = true
+                            logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId at <$recordTime> is TIMEOUT: $commandText")
+                        }
+                        else if (TO_BE_KILLED.contains(actionId)) {
+                            TO_BE_KILLED -= actionId
+                            process.destroy() //kill it
+                            killed = true
+                            logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId at <$recordTime> has been KILLED: $commandText")
+                        }
+
+                        Timer.sleep(1 seconds)
                     }
-                    else if (TO_BE_KILLED.contains(actionId)) {
-                        TO_BE_KILLED -= actionId
-                        process.destroy() //kill it
-                        killed = true
-                        logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId at <$recordTime> has been KILLED: $commandText")
-                    }
 
-                    Timer.sleep(1 seconds)
+                    exitValue = process.exitValue()
+                }
+                catch {
+                    case e: Exception =>
+                        e.printStackTrace()
+
+                        val buf = new java.io.ByteArrayOutputStream()
+                        e.printStackTrace(new java.io.PrintWriter(buf, true))
+                        logger.err(buf.toString())
+                        buf.close()
+
+                        logger.err(s"Action $actionId - command $commandId of task $taskId - job $jobId is exceptional: ${e.getMessage}")
+
+                        exitValue = 2
                 }
 
-                exitValue = process.exitValue()
+                if (timeout) {
+                    exitValue = -1
+                }
+                else if (killed) {
+                    exitValue = -2
+                }
+
+                retry += 1
             }
-            catch {
-                case e: Exception =>
-                    e.printStackTrace()
+            while (retry < retryLimit && exitValue != 0 && !killed)
 
-                    val buf = new java.io.ByteArrayOutputStream()
-                    e.printStackTrace(new java.io.PrintWriter(buf, true))
-                    logger.err(buf.toString())
-                    buf.close()
+            logger.debug(s"FINISH action $actionId - command $commandId of task $taskId - job $jobId with exitValue $exitValue and status ${if (exitValue == 0) "SUCCESS" else if (exitValue > 0) "FAILURE" else "TIMEOUT/INTERRUPTED"}")
 
-                    logger.err(s"Action $actionId - command $commandId of task $taskId - job $jobId is exceptional: ${e.getMessage}")
-
-                    exitValue = 2
-            }
-
-            if (timeout) {
-                exitValue = -1
-            }
-            else if (killed) {
-                exitValue = -2
-            }
-
-            retry += 1
         }
-        while (retry < retryLimit && exitValue != 0 && !killed)
-
-        logger.debug(s"FINISH action $actionId - command $commandId of task $taskId - job $jobId with exitValue $exitValue and status ${if (exitValue == 0) "SUCCESS" else if (exitValue > 0)  "FAILURE" else "TIMEOUT/INTERRUPTED" }")
 
         exitValue match {
             //finished
@@ -1011,8 +1036,8 @@ object QrossTask {
                 dh.set(s"UPDATE qross_tasks_dags SET upstream_ids=REPLACE(upstream_ids, '($commandId)', '') WHERE task_id=$taskId AND record_time='$recordTime' AND status='${ActionStatus.WAITING}' AND POSITION('($commandId)' IN upstream_ids)>0")
 
                 //if continue
-                next = dh.executeExists(s"SELECT id FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='$recordTime' AND status='${ActionStatus.WAITING}' LIMIT 1")
-                if (!next) {
+                continue = dh.executeExists(s"SELECT id FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='$recordTime' AND status='${ActionStatus.WAITING}' LIMIT 1")
+                if (!continue) {
                     //meet: no waiting action, no running action
                     //action status: all done - task status: executing -> finished
                     //if exceptional action exists - task status: executing, finished -> failed
@@ -1047,7 +1072,7 @@ object QrossTask {
         }
 
         val status = dh.executeSingleValue(s"SELECT status FROM qross_tasks WHERE id=$taskId").asText("miss")
-        //send notification mail if failed or timeout or incorrect
+        //execute events
         if (status == TaskStatus.SUCCESS || status == TaskStatus.FAILED || status == TaskStatus.TIMEOUT || status == TaskStatus.INCORRECT) {
 
             dh.get(s"""SELECT A.job_id, A.event_name, A.event_function, A.event_limits, A.event_value, A.event_option, IFNULL(B.current_option, 0) AS current_option FROM
@@ -1055,28 +1080,39 @@ object QrossTask {
                         LEFT JOIN
                     (SELECT job_id, event_function, COUNT(0) AS current_option FROM qross_tasks_events WHERE task_id=$taskId AND event_name='onTask${status.capitalize}' GROUP BY job_id, event_function) B
                     ON A.job_id=B.job_id AND A.event_function=B.event_function""")
+
             if (dh.nonEmpty) {
                 dh.cache("events")
                 dh.cache("task_info", new DataTable(taskCommand))
 
+                //email文档中显示日志
                 dh.get(s"SELECT CAST(create_time AS CHAR) AS create_time, log_type, log_text FROM qross_tasks_logs WHERE task_id=$taskId AND action_id=$actionId ORDER BY create_time ASC")
                     .buffer("logs")
 
                 dh.openCache()
-                    .get("SELECT A.*, B.event_value AS receivers, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND event_function='SEND_MAIL_TO' AND INSTR(B.event_limits, A.start_mode)>0")
+                    .get("SELECT A.*, B.event_value AS receivers, B.event_limits, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND event_function='SEND_MAIL_TO' AND INSTR(B.event_limits, A.start_mode)>0")
                         .sendEmail(status)
-                    .get("SELECT A.*, B.event_value AS api, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='REQUEST_API' AND INSTR(B.event_limits, A.start_mode)>0")
+                    .get("SELECT A.*, B.event_value AS api, B.event_limits, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='REQUEST_API' AND INSTR(B.event_limits, A.start_mode)>0")
                         .requestApi(status)
-                    .get(s"SELECT A.*, B.event_value AS delay, '' AS to_be_start_time, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id WHERE B.event_function='RESTART_TASK' AND (B.event_option=0 OR B.current_option<B.event_option) AND INSTR(B.event_limits, A.start_mode)>0") //SIGNED is MySQL syntax, but SQLite will ignore it.
+                    .get(s"SELECT A.*, B.event_value AS delay, B.event_limits, '' AS to_be_start_time, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id WHERE B.event_function='RESTART_TASK' AND (B.event_option=0 OR B.current_option<B.event_option) AND INSTR(B.event_limits, A.start_mode)>0") //SIGNED is MySQL syntax, but SQLite will ignore it.
                         .restartTask(status)
-                    .get("SELECT A.*, B.event_value AS pql, '' AS event_value, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_PQL' AND INSTR(B.event_limits, A.start_mode)>0")
+                    .get("SELECT A.*, B.event_value AS pql, B.event_limits, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_PQL' AND INSTR(B.event_limits, A.start_mode)>0")
                         .runPQL(status)
+            }
+
+            if (status != TaskStatus.SUCCESS) {
+                dh.openQross()
+                    .set(s"UPDATE qross_jobs SET unchecked_exceptional_tasks=IFNULL((SELECT GROUP_CONCAT(unchecked_exceptional_status ORDER BY unchecked_exceptional_status) AS exceptional_status FROM (SELECT CONCAT(`status`, ':', COUNT(0)) AS unchecked_exceptional_status FROM qross_tasks WHERE job_id=$jobId AND checked='no' GROUP BY `status`) T), '') WHERE id=$jobId;")
             }
         }
 
+        //recent task status
+        dh.openQross()
+            .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
+
         dh.close()
 
-        if (next) {
+        if (continue) {
             //return
             Task(taskId, TaskStatus.EXECUTING).of(jobId).at(taskTime, recordTime)
         } else {

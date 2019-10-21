@@ -21,7 +21,7 @@ object NoteRecorder {
     def save(): Unit = synchronized {
         if (NoteRecorder.LOGS.size() > 0) {
             var i = 0
-            val ds = new DataSource()
+            val ds = DataSource.QROSS
             ds.setBatchCommand(s"INSERT INTO qross_notes_logs (note_id, process_id, log_type, log_text, create_time) VALUES (?, ?, ?, ?, ?)")
             while(NoteRecorder.LOGS.size() > 0 && i < 10000) {
                 val log = NoteRecorder.LOGS.poll()

@@ -36,6 +36,7 @@ object TaskStatus {
 object ActionStatus {
     val WAITING = "waiting"
     val QUEUEING = "queueing"
+    val WRONG = "wrong"
     val RUNNING = "running"
     val EXCEPTIONAL = "exceptional"
     val OVERTIME = "overtime"

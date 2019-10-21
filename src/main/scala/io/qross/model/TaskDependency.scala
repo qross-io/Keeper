@@ -13,43 +13,6 @@ import scala.collection.mutable
 import scala.util.{Success, Try}
 
 object TaskDependency {
-    
-    def parseDependencyValue(jobId: String, taskId: String, dependencyValue: String, taskTime: String): List[String] = {
-    
-        var content = dependencyValue
-        content = content.replace("#{jobId}", jobId)
-        content = content.replace("#{taskId}", taskId)
-        content = content.replace("%QROSS_HOME", Global.QROSS_HOME)
-        
-        if (content.contains("#{") && content.contains("}")) {
-            val values = new mutable.TreeSet[String]()
-            val semi = new java.util.LinkedList[String]()
-            semi.offer(content)
-            
-            while (!semi.isEmpty) {
-                val value = semi.poll()
-                val ahead = value.substring(0, value.indexOf("#{"))
-                var exp = value.substring(value.indexOf("#{") + 2)
-                val latter = exp.substring(exp.indexOf("}") + 1)
-                exp = exp.substring(0, exp.indexOf("}"))
-                
-                new DateTime(taskTime).shark(exp).foreach(value => {
-                        val replacement = ahead + value + latter
-                        if (latter.contains("#{") && latter.contains("}")) {
-                            semi.offer(replacement)
-                        }
-                        else {
-                            values += replacement
-                        }
-                    })
-            }
-            
-            values.toList
-        }
-        else {
-            List[String](content)
-        }
-    }
 
     def check(dependencyType: String, dependencyValue: String, taskId: Long, recordTime: String): (String, String) =  {
         
@@ -118,9 +81,10 @@ object TaskDependency {
                             //pass variables to command in pre-dependency
                             table.lastRow match {
                                 case Some(row) =>
-                                    val df = new DataSource()
+                                    val df = DataSource.QROSS
                                     row.getFields.foreach(field => {
                                         df.addBatchCommand(s"UPDATE qross_tasks_dags SET command_text=REPLACE(command_text, '#{$field}', '${row.getString(field).replace("'", "''")}') WHERE task_id=$taskId AND record_time='$recordTime' AND POSITION('#{' IN command_text) > 0")
+                                        df.addBatchCommand(s"UPDATE qross_tasks_dags SET args=REPLACE(args, '#{$field}', '${row.getString(field).replace("'", "''")}') WHERE task_id=$taskId AND record_time='$recordTime' AND POSITION('#{' IN args) > 0")
                                     })
                                     df.executeBatchCommands()
                                     df.close()

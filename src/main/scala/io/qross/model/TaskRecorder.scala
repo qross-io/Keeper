@@ -29,7 +29,7 @@ object TaskRecorder {
 
         if (TaskRecorder.LOGS.size() > 0) {
             var i = 0
-            val ds = new DataSource()
+            val ds = DataSource.QROSS
             ds.setBatchCommand(s"INSERT INTO qross_tasks_logs (job_id, task_id, record_time, command_id, action_id, log_type, log_text, create_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
             while(TaskRecorder.LOGS.size() > 0 && i < 10000) {
                 val log = TaskRecorder.LOGS.poll()

@@ -16,7 +16,7 @@ object QrossJob {
     
     //get complement tasks for master when enable a job, 考虑移到master中
     def tickTasks(jobId: Int, queryId: String): Unit = {
-        val ds = new DataSource()
+        val ds = DataSource.QROSS
         val job = ds.executeDataRow(s"SELECT cron_exp, CAST(switch_time AS CHAR) AS switch_time FROM qross_jobs WHERE id=$jobId")
         val json = ChronExp.getTicks(
                 job.getString("cron_exp"),
@@ -32,7 +32,7 @@ object QrossJob {
         val beginTime = messageText.substring(messageText.indexOf(":") + 1, messageText.indexOf("#"))
         val endTime = messageText.substring(messageText.indexOf("#"))
 
-        val ds = new DataSource()
+        val ds = DataSource.QROSS
         val cronExp = ds.executeSingleValue(s"SELECT cron_exp FROM qross_jobs WHERE id=$jobId").asText
         val json = ChronExp.getTicks(cronExp, beginTime, endTime).toJsonString.replace("'", "''")
         ds.executeNonQuery(s"INSERT INTO qross_query_result (query_id, result) VALUES ('$queryId', '$json')")
@@ -43,7 +43,7 @@ object QrossJob {
 
         val ds = DataSource.QROSS
 
-        val map = ds.queryDataMap[Int, Int](s"SELECT id AS job_id, CAST(cron_exp AS SIGNED) AS intervals FROM qross_jobs WHERE job_type='${JobType.ENDLESS}' AND enabled='yes'")
+        val map = ds.queryDataMap[Int, Long](s"SELECT id AS job_id, CAST(cron_exp AS SIGNED) AS intervals FROM qross_jobs WHERE job_type='${JobType.ENDLESS}' AND enabled='yes'")
         //remove
         ENDLESS_JOBS
                 .keys
@@ -56,11 +56,11 @@ object QrossJob {
         //update
         map.foreach(job => {
             if (ENDLESS_JOBS.contains(job._1)) {
-                ENDLESS_JOBS(job._1).update(job._2)
+                ENDLESS_JOBS(job._1).update(job._2.toInt)
                 writeDebugging(s"Endless job ${job._1} has updated!")
             }
             else {
-                ENDLESS_JOBS += job._1 -> EndlessJob(job._2)
+                ENDLESS_JOBS += job._1 -> EndlessJob(job._2.toInt)
                 writeDebugging(s"Endless job ${job._1} has added to list!")
             }
         })

@@ -1,11 +1,19 @@
 package io.qross.trash
 
 
-import io.qross.model.{Qross, QrossTask, Task, TaskStatus}
+import io.qross.core.DataHub
+import io.qross.model._
 import io.qross.time.{ChronExp, DateTime}
 import io.qross.ext.TypeExt._
+import io.qross.fs.FileWriter
+import io.qross.jdbc.DataSource
+import io.qross.net.Json
+import io.qross.pql.PQL
 
 import scala.collection.mutable
+import io.qross.pql.Solver._
+import io.qross.setting.Properties
+
 
 object Test {
 
@@ -13,12 +21,16 @@ object Test {
 
         //ChronExp("WEEKLY 7 10-23:0/2").getNextTick(DateTime.now).print
 
-        val a = List[Int](1, 2, 3, 4)
-        val b = List[String]("A", "B", "C")
-        b.zipAll(a, 0, "_").foreach(println)
-
-
         //QrossTask.getTaskCommandsToExecute(Task(12L, TaskStatus.READY).of(544).at("20190927101800", "2019-09-27 10:18:00.018"))
+
+        //Qross.checkBeatsAndRecords()
+
+//        TaskStorage.store(1, 2038, "2019-10-15 10:09:15",
+//            DataSource.QROSS.queryDataTable(s"SELECT * FROM qross_tasks_logs WHERE task_id=2038")
+//        )
+
+        TaskStorage.restore(1, 2038, "2019-10-15 10:09:15")
+
 
 //        implicit val system: ActorSystem = ActorSystem("api-server")
 //        implicit val materializer: ActorMaterializer = ActorMaterializer()

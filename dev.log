@@ -5,17 +5,20 @@
     3. 新的任务类型, 无限循环任务
     4. Job
         1) 现在支持Chron表达式, 比Cron表达式更强大
-        2) 任务记录上限回归, 多余的任务记录将永远从数据库中删除
+        2) 任务记录上限重新启用, 多余的任务记录将永远从数据库中删除
         3) Can set a time to active the job.
         4) Event onJobClean has been removed.
         5) 任务类型重新设定：现在区分计划任务、手工触发任务、依赖触发任务、无限循环任务
         6) 任务DAG设定时, 现在使用Sharp表达式进行传参
+        7) DAG新增参数字段args, 主要是保存PQL的参数,  格式 a=1&b=2&c=d
+        8) 事件现在支持PQL
+        9) 事件现在增加触发条件限制 auto start, manual start, auto restart, manual start
     5. Task
         1) Task can be killed now!
-        2) Recent tasks status has removed to Master.
+        2) Recent tasks status will be updated immediately.
     6. Task运行日志清理机制更新
         1) 除任务日志外, Task的其他数据将一直保存在数据库中
-        2) 数据库中只保留最近24小时的日志, 超过24小时的日志将被备份的磁盘中
+        2) 数据库中只保留最近24小时的日志, 超过24小时的日志将被备份的磁盘中（每小时27分备份）
     7. Monitor hardware resource of server and big table.
         1) CPU usage
         2) System memory usage
