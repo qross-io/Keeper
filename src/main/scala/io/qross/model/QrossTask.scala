@@ -904,6 +904,7 @@ object QrossTask {
         var error = false
 
         val PQL = new PQL("", DataHub.DEFAULT)
+                    .set(taskCommand)
 
         if (args != "") {
             try {

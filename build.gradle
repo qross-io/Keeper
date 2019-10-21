@@ -4,7 +4,7 @@ apply plugin: 'idea'
 apply plugin: "com.github.johnrengelman.shadow"
 
 group = 'io.qross'
-version = '0.6.0-34-RELEASE'
+version = '0.6.0-35-RELEASE'
 sourceCompatibility = 1.8
 
 //archivesBaseName = "qross-keeper"
