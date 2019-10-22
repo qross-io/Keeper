@@ -4,7 +4,7 @@ apply plugin: 'idea'
 apply plugin: "com.github.johnrengelman.shadow"
 
 group = 'io.qross'
-version = '0.6.0-40-RELEASE'
+version = '0.6.0-41-RELEASE'
 sourceCompatibility = 1.8
 
 //archivesBaseName = "qross-keeper"
@@ -66,7 +66,7 @@ dependencies {
 
     //libraryDependencies += "org.apache.poi" % "poi-ooxml" % "3.17" //for office 2017
 
-    compile (group: 'io.qross', name: 'qross-pql', version: '0.6.0-4-RELEASE')
+    compile (group: 'io.qross', name: 'qross-pql', version: '0.6.0-6-RELEASE')
 }
 
 shadowJar {
