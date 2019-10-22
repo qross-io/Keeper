@@ -1,4 +1,5 @@
 
+2019/10/21 0.6.0-34-RELEASE run.
 2019/9/25 0.6.0 Code Finished.
     1. PQL launched! Includes PQL Job, PQL Task Event, PQL Note, PQL Embedded.
     2. 可以编写 PQL Note 来运行即时任务, 实时查询和计算, 并可将Note保存为PQL Job
@@ -16,7 +17,7 @@
     5. Task
         1) Task can be killed now!
         2) Recent tasks status will be updated immediately.
-    6. Task运行日志清理机制更新
+    6. Task logs clean mechanism
         1) 除任务日志外, Task的其他数据将一直保存在数据库中
         2) 数据库中只保留最近24小时的日志, 超过24小时的日志将被备份的磁盘中（每小时27分备份）
     7. Monitor hardware resource of server and big table.

@@ -22,34 +22,37 @@ object QrossTask {
     implicit class DataHub$Task(dh: DataHub) {
 
         def sendEmail(taskStatus: String): DataHub = {
-            val upperStatus = taskStatus.toUpperCase()
-            dh.foreach(row => {
-                if (Global.EMAIL_NOTIFICATION) {
+            if (Global.EMAIL_NOTIFICATION) {
+                val upperStatus = taskStatus.toUpperCase()
+                dh.foreach(row => {
                     val receivers = row.getString("receivers")
                     if (receivers != "") {
-                        row.set("event_result",
-                            ResourceFile.open(s"/templates/$taskStatus.html")
-                                .replace("#{status}", upperStatus)
-                                .replaceWith(row)
-                                .replace("#{logs}", if (dh.containsBuffer("logs")) TaskRecorder.toHTML(dh.takeOut("logs")) else "")
-                                .writeEmail(s"$upperStatus: ${row.getString("title")} ${row.getString("task_time")} - JobID: ${row.getString("job_id")} - TaskID: ${row.getString("task_id")}")
-                                .to(if (receivers.contains("_OWNER")) row.getString("owner") else "")
-                                .cc(if (receivers.contains("_MASTER")) Global.MASTER_USER_GROUP else "")
-                                .cc(if (receivers.contains("_KEEPER")) Global.KEEPER_USER_GROUP else "")
-                                .send())
+                        try {
+                            row.set("event_result",
+                                ResourceFile.open(s"/templates/$taskStatus.html")
+                                    .replace("#{status}", upperStatus)
+                                    .replaceWith(row)
+                                    .replace("#{logs}", if (dh.containsBuffer("logs")) TaskRecorder.toHTML(dh.takeOut("logs")) else "")
+                                    .writeEmail(s"$upperStatus: ${row.getString("title")} ${row.getString("task_time")} - JobID: ${row.getString("job_id")} - TaskID: ${row.getString("task_id")}")
+                                    .to(if (receivers.contains("_OWNER")) row.getString("owner") else "")
+                                    .cc(if (receivers.contains("_KEEPER")) Global.KEEPER_USER_GROUP else "")
+                                    .bcc(if (receivers.contains("_MASTER")) Global.MASTER_USER_GROUP else "")
+                                    .send())
 
-                        TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time"))
-                                .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> sent a mail on task $taskStatus")
+                            TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time"))
+                                    .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> sent a mail on task $taskStatus")
+                        }
+                        catch {
+                            case e: Exception => row.set("event_result", e.getMessage)
+                        }
                     }
                     else {
                         row.set("event_result", "NO RECEIVERS")
                     }
-                }
-                else {
-                    row.set("event_result", "EMAIL NOTIFICATION has closed.")
-                }
-            }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_limits, event_value, event_result) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_limits', '#receivers', '#event_result')")
-                .clear()
+                }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_limits, event_value, event_result) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_limits', '#receivers', '#event_result')")
+            }
+
+            dh.clear()
         }
 
         def requestApi(taskStatus: String): DataHub = {
