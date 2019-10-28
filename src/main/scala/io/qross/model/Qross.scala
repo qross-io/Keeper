@@ -72,6 +72,8 @@ object Qross {
         val tick = now.getString("yyyy-MM-dd HH:mm:ss")
         now = now.setSecond(0)
 
+        writeDebugging(s"Inspector beats at $now")
+
         val dh = DataHub.QROSS
         if (dh.executeExists("SELECT id FROM qross_keeper_running_records WHERE id=(SELECT id FROM qross_keeper_running_records ORDER BY id DESC LIMIT 1) AND status='running'")) {
 
@@ -108,6 +110,8 @@ object Qross {
                     .to(if (Global.KEEPER_USER_GROUP != "") Global.KEEPER_USER_GROUP else Global.MASTER_USER_GROUP)
                     .cc(if (Global.KEEPER_USER_GROUP != "") Global.MASTER_USER_GROUP else "")
                     .send()
+
+                writeDebugging("Beats mail has been sent.")
             }
 
             //close job if expire
@@ -128,11 +132,14 @@ object Qross {
 
         //clean mechanism
         if (now.matches(Global.CLEAN_TASK_RECORDS_FREQUENCY)) {
+            writeDebugging("Cleaning tasks mechanism is ready to execute.")
             dh.run(
                 """
                     VAR $TO_CLEAR := SELECT B.job_id, A.keep_x_task_records FROM qross_jobs A
                                         INNER JOIN (SELECT job_id, COUNT(0) AS task_amount FROM qross_tasks GROUP BY job_id) B ON A.id=B.job_id
                                             WHERE A.keep_x_task_records>0 AND B.task_amount>A.keep_x_task_records;
+
+                    PRINT DEBUG 'There are ' + @ROWS + ' jobs to clean.'
 
                     FOR $job_id, $keep_tasks IN $TO_CLEAR
                       LOOP
@@ -142,6 +149,8 @@ object Qross {
                           LOOP
                             DELETE FILE @QROSS_HOME + "tasks/" + $job_id + "/" + ${ $create_time REPLACE "-" TO "" SUBSTRING 1 TO 9 } + "/" + $id + ".log";
                           END LOOP;
+
+                        PRINT DEBUG 'Stored log files of job ' + $job_id + ' has been deleted.';
 
                         DELETE FROM qross_tasks_logs WHERE job_id=$job_id AND task_id<=$task_id;
                         DELETE FROM qross_tasks_dependencies WHERE job_id=$job_id AND task_id<=$task_id;
@@ -154,10 +163,12 @@ object Qross {
                         PRINT DEBUG $rows + ' tasks of job $job_id has been deleted.';
                       END LOOP;
                  """)
+            writeDebugging("Cleaning tasks mechanism has finished.")
         }
 
         //store logs to disk every hour xx:27
         if (now.matches(Global.CLEAN_TASK_LOGS_FREQUENCY)) {
+            writeDebugging("Storing logs mechanism is ready to execute.")
             dh.get(s"""SELECT job_id, id AS task_id, create_time FROM qross_tasks WHERE update_time<'${now.minusDays(1).getString("yyyy-MM-dd HH:mm:00")}' AND saved='no'""")
                     .foreach(row => {
                         TaskStorage.store(
@@ -169,11 +180,14 @@ object Qross {
                     })
                     .put("DELETE FROM qross_tasks_logs WHERE task_id=#task_id")
                     .put("UPDATE qross_tasks SET saved='yes' WHERE id=#task_id")
+            writeDebugging(dh.COUNT + " tasks has been stored.")
+            writeDebugging("Storing logs mechanism has finished.")
         }
 
         //disk space monitor
         if (now.matches(Global.DISK_MONITOR_FREQUENCY)) {
             dh.set(s"INSERT INTO qross_space_monitor (moment, keeper_logs_space_usage, task_logs_space_usage, temp_space_usage) VALUES ('${now.getString("yyyy-MM-dd HH:mm:ss")}', ${Directory.spaceUsage(Global.QROSS_HOME + "logs/")}, ${Directory.spaceUsage(Global.QROSS_HOME + "tasks/")}, ${Directory.spaceUsage(Global.QROSS_HOME + "temp/")})")
+            writeDebugging("Disk info has been saved.")
         }
         
         dh.close()
