@@ -156,23 +156,16 @@ object Qross {
         }
 
         writeDebugging("Start running.")
-
         //clean mechanism
         if (now.matches(Global.CLEAN_TASK_RECORDS_FREQUENCY)) {
             writeDebugging("Cleaning tasks mechanism is ready to execute.")
-
-            writeDebugging("Run method 01")
-            dh.run("PRINT INFO 'hello world1'")
-            dh.openPQL("PRINT INFO 'hello world2'").run()
-            new PQL("PRINT INFO 'hello wrold 3'", DataHub.QROSS).run()
-
-            val SQL =
+            dh.run(
                 """
                     VAR $TO_CLEAR := SELECT B.job_id, A.keep_x_task_records FROM qross_jobs A
                                         INNER JOIN (SELECT job_id, COUNT(0) AS task_amount FROM qross_tasks GROUP BY job_id) B ON A.id=B.job_id
                                             WHERE A.keep_x_task_records>0 AND B.task_amount>A.keep_x_task_records;
 
-                    PRINT DEBUG 'There are ' + @ROWS + ' jobs to clean.'
+                    PRINT DEBUG 'There are ' + @ROWS + ' jobs to clean.';
 
                     FOR $job_id, $keep_tasks IN $TO_CLEAR
                       LOOP
@@ -195,15 +188,7 @@ object Qross {
 
                         PRINT DEBUG $rows + ' tasks of job $job_id has been deleted.';
                       END LOOP;
-                 """
-
-            writeMessage("Run method 1")
-            dh.run(SQL)
-            writeMessage("Run method 2")
-            dh.open(SQL).run()
-            writeMessage("Run method 3")
-            new PQL(SQL, DataHub.QROSS).run()
-
+                 """)
             writeDebugging("Cleaning tasks mechanism has finished.")
         }
 

@@ -13,6 +13,7 @@ import io.qross.pql.PQL
 import scala.collection.mutable
 import io.qross.pql.Solver._
 import io.qross.setting.Properties
+import io.qross.pql.PQL._
 
 
 object Test {
@@ -28,8 +29,6 @@ object Test {
 //        TaskStorage.store(1, 2038, "2019-10-15 10:09:15",
 //            DataSource.QROSS.queryDataTable(s"SELECT * FROM qross_tasks_logs WHERE task_id=2038")
 //        )
-
-        TaskStorage.restore(1, 2038, "2019-10-15 10:09:15")
 
 
 //        implicit val system: ActorSystem = ActorSystem("api-server")
