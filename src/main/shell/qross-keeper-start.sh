@@ -9,6 +9,7 @@ then
     #`date +%F`.log
     /srv/jdk1.8/bin/java -cp /qross/qross-keeper-0.6.0.jar io.qross.keeper.Protector
 else
-    echo "qross keeper is running." >> "/qross/keeper/beats/${day}.log"
+    echo "qross keeper is running." >> "/qross/keeper/beats/${day}.log" 2>&1
+    #>> file1 2>> file2
 fi
 /srv/jdk1.8/bin/java -cp /qross/qross-keeper-0.6.0.jar io.qross.keeper.Inspector >> "/qross/keeper/inspector/${day}.log"

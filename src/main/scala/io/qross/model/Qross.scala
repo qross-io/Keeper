@@ -140,9 +140,9 @@ object Qross {
                             row.getInt("job_id"),
                             row.getLong("task_id"),
                             row.getString("create_time"),
-                            dh.executeDataTable(s"SELECT * FROM qross_tasks_logs WHERE task_id=" + row.getLong("task_id"))
-                        )
-                    })
+                            dh)
+                        }
+                    )
                     .put("DELETE FROM qross_tasks_logs WHERE task_id=#task_id")
                     .put("UPDATE qross_tasks SET saved='yes' WHERE id=#task_id")
             writeDebugging(dh.COUNT + " tasks has been stored.")
@@ -163,7 +163,6 @@ object Qross {
                     VAR $TO_CLEAR := SELECT B.job_id, A.keep_x_task_records FROM qross_jobs A
                                         INNER JOIN (SELECT job_id, COUNT(0) AS task_amount FROM qross_tasks GROUP BY job_id) B ON A.id=B.job_id
                                             WHERE A.keep_x_task_records>0 AND B.task_amount>A.keep_x_task_records;
-
                     FOR $job_id, $keep_tasks IN $TO_CLEAR
                       LOOP
                         SET $task_id := SELECT id AS task_id FROM qross_tasks WHERE job_id=$job_id ORDER BY id DESC LIMIT $keep_tasks,1;

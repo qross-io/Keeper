@@ -24,6 +24,7 @@ object Test {
 
         //QrossTask.getTaskCommandsToExecute(Task(12L, TaskStatus.READY).of(544).at("20190927101800", "2019-09-27 10:18:00.018"))
 
+        TaskStorage.store(652, 95501, "2019-10-18 14:51:09", DataHub.QROSS)
         //Qross.checkBeatsAndRecords()
 
 //        TaskStorage.store(1, 2038, "2019-10-15 10:09:15",
