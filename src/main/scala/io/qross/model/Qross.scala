@@ -5,8 +5,6 @@ import io.qross.ext.Output._
 import io.qross.fs.{Directory, ResourceFile}
 import io.qross.jdbc.DataSource
 import io.qross.net.Email
-import io.qross.pql.PQL
-import io.qross.pql.PQL._
 import io.qross.setting.Global
 import io.qross.time.{ChronExp, DateTime, Timer}
 

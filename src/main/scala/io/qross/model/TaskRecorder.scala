@@ -2,8 +2,9 @@ package io.qross.model
 
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 
-import io.qross.core.DataTable
+import io.qross.core.{DataHub, DataTable}
 import io.qross.ext.Output
+import io.qross.fs.FileWriter
 import io.qross.jdbc.DataSource
 import io.qross.time.DateTime
 
@@ -26,6 +27,12 @@ object TaskRecorder {
     }
 
     def save(): Unit = synchronized {
+
+        //qross_home/tasks/task_time_day/jobId/task_id_record_time.log
+
+        //val writer = FileWriter("qross_home/tasks/task_time_day/jobId/task_id_record_time.log")
+        //writer.writeJsonLine(TaskRecorder.LOGS.poll())
+        //writer.close()
 
         if (TaskRecorder.LOGS.size() > 0) {
             var i = 0

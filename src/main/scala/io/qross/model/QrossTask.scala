@@ -428,7 +428,7 @@ object QrossTask {
         Task(taskId, TaskStatus.READY).of(jobId).at(taskTime, recordTime.toString())
     }
 
-    def createInstantTask(queryId: String, message: String): Option[Task] = {
+    def createInstantTask(message: String): Option[Task] = {
 
         /*
             {
@@ -528,7 +528,7 @@ object QrossTask {
                 status = dh.firstRow.getString("status")
             }
 
-            dh.openQross().set(s"INSERT INTO qross_query_result (query_id, result) VALUES ('$queryId', '$taskId')")
+            //dh.openQross().set(s"INSERT INTO qross_query_result (query_id, result) VALUES ('$queryId', '$taskId')")
 
             dh.close()
 

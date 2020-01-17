@@ -60,6 +60,25 @@ object Router {
                     }
                 }
             } ~
+            //PUT /task/instant/jobId?
+            path("task" / "instant" / IntNumber) { jobId =>
+                put {
+                    parameter("more") {
+                        more => {
+//                            val task = QrossTask.restartTask(taskId, more)
+//                            producer ! task
+//                                Json.serialize(task)
+                                QrossTask.createInstantTask(more) match {
+                                    case Some(task) =>
+                                        producer ! task
+                                        complete(Json.serialize(task))
+                                    case None =>
+                                        complete("{ }")
+                                }
+                        }
+                    }
+                }
+            } ~
             path("kill" / "job" / IntNumber) { jobId =>
                 put {
                     Output.writeDebugging(s"All tasks of job $jobId will be killed.")

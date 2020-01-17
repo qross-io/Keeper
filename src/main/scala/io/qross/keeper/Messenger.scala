@@ -67,7 +67,7 @@ class Messenger extends WorkActor {
                         //TASK - KILL - actionId
                         messageKey match {
                             case "RESTART" => producer ! QrossTask.restartTask(messageText.takeAfter("@").toLong, messageText.takeBefore("@"))
-                            case "INSTANT" => QrossTask.createInstantTask(queryId, messageText) match {
+                            case "INSTANT" => QrossTask.createInstantTask(messageText) match {
                                                 case Some(task) => producer ! task
                                                 case None =>
                                             }
