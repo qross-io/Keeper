@@ -4,7 +4,7 @@ import akka.actor.{ActorSystem, PoisonPill, Props}
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import io.qross.ext.Output
-import io.qross.fs.FilePath._
+import io.qross.fs.Path._
 import io.qross.model.{Qross, Tick}
 import io.qross.setting.{Global, Properties}
 import io.qross.time.{DateTime, Timer}
@@ -24,7 +24,7 @@ object Keeper {
         for (arg <- args) {
             Properties.loadLocalFile(arg.locate())
         }
-        
+
         Qross.start()
 
         implicit val system: ActorSystem = ActorSystem("keeper")
@@ -44,7 +44,7 @@ object Keeper {
         //akka http
         val bindingFuture = Http().bindAndHandle(Router.rests(system),"0.0.0.0", Global.KEEPER_HTTP_PORT)
         
-        while (!Global.QUIT_ON_NEXT_BEAT) {
+        while (!Setting.QUIT_ON_NEXT_BEAT) {
             // mm:00
             Timer.sleepToNextMinute()
             Qross.beat("Keeper")

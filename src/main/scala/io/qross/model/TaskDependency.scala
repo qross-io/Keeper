@@ -3,13 +3,11 @@ package io.qross.model
 import java.io.File
 import java.util.regex.Pattern
 
+import io.qross.core.DataRow
+import io.qross.ext.TypeExt._
 import io.qross.jdbc.DataSource
 import io.qross.net.Json
-import io.qross.time.DateTime
-import io.qross.ext.TypeExt._
-import io.qross.setting.Global
 
-import scala.collection.mutable
 import scala.util.{Success, Try}
 
 object TaskDependency {
@@ -17,11 +15,22 @@ object TaskDependency {
     def check(dependencyType: String, dependencyValue: String, taskId: Long, recordTime: String): (String, String) =  {
         
         var ready = "no"
-        val conf = Json(dependencyValue).parseRow("/")
-        
-        dependencyType.toUpperCase() match {
-            
-            /*
+        val conf = {
+            try {
+                //wrong json format will crash the actor.
+                Json(dependencyValue).parseRow("/")
+            }
+            catch {
+                case e: Exception =>
+                    e.printStackTrace()
+                    new DataRow()
+            }
+        }
+
+        if (conf.nonEmpty) {
+            dependencyType.toUpperCase() match {
+
+                /*
             {
                 "dataSource": "source name"
                 "selectSQL": "select SQL"
@@ -30,7 +39,7 @@ object TaskDependency {
                 "operator": "==", //如果不设置，默认"="
                 "value": 0  //如果不设置，则有数据则依赖成立
             }             */
-            case "SQL" =>
+                case "SQL" =>
                     val ds = new DataSource(conf.getString("dataSource"))
                     val table = ds.executeDataTable(conf.getString("selectSQL"))
                     if (table.nonEmpty) {
@@ -64,8 +73,8 @@ object TaskDependency {
                                             }
                                         case _ => false
                                     }
-                                }) {
-                                    ready = "yes"
+                            }) {
+                                ready = "yes"
                             }
                         }
                         else {
@@ -97,8 +106,8 @@ object TaskDependency {
                     }
                     table.clear()
                     ds.close()
-                    
-            /*
+
+                /*
             {
                 "path": ""
                 "minAmount": 1
@@ -138,8 +147,8 @@ object TaskDependency {
                         }
                     }
                 } */
-        
-            /*
+
+                /*
             {
                 "url": "",
                 "post": "",
@@ -148,71 +157,72 @@ object TaskDependency {
                 "value": ""
             }
             */
-            case "API" =>
-                val json = Json().readURL(conf.getString("url"), conf.getString("post", ""))
-                
-                val currentValue = json.parseValue(conf.getString("path")).toString
-                val compareValue = conf.getString("value")
-                if (conf.getString("operator", "==").trim match {
-                    case "=" | "==" => currentValue == compareValue
-                    case "!=" | "<>" => currentValue != compareValue
-                    case "^=" => currentValue.startsWith(compareValue)
-                    case "$=" => currentValue.endsWith(compareValue)
-                    case "*=" => currentValue.contains(compareValue)
-                    case "#=" => Pattern.matches(compareValue, currentValue) //regex match
-                    //case "?=" => Pattern.matches(compareValue, currentValue) //regex match
-                    //case "*=" => Pattern.compile(compareValue, Pattern.CASE_INSENSITIVE).matcher(currentValue).matches() //regex math
-                    case operator =>
-                        (Try(currentValue.toDouble), Try(compareValue.toDouble)) match {
-                            case (Success(v1), Success(v2)) =>
-                                operator match {
-                                    case ">" => v1 > v2
-                                    case ">=" => v1 >= v2
-                                    case "<" => v1 < v2
-                                    case "<=" => v1 < v2
-                                    case _ => false
-                                }
-                            case _ => false
-                        }
-                }) {
-                    ready = "yes"
-                }
-        
-            /*
+                case "API" =>
+                    val json = Json().readURL(conf.getString("url"), conf.getString("post", ""))
+
+                    val currentValue = json.parseValue(conf.getString("path")).toString
+                    val compareValue = conf.getString("value")
+                    if (conf.getString("operator", "==").trim match {
+                        case "=" | "==" => currentValue == compareValue
+                        case "!=" | "<>" => currentValue != compareValue
+                        case "^=" => currentValue.startsWith(compareValue)
+                        case "$=" => currentValue.endsWith(compareValue)
+                        case "*=" => currentValue.contains(compareValue)
+                        case "#=" => Pattern.matches(compareValue, currentValue) //regex match
+                        //case "?=" => Pattern.matches(compareValue, currentValue) //regex match
+                        //case "*=" => Pattern.compile(compareValue, Pattern.CASE_INSENSITIVE).matcher(currentValue).matches() //regex math
+                        case operator =>
+                            (Try(currentValue.toDouble), Try(compareValue.toDouble)) match {
+                                case (Success(v1), Success(v2)) =>
+                                    operator match {
+                                        case ">" => v1 > v2
+                                        case ">=" => v1 >= v2
+                                        case "<" => v1 < v2
+                                        case "<=" => v1 < v2
+                                        case _ => false
+                                    }
+                                case _ => false
+                            }
+                    }) {
+                        ready = "yes"
+                    }
+
+                /*
             {
                 "jobId": 123,
                 "taskTime": "datetime sharp expression",
                 "status": "finished"
             }
             */
-            case "TASK" =>
-                if (DataSource.QROSS.queryExists("SELECT id FROM qross_tasks WHERE job_id=? AND task_time=? AND status=?",
+                case "TASK" =>
+                    if (DataSource.QROSS.queryExists("SELECT id FROM qross_tasks WHERE job_id=? AND task_time=? AND status=?",
                         conf.getInt("jobId"),
                         conf.getString("taskTime"),
                         conf.getString("status", TaskStatus.SUCCESS))) {
-                    ready = "yes"
-                }
-        
-            /*
+                        ready = "yes"
+                    }
+
+                /*
             {
                 "path": "",
                 "minLength": "123K"
             }
             */
-            case "FILE" =>
-                val file = new File(conf.getString("path"))
-                if (file.exists()) {
-                    conf.set("exists", "yes")
-                    conf.set("length", file.length().toHumanized)
-                    if (file.length() >= conf.getString("minLength").toByteLength) {
-                        ready = "yes"
+                case "FILE" =>
+                    val file = new File(conf.getString("path"))
+                    if (file.exists()) {
+                        conf.set("exists", "yes")
+                        conf.set("length", file.length().toHumanized)
+                        if (file.length() >= conf.getString("minLength").toByteLength) {
+                            ready = "yes"
+                        }
                     }
-                }
-                else {
-                    conf.set("exists", "no")
-                }
-                
-            case _ =>
+                    else {
+                        conf.set("exists", "no")
+                    }
+
+                case _ =>
+            }
         }
     
         (ready, conf.toString)

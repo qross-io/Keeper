@@ -4,7 +4,7 @@ import io.qross.ext.Output
 import io.qross.model._
 import io.qross.setting.{Configurations, Global, Properties}
 import io.qross.time.{DateTime, Timer}
-import io.qross.fs.FilePath._
+import io.qross.fs.Path._
 import io.qross.jdbc.JDBC
 import io.qross.ext.TypeExt._
 

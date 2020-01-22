@@ -2,16 +2,19 @@ package io.qross.model
 
 import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 
-import io.qross.core.{DataHub, DataTable}
+import io.qross.core.DataTable
 import io.qross.ext.Output
+import io.qross.ext.TypeExt._
 import io.qross.fs.FileWriter
-import io.qross.jdbc.DataSource
+import io.qross.setting.Global
 import io.qross.time.DateTime
+
+import scala.collection.mutable
 
 object TaskRecorder {
 
-    val loggers = new ConcurrentHashMap[(Long, String), TaskRecorder]()
-    val LOGS = new ConcurrentLinkedQueue[TaskLog]()
+    private val loggers = new ConcurrentHashMap[(Long, String), TaskRecorder]()
+    private val LOGS = new ConcurrentLinkedQueue[TaskLog]()
 
     def of(jobId: Int, taskId: Long, recordTime: String): TaskRecorder = {
         if (!loggers.containsKey((taskId, recordTime))) {
@@ -28,23 +31,22 @@ object TaskRecorder {
 
     def save(): Unit = synchronized {
 
-        //qross_home/tasks/task_time_day/jobId/task_id_record_time.log
-
-        //val writer = FileWriter("qross_home/tasks/task_time_day/jobId/task_id_record_time.log")
-        //writer.writeJsonLine(TaskRecorder.LOGS.poll())
-        //writer.close()
+        //qross_home/tasks/record_time_day/jobId/task_id_record_time.log
 
         if (TaskRecorder.LOGS.size() > 0) {
+            val writers = new mutable.HashMap[String, FileWriter]()
+
             var i = 0
-            val ds = DataSource.QROSS
-            ds.setBatchCommand(s"INSERT INTO qross_tasks_logs (job_id, task_id, record_time, command_id, action_id, log_type, log_text, create_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
             while(TaskRecorder.LOGS.size() > 0 && i < 10000) {
                 val log = TaskRecorder.LOGS.poll()
-                ds.addBatch(log.jobId, log.taskId, log.recordTime, log.commandId, log.actionId, log.logType, log.logText, log.logTime)
+                if (!writers.contains(log.path)) {
+                    writers += log.path -> FileWriter(s"${Global.QROSS_HOME}/tasks/${log.path}.log")
+                }
+                writers(log.path).writeJsonLine[TaskLogLine](log.line)
                 i += 1
             }
-            ds.executeBatchUpdate()
-            ds.close()
+
+            writers.values.foreach(_.close())
         }
     }
 
@@ -107,8 +109,8 @@ class TaskRecorder(jobId: Int, taskId: Long, recordTime: String) {
     }
 
     private def record(seal: String, text: String): TaskRecorder = {
-        TaskRecorder.LOGS.add(new TaskLog(jobId, taskId, recordTime, commandId, actionId, seal, text))
-        if (TaskRecorder.LOGS.size() >= 1000) {
+        TaskRecorder.LOGS.add(new TaskLog(jobId, taskId, recordTime, new TaskLogLine(commandId, actionId, seal, text)))
+        if (TaskRecorder.LOGS.size() >= 2000) {
             TaskRecorder.save()
         }
         this
@@ -119,16 +121,12 @@ class TaskRecorder(jobId: Int, taskId: Long, recordTime: String) {
     }
 }
 
-class TaskLog(var jobId: Int, var taskId: Long, var recordTime: String, var commandId: Int = 0, var actionId: Long = 0L, var logType: String = "INFO", var logText: String = "", var logTime: String = DateTime.now.getString("yyyy-MM-dd HH:mm:ss")) {
-    
-    private val limit = 65535
-    
+class TaskLog(var jobId: Int, var taskId: Long, var recordTime: String, val line: TaskLogLine) {
+    val path: String = s"""${recordTime.takeBefore(" ").replace("-", "")}/$jobId/${taskId}_${recordTime.replace("-", "").replace(" ", "").replace(":", "")}"""
+}
+
+class TaskLogLine(var commandId: Int = 0, var actionId: Long = 0L, var logType: String = "INFO", var logText: String = "", var logTime: String = DateTime.now.getString("yyyy-MM-dd HH:mm:ss")) {
     if (logType != "INFO" && logType != "ERROR") {
         logText = s"$logTime [$logType] $logText"
-    }
-    if (logText.length > limit) logText = logText.take(limit)
-
-    override def toString: String = {
-        s"Job: $jobId, Task: $taskId @ $recordTime, Command: $commandId, Action: $actionId - $logTime [$logType] ${logText.replace("\r", "\\r")}"
     }
 }

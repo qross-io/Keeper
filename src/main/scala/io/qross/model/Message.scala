@@ -31,6 +31,7 @@ object TaskStatus {
     val IGNORE = "ignore"
     val EMPTY = ""
     val INTERRUPTED = "interrupted"
+    val SLOW = "slow"
 }
 
 object ActionStatus {

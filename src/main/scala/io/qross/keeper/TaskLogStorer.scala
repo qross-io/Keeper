@@ -25,7 +25,7 @@ object TaskLogStorer {
             .put("DELETE FROM qross_tasks_logs WHERE job_id=#job_id AND task_id=#task_id")
             .put("UPDATE qross_tasks SET saved='yes' WHERE id=#task_id")
 
-        writeDebugging("Logs of " + dh.COUNT + " tasks has been stored.")
+        writeDebugging("Logs of " + dh.COUNT_OF_LAST_QUERY + " tasks has been stored.")
 
         dh.close()
     }
