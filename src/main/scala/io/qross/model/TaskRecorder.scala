@@ -40,32 +40,14 @@ object TaskRecorder {
             while(TaskRecorder.LOGS.size() > 0 && i < 10000) {
                 val log = TaskRecorder.LOGS.poll()
                 if (!writers.contains(log.path)) {
-                    writers += log.path -> FileWriter(s"${Global.QROSS_HOME}/tasks/${log.path}.log")
+                    writers += log.path -> new FileWriter(s"${Global.QROSS_HOME}/tasks/${log.path}.log")
                 }
-                writers(log.path).writeJsonLine[TaskLogLine](log.line)
+                writers(log.path).writeObjectLine[TaskLogLine](log.line)
                 i += 1
             }
 
             writers.values.foreach(_.close())
         }
-    }
-
-    def toHTML(logs: DataTable): String = {
-        val sb = new StringBuilder()
-        logs.foreach(row => {
-            var time = row.getString("create_time")
-            if (time.contains(".")) {
-                time = time.substring(0, time.indexOf("."))
-            }
-
-            sb.append("<div class='TIME'>")
-            sb.append(time)
-            sb.append("</div>")
-            sb.append("<div class='" + row.getString("log_type") + "'>")
-            sb.append(row.getString("log_text").replace("\r", "<br/>").replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;"))
-            sb.append("</div>")
-        })
-        sb.toString()
     }
 }
 

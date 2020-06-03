@@ -19,11 +19,10 @@ object Protector {
         val exitValue = command.!(ProcessLogger(
             out => {
                 println(out)
-                if (Setting.LOGS_LEVEL == "DEBUG") {
-                    logger.debug(out)
+                logger.debug(out)
+                if (logger.overtime) {
+                    logger.store()
                 }
-    
-                if (logger.overtime) logger.store()
             },
             err => {
                 System.err.println(err)

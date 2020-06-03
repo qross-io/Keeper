@@ -35,7 +35,7 @@ class KeeperLogger {
     
     private def save(): Unit = {
         if (logs.nonEmpty) {
-            FileWriter(Global.QROSS_HOME + "logs/" + DateTime.now.getString("yyyyMMdd/HH") + ".log", deleteFileIfExists = false)
+            new FileWriter(Global.QROSS_HOME + "logs/" + DateTime.now.getString("yyyyMMdd/HH") + ".log", deleteIfExists = false)
                 .writeLines(logs)
                 .close()
     

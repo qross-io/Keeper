@@ -5,7 +5,7 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
 import io.qross.ext.Output
-import io.qross.model.{QrossTask, Route, TaskStorage}
+import io.qross.model.{QrossTask, Route}
 import io.qross.net.Json
 import io.qross.setting.Configurations
 
@@ -14,7 +14,7 @@ object Router {
     /*
     # PUT  /global/set?name=&value=
     # PUT /task/restart/taskId?more=
-    PUT /task/instant/jobId?dag=&params=&commands=&delay=&startTime=&creator=
+    # PUT /task/instant/jobId?dag=&params=&commands=&delay=&startTime=&creator=
     # PUT /task/kill/taskId
     PUT /note/process/noteid
     PUT /note/kill/noteId
@@ -60,7 +60,7 @@ object Router {
                     }
                 }
             } ~
-            //PUT /task/instant/jobId?
+            //PUT /task/instant/jobId?more=
             path("task" / "instant" / IntNumber) { jobId =>
                 put {
                     parameter("more") {
@@ -113,7 +113,7 @@ object Router {
                     parameter("jobId".as[Int], "taskId".as[Long], "taskTime".as[String]) {
                         (jobId, taskId, taskTime) =>
                         {
-                            TaskStorage.restore(jobId, taskId, taskTime)
+                            //TaskStorage.restore(jobId, taskId, taskTime)
                             complete(s"$taskId")
                         }
                     }

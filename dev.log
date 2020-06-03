@@ -91,7 +91,7 @@
 2018/07/17 0.5.6 Run.
 2018/07/05 0.5.6 Debug Finished.
 2018/07/05 0.5.6 Code Finished.
-    1) Restart or finish task if exceptional commands exist or no commands to execute.
+    1) Restart or finish task if exceptional commands exists or no commands to execute.
     2) KeeperLogger: refresh configuration when send exception mail.
     3) Remove qross_jobs.dependencies
     4) Fix bugs of SQL.
@@ -110,7 +110,7 @@
         c. Messenger now supports properties commands.
     2) rewrite beats checking.
         a. running or exceptional beats mail.
-        b. move it from system job to deamon.
+        b. move it from system job to daemon.
         c. auto restart system on actor rest.
     3) Protector now send mail to master on Keeper exception
         a. store error logs at qross_keeper_exceptions
@@ -141,7 +141,7 @@
     3) Finish Protector, create KeeperLogger and keep global logs in files now.
     4) TaskLogger now is a actor, rewrite all code and add TaskRecord and TaskLog class.
         Record logs before and after task executing.
-    5) Rewrite beat method of TaskChecker/TaskExecutor, and beats every minutely tick only.
+    5) Rewrite beat method of TaskChecker/TaskExecutor, and beats every minute tick only.
     6) Record retry times of running action.
     7) Keep x task records now is a job configuration.
     8) Messenger supports Qross users commands

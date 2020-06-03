@@ -1,19 +1,14 @@
 package io.qross.keeper
 
+import io.qross.ext.TypeExt._
 import io.qross.jdbc.{DataSource, JDBC}
 import io.qross.setting.Configurations
-import io.qross.ext.TypeExt._
 
 object Setting {
-
 
     Configurations.set("QUIT_ON_NEXT_BEAT", false)
 
     def QUIT_ON_NEXT_BEAT: Boolean = Configurations.get("QUIT_ON_NEXT_BEAT").toBoolean(false)  //for keeper only
-
-    //def EMAIL_NOTIFICATION: Boolean = Configurations.getOrProperty("EMAIL_NOTIFICATION", "email.notification").toBoolean(false)
-
-    def LOGS_LEVEL: String = Configurations.getOrProperty("logs.level", "LOGS_LEVEL", "DEBUG").toUpperCase
 
     def CONCURRENT_BY_CPU_CORES: Int = Configurations.getOrProperty("CONCURRENT_BY_CPU_CORES", "concurrent.by.cpu.cores").ifNullOrEmpty("4").toInt
 

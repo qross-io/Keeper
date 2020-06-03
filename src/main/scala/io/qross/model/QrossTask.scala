@@ -7,6 +7,7 @@ import io.qross.fs.ResourceFile
 import io.qross.jdbc.DataSource
 import io.qross.keeper.Setting
 import io.qross.net.Json
+import io.qross.pql.Patterns.$BLANK
 import io.qross.pql.PQL
 import io.qross.pql.Solver._
 import io.qross.setting.Global
@@ -33,7 +34,7 @@ object QrossTask {
                             ResourceFile.open(s"/templates/$taskStatus.html")
                                 .replace("#{status}", upperStatus)
                                 .replaceWith(row)
-                                .replace("#{logs}", if (dh.containsBuffer("logs")) TaskRecorder.toHTML(dh.takeOut("logs")) else "")
+                                //.replace("#{logs}", if (dh.containsBuffer("logs")) TaskRecorder.toHTML(dh.takeOut("logs")) else "")
                                 .writeEmail(s"$upperStatus: ${row.getString("title")} ${row.getString("task_time")} - JobID: ${row.getString("job_id")} - TaskID: ${row.getString("task_id")}")
                                 .to(if (receivers.contains("_OWNER")) row.getString("owner") else "")
                                 .cc(if (receivers.contains("_KEEPER")) Setting.KEEPER_USER_GROUP else "")
@@ -153,10 +154,14 @@ object QrossTask {
                 dh.foreach(row => {
                     PQL.set(row)
                     try {
-                        row.set("dependency_value",
-                            row.getString("dependency_value")
-                                    .replaceArguments(row)
-                                    .$restore(PQL, "\""), DataType.TEXT)
+                        row.set("dependency_content",
+                            row.getString("dependency_content")
+                              .replaceArguments(row)
+                              .$restore(PQL, "\""), DataType.TEXT)
+                      row.set("dependency_option",
+                          row.getString("dependency_option")
+                            .replaceArguments(row)
+                            .$restore(PQL, "\""), DataType.TEXT)
                     }
                     catch {
                         case e: Exception =>
@@ -165,7 +170,7 @@ object QrossTask {
                                     .err(e.getMessage)
 
                     }
-                }).put("INSERT INTO qross_tasks_dependencies (job_id, task_id, record_time, dependency_id, dependency_moment, dependency_type, dependency_value) VALUES (#job_id, #task_id, '#record_time', #dependency_id, '#dependency_moment', '#dependency_type', '#dependency_value')")
+                }).put("INSERT INTO qross_tasks_dependencies (job_id, task_id, record_time, dependency_id, dependency_moment, dependency_type, dependency_label, dependency_content, dependency_option) VALUES (#job_id, #task_id, '#record_time', #dependency_id, '#dependency_moment', '#dependency_type', '#dependency_label', '#dependency_content', '#dependency_option')")
             }
 
             dh.clear()
@@ -228,7 +233,7 @@ object QrossTask {
         dh.openCache()
             .get(s"SELECT A.job_id, A.next_tick FROM missed_tasks A LEFT JOIN exists_tasks B ON A.job_id=B.job_id AND A.next_tick=B.task_time WHERE B.job_id IS NULL")
                 .put(s"INSERT INTO qross_tasks (job_id, task_time, record_time, creator, create_mode, start_mode) VALUES (?, ?, '${DateTime.now.toString}', '#keeper', 'complement', 'auto_start')")
-                .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T) WHERE id=#job_id")
+                .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T), tasks_amount=tasks_amount+1, records_amount=records_amount+1 WHERE id=#job_id")
 
         //get next tick for all jobs
         dh.openCache()
@@ -277,13 +282,13 @@ object QrossTask {
         dh.get(s"""SELECT id AS job_id FROM qross_jobs WHERE job_type='${JobType.DEPENDENT}' AND enabled='yes' AND id NOT IN (SELECT DISTINCT job_id FROM qross_tasks WHERE
                                     status NOT IN ('${TaskStatus.FINISHED}', '${TaskStatus.INCORRECT}', '${TaskStatus.FAILED}', '${TaskStatus.TIMEOUT}', '${TaskStatus.SUCCESS}'))""")
             .put(s"INSERT INTO qross_tasks (job_id, task_time, record_time, creator, create_mode, start_mode) VALUES (#job_id, '${DateTime.now.getString("yyyyMMddHHmmss")}', '${DateTime.now}', '#keeper', 'trigger', 'auto_start')")
-            .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T) WHERE id=#job_id")
+            .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T),tasks_amount=tasks_amount+1, records_amount=records_amount+1 WHERE id=#job_id")
 
         //jobs with cron_exp
         dh.get(s"SELECT id AS job_id, cron_exp, next_tick FROM qross_jobs WHERE next_tick='$tick' AND job_type='${JobType.SCHEDULED}' AND enabled='yes' AND id NOT IN (SELECT job_id FROM qross_tasks WHERE task_time='$tick')")
             //create schedule tasks
                 .put(s"INSERT INTO qross_tasks (job_id, task_time, record_time, creator, create_mode, start_mode) VALUES (#job_id, '#next_tick', '${DateTime.now.toString}', '#keeper', 'schedule', 'auto_start')")
-                .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T) WHERE id=#job_id")
+                .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T),tasks_amount=tasks_amount+1, records_amount=records_amount+1 WHERE id=#job_id")
             //get next tick and update
             .foreach(row => {
                 try {
@@ -328,12 +333,12 @@ object QrossTask {
             dh.openCache()
                 .get("SELECT IFNULL(GROUP_CONCAT(DISTINCT job_id), 0) AS job_ids FROM tasks WHERE dependencies>0")
             dh.openQross()
-                .pass("SELECT id AS dependency_id, job_id, dependency_moment, dependency_type, dependency_value FROM qross_jobs_dependencies WHERE job_id IN (#job_ids)")
+                .pass("SELECT id AS dependency_id, job_id, dependency_moment, dependency_type, dependency_label, dependency_content, dependency_option FROM qross_jobs_dependencies WHERE job_id IN (#job_ids)")
                     .cache("dependencies")
 
             //generate dependencies
             dh.openCache()
-                .get("SELECT A.job_id, A.task_id, A.task_time, A.record_time, B.dependency_id, B.dependency_moment, B.dependency_type, B.dependency_value FROM tasks A INNER JOIN dependencies B ON A.job_id=B.job_id")
+                .get("SELECT A.job_id, A.task_id, A.task_time, A.record_time, B.dependency_id, B.dependency_moment, B.dependency_type, B.dependency_label, B.dependency_content, B.dependency_option FROM tasks A INNER JOIN dependencies B ON A.job_id=B.job_id")
                     .generateDependencies()
 
             // ---------- DAGs ----------
@@ -342,19 +347,19 @@ object QrossTask {
             dh.openCache()
                 .get("SELECT IFNULL(GROUP_CONCAT(DISTINCT job_id), 0) AS job_ids FROM tasks")
             dh.openQross()
-                .pass("SELECT id AS command_id, command_text, args, job_id, upstream_ids FROM qross_jobs_dags WHERE job_id IN (#job_ids)")
+                .pass("SELECT id AS command_id, command_text, job_id, upstream_ids FROM qross_jobs_dags WHERE job_id IN (#job_ids)")
                     .cache("dags")
 
             //generate DAGs
             dh.openCache()
-                .get("SELECT A.job_id, A.task_id, A.record_time, B.command_id, B.command_text, B.args, B.upstream_ids FROM tasks A INNER JOIN dags B ON A.job_id=B.job_id")
-                    .put("INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, args, upstream_ids) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                .get("SELECT A.job_id, A.task_id, A.record_time, B.command_id, B.command_text, B.upstream_ids FROM tasks A INNER JOIN dags B ON A.job_id=B.job_id")
+                    .put("INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, upstream_ids) VALUES (?, ?, ?, ?, ?, ?)")
 
             //update tasks status
             dh.get(s"SELECT task_id FROM tasks WHERE dependencies>0")
                 .put(s"UPDATE qross_tasks SET status='${TaskStatus.INITIALIZED}'")
             .get("SELECT task_id FROM tasks WHERE dependencies=0")
-                .put("UPDATE qross_tasks SET status='${TaskStatus.READY}',ready_time=NOW() WHERE id=#task_id")
+                .put("UPDATE qross_tasks SET status='${TaskStatus.READY}',ready_time=NOW(), readiness=TIMESTAMP(SECOND, create_time, NOW()) WHERE id=#task_id")
             .get("SELECT DISTINCT job_id FROM tasks")
                 .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T) WHERE id=#job_id")
 
@@ -387,7 +392,7 @@ object QrossTask {
         val taskTime = recordTime.getString("yyyyMMddHHmmss")
 
         dh.set(s"INSERT INTO qross_tasks (job_id, task_time, record_time, creator, create_mode, start_mode) VALUES ($jobId, '$taskTime', '${recordTime.toString()}', '#keeper', 'interval', 'auto_start')")
-            .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
+            .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T),tasks_amount=tasks_amount+1, records_amount=records_amount+1 WHERE id=$jobId")
 
         val taskId = dh.executeSingleValue(s"SELECT id FROM qross_tasks WHERE job_id=$jobId AND task_time='$taskTime'").asInteger
 
@@ -414,16 +419,16 @@ object QrossTask {
 
         // ---------- DAGs ----------
         dh.openQross()
-            .get(s"SELECT id AS command_id, command_text, args, job_id, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId")
+            .get(s"SELECT id AS command_id, command_text, job_id, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId")
                 .cache("dags")
         //generate DAGs
         dh.openCache()
-            .get("SELECT A.job_id, A.task_id, A.record_time, B.command_id, B.command_text, B.args, B.upstream_ids FROM task_info A INNER JOIN dags B ON A.job_id=B.job_id")
-                .put("INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, args, upstream_ids) VALUES (?, ?, ?, ?, ?, ?, ?)")
+            .get("SELECT A.job_id, A.task_id, A.record_time, B.command_id, B.command_text, B.upstream_ids FROM task_info A INNER JOIN dags B ON A.job_id=B.job_id")
+                .put("INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, upstream_ids) VALUES (?, ?, ?, ?, ?, ?)")
 
         //update tasks status
         dh.openQross()
-            .set(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW() WHERE id=$taskId")
+            .set(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW(), readiness=TIMESTAMP(SECOND, create_time, NOW()) WHERE id=$taskId")
             .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
 
         dh.close()
@@ -452,7 +457,7 @@ object QrossTask {
         val jobId = info.getInt("jobId")
         var taskId = 0L
         val dag = info.getString("dag")
-        val params = info.getString("params").$split(",", ":")
+        val params = info.getString("params").$split(",", ":") //to replace command text
         val commands = info.getString("commands").$split("##\\$##", ":")
         val delay = info.getInt("delay")
         val taskTime = DateTime.now.getString("yyyyMMddHHmmss")
@@ -467,7 +472,7 @@ object QrossTask {
 
             //create task
             dh.set(s"INSERT INTO qross_tasks (job_id, task_time, record_time, status, creator, create_mode, start_mode, to_be_start_time) VALUES ($jobId, '$taskTime', '$recordTime', '${TaskStatus.INSTANT}', '$creator', 'instant', 'manual_start', '$startTime')")
-                .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
+                .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T),tasks_amount=tasks_amount+1, records_amount=records_amount+1 WHERE id=$jobId")
             //get task id
             dh.get(s"""SELECT A.task_id, A.job_id, A.task_time, A.record_time, A.start_mode, B.title, B.owner, IFNULL(C.dependencies, 0) AS dependencies
                         FROM (SELECT id AS task_id, job_id, task_time, record_time, start_mode FROM qross_tasks WHERE job_id=$jobId AND task_time='$taskTime' AND status='${TaskStatus.INSTANT}') A
@@ -496,11 +501,11 @@ object QrossTask {
 
                 //dependencies
                 dh.openQross()
-                    .get(s"SELECT job_id, $taskId AS task_id, '$taskTime' AS task_time, '$recordTime' AS record_time, id AS dependency_id, dependency_moment, dependency_type, dependency_value FROM qross_jobs_dependencies WHERE job_id=$jobId")
+                    .get(s"SELECT job_id, $taskId AS task_id, '$taskTime' AS task_time, '$recordTime' AS record_time, id AS dependency_id, dependency_moment, dependency_type, dependency_label, dependency_content, dependency_option FROM qross_jobs_dependencies WHERE job_id=$jobId")
                         .generateDependencies()
 
                 //DAG
-                dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, args, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId" + (if (dag != "") s" AND id IN ($dag)" else ""))
+                dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId" + (if (dag != "") s" AND id IN ($dag)" else ""))
                 //replace params and commands
                 if (params.nonEmpty || commands.nonEmpty) {
                     dh.foreach(row => {
@@ -512,7 +517,7 @@ object QrossTask {
                         }
                     })
                 }
-                dh.put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, args, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?, ?)")
+                dh.put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?)")
 
                 //upstream_ids
                 if (dag != "") {
@@ -591,8 +596,8 @@ object QrossTask {
         val dh = DataHub.QROSS
 
         //backup records
-        dh.get(s"SELECT job_id, task_time, record_time, start_mode, status, start_time, finish_time, IFNULL(latency, -1) AS latency, IFNULL(spent, -1) AS spent FROM qross_tasks WHERE id=$taskId")
-            .put(s"INSERT INTO qross_tasks_records (job_id, task_id, record_time, start_mode, status, start_time, finish_time, latency, spent) VALUES (#job_id, $taskId, '#record_time', '#start_mode', '#status', '#start_time', '#finish_time', #latency, #spent)")
+        dh.get(s"SELECT job_id, task_time, record_time, start_mode, status, start_time, finish_time, readiness, latency, spent FROM qross_tasks WHERE id=$taskId")
+            .put(s"INSERT INTO qross_tasks_records (job_id, task_id, record_time, start_mode, status, start_time, finish_time, readiness, latency, spent) VALUES (#job_id, $taskId, '#record_time', '#start_mode', '#status', '#start_time', '#finish_time', #readiness, #latency, #spent)")
 
         val row = dh.firstRow
 
@@ -610,13 +615,13 @@ object QrossTask {
             restartMethod match {
                 case WHOLE =>
                     //generate before and after dependencies
-                    dh.get(s"""SELECT $jobId AS job_id, $taskId AS task_id, '$taskTime' AS task_time, '$recordTime' AS record_time, id AS dependency_id, dependency_moment, dependency_type, dependency_value FROM qross_jobs_dependencies WHERE job_id=$jobId""")
+                    dh.get(s"""SELECT $jobId AS job_id, $taskId AS task_id, '$taskTime' AS task_time, '$recordTime' AS record_time, id AS dependency_id, dependency_moment, dependency_type, dependency_label, dependency_content, dependency_option FROM qross_jobs_dependencies WHERE job_id=$jobId""")
                         .cache("dependencies")
                         .generateDependencies()
 
                     //generate dags
-                    dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, args, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId")
-                        .put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, args, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?, ?)")
+                    dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId")
+                        .put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?)")
 
                     dh.openCache().get("SELECT task_id FROM dependencies WHERE dependency_moment='before'")
                     if (dh.nonEmpty) {
@@ -624,27 +629,27 @@ object QrossTask {
                     }
 
                 case PARTIAL =>
-                    dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, args, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId AND id IN ($option)")
-                        .put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, args, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?, ?)")
+                    dh.get(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId AND id IN ($option)")
+                        .put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?)")
                     .get(s"SELECT id FROM qross_jobs_dags WHERE job_id=$jobId AND id NOT IN ($option)")
                         .put(s"UPDATE qross_tasks_dags SET upstream_ids=REPLACE(upstream_ids, '(#id)', '') WHERE task_id=$taskId AND record_time='$recordTime")
 
                 case EXCEPTIONAL =>
                     //generate "after" dependencies
-                    dh.get(s"SELECT $jobId AS job_id, $taskId AS task_id, '$taskTime' AS task_time, '$recordTime' AS record_time, id AS dependency_id, dependency_moment, dependency_type, dependency_value FROM qross_jobs_dependencies WHERE job_id=$jobId AND dependency_moment='after'")
+                    dh.get(s"SELECT $jobId AS job_id, $taskId AS task_id, '$taskTime' AS task_time, '$recordTime' AS record_time, id AS dependency_id, dependency_moment, dependency_type, dependency_label, dependency_content, dependency_option FROM qross_jobs_dependencies WHERE job_id=$jobId AND dependency_moment='after'")
                         .generateDependencies()
 
                     dh.get(s"SELECT IFNULL(GROUP_CONCAT(command_id), 0) AS command_ids FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='$prevRecordTime' AND status IN ('exceptional', 'overtime', 'waiting')")
-                        .pass(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, args, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId AND id IN (#command_ids)")
-                            .put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, args, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?, ?)")
+                        .pass(s"SELECT job_id, $taskId AS task_id, id AS command_id, command_text, upstream_ids FROM qross_jobs_dags WHERE job_id=$jobId AND id IN (#command_ids)")
+                            .put(s"INSERT INTO qross_tasks_dags (job_id, task_id, record_time, command_id, command_text, upstream_ids) VALUES (?, ?, '$recordTime', ?, ?, ?)")
                         .get(s"SELECT command_id FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='$prevRecordTime' AND status='done'")
                             .put(s"UPDATE qross_tasks_dags SET upstream_ids=REPLACE(upstream_ids, '(#command_id)', '') WHERE task_id=$taskId AND record_time='$recordTime'")
             }
 
             //update task
             dh.openQross()
-                .set(s"UPDATE qross_tasks SET status='$status', start_mode='$restartMode', record_time='$recordTime', latency=NULL, spent=NULL, start_time=NULL, finish_time=NULL WHERE id=$taskId")
-                .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
+                .set(s"UPDATE qross_tasks SET status='$status', start_mode='$restartMode', record_time='$recordTime', readiness=NULL, latency=NULL, spent=NULL, start_time=NULL, finish_time=NULL WHERE id=$taskId")
+                .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T), records_amount=records_amount+1 WHERE id=$jobId")
 
             TaskRecorder.of(jobId, taskId, recordTime).debug(s"Task $taskId of job $jobId at <$recordTime> restart with option $option.")
         }
@@ -664,19 +669,17 @@ object QrossTask {
         val dh = DataHub.QROSS
 
         //update task status to ready if all dependencies are ready
-        dh.set(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW() WHERE id=$taskId AND NOT EXISTS (SELECT task_id FROM qross_tasks_dependencies WHERE task_id=$taskId AND record_time='$recordTime' AND dependency_moment='before' AND ready='no')")
+        dh.set(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW(), readiness=TIMESTAMPDIFF(SECOND, create_time, NOW()) WHERE id=$taskId AND NOT EXISTS (SELECT task_id FROM qross_tasks_dependencies WHERE task_id=$taskId AND record_time='$recordTime' AND dependency_moment='before' AND ready='no')")
             .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
         //check dependencies
         dh.openQross()
             .get(
-                s"""SELECT A.id, A.job_id, A.task_id, A.dependency_type, A.dependency_value, A.ready, B.task_time
-                    FROM (SELECT id, job_id, task_id, dependency_type, dependency_value, ready FROM qross_tasks_dependencies WHERE task_id=$taskId AND record_time='$recordTime' AND dependency_moment='before' AND ready='no') A
+                s"""SELECT A.id, A.job_id, A.task_id, A.dependency_type, A.dependency_label, A.dependency_content, A.dependency_option, A.ready, B.task_time, A.record_time
+                    FROM (SELECT id, job_id, task_id, record_time, dependency_type, dependency_label, dependency_content, dependency_option, ready FROM qross_tasks_dependencies WHERE task_id=$taskId AND record_time='$recordTime' AND dependency_moment='before' AND ready='no') A
                     INNER JOIN (SELECT id, task_time FROM qross_tasks where id=$taskId) B ON A.task_id=B.id""")
             .foreach(row => {
-                val result = TaskDependency.check(row.getString("dependency_type"), row.getString("dependency_value"), taskId, recordTime)
-                row.set("ready", result._1)
-                row.set("dependency_value", result._2)
-                if (result._1 == "yes") {
+                if (TaskDependency.check(row) == "yes") {
+                    row.set("ready", "yes")
                     TaskRecorder.of(jobId, taskId, recordTime).log(s"Task $taskId of job $jobId at <$recordTime> dependency ${row.getLong("id")} is ready.")
                 }
             }).cache("dependencies")
@@ -685,10 +688,10 @@ object QrossTask {
         dh.openCache()
             .get("SELECT id FROM dependencies WHERE ready='yes'")
                 .put("UPDATE qross_tasks_dependencies SET ready='yes' WHERE id=#id")
-            .get("SELECT dependency_value, id FROM dependencies WHERE ready='no'")
-                .put("UPDATE qross_tasks_dependencies SET dependency_value=?, retry_times=retry_times+1 WHERE id=?")
+            .get("SELECT id FROM dependencies WHERE ready='no'")
+                .put("UPDATE qross_tasks_dependencies SET retry_times=retry_times+1 WHERE id=?")
             .get("SELECT job_id, task_id FROM dependencies WHERE ready='no' GROUP BY task_id HAVING COUNT(0)=0")
-                .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW() WHERE id=#task_id")
+                .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW(), readiness=TIMESTAMP(SECOND, create_time, NOW()) WHERE id=#task_id")
                 .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T) WHERE id=#job_id")
 
 
@@ -705,7 +708,7 @@ object QrossTask {
                 status = TaskStatus.CHECKING_LIMIT
                 dh.set(s"UPDATE qross_tasks SET status='${TaskStatus.CHECKING_LIMIT}', checked='no' WHERE id=$taskId")
                     .set(s"UPDATE qross_jobs SET unchecked_exceptional_tasks=IFNULL((SELECT GROUP_CONCAT(unchecked_exceptional_status ORDER BY unchecked_exceptional_status) AS exceptional_status FROM (SELECT CONCAT(`status`, ':', COUNT(0)) AS unchecked_exceptional_status FROM qross_tasks WHERE job_id=$jobId AND checked='no' GROUP BY `status`) T), '') WHERE id=$jobId;")
-                    .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
+                    .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T),checking_limit_times=checking_limit_times+1 WHERE id=$jobId")
 
                 TaskRecorder.of(jobId, taskId, recordTime).warn(s"Task $taskId of job $jobId at <$recordTime> reached upper limit of checking limit.").dispose()
 
@@ -743,9 +746,9 @@ object QrossTask {
                 .get(s"SELECT job_id, event_name, event_function, event_limit, event_value FROM qross_jobs_events WHERE job_id=$jobId AND enabled='yes' AND event_name='onTaskReady'")
             if (dh.nonEmpty) {
                 dh.cache("events")
-                    .get(s"""SELECT B.task_id, A.title, A.owner, B.job_id, B.task_time, B.record_time, B.start_mode
+                    .get(s"""SELECT B.task_id, A.title, A.owner, B.job_id, B.task_time, B.record_time, B.start_mode, B.status
                         FROM (SELECT id, title, owner FROM qross_jobs WHERE id=$jobId) A
-                        INNER JOIN (SELECT id AS task_id,  job_id, task_time, record_time, start_mode FROM qross_tasks WHERE id=$taskId) B ON A.id=B.job_id""")
+                        INNER JOIN (SELECT id AS task_id, status, job_id, task_time, record_time, start_mode FROM qross_tasks WHERE id=$taskId) B ON A.id=B.job_id""")
                         .cache("task_info")
                 dh.openCache()
                     .get(s"SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS receivers, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND A.status='${TaskStatus.READY}' AND B.event_name='onTaskReady' AND B.event_function='SEND_MAIL_TO' AND INSTR(B.event_limit, A.start_mode)>0")
@@ -806,7 +809,7 @@ object QrossTask {
         if (dh.nonEmpty) {
             //reset status to READY if reach 3 times
             dh.get("SELECT id, job_id, task_id FROM qross_stuck_records WHERE check_times>=3 AND renewed='no'")
-                .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW() WHERE id=#task_id AND status='${TaskStatus.EXECUTING}'")
+                .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW(), readiness=TIMESTAMP(SECOND, create_time, NOW()) WHERE id=#task_id AND status='${TaskStatus.EXECUTING}'")
                 .put("UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=#job_id LIMIT 3) T) WHERE id=#job_id")
                 .put(s"UPDATE qross_stuck_records SET renewed='yes' where id=#id")
         }
@@ -872,8 +875,8 @@ object QrossTask {
         }
 
         val executable = ds.executeDataTable(
-            s"""SELECT A.action_id, A.job_id, A.task_id, A.command_id, B.task_time, B.record_time, B.start_mode, C.command_type, A.command_text, A.args, C.overtime, C.retry_limit, D.job_type, D.title, D.owner
-                         FROM (SELECT id AS action_id, job_id, task_id, command_id, command_text, args FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='$recordTime' AND status='${ActionStatus.WAITING}' AND upstream_ids='') A
+            s"""SELECT A.action_id, A.job_id, A.task_id, A.command_id, B.task_time, B.record_time, B.start_mode, C.command_type, A.command_text, C.overtime, C.retry_limit, D.job_type, D.title, D.owner
+                         FROM (SELECT id AS action_id, job_id, task_id, command_id, command_text FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='$recordTime' AND status='${ActionStatus.WAITING}' AND upstream_ids='') A
                          INNER JOIN (SELECT id, task_time, record_time, start_mode FROM qross_tasks WHERE id=$taskId AND status='${TaskStatus.EXECUTING}') B ON A.task_id=B.id
                          INNER JOIN (SELECT id, command_type, overtime, retry_limit FROM qross_jobs_dags WHERE job_id=$jobId) C ON A.command_id=C.id
                          INNER JOIN (SELECT id, title, job_type, owner FROM qross_jobs WHERE id=$jobId) D ON A.job_id=D.id""")
@@ -881,7 +884,7 @@ object QrossTask {
         writeDebugging(s"Task $taskId of $jobId get ${executable.count()} commands to execute.")
 
         //prepare to run command - start time point
-        ds.tableUpdate(s"UPDATE qross_tasks_dags SET start_time=NOW(), status='${ActionStatus.QUEUEING}' WHERE id=#action_id", executable)
+        ds.tableUpdate(s"UPDATE qross_tasks_dags SET start_time=NOW(), lagged=TIMESTAMPDIFF(SECOND, create_time, NOW()), status='${ActionStatus.QUEUEING}' WHERE id=#action_id", executable)
 
         ds.close()
 
@@ -908,22 +911,9 @@ object QrossTask {
         val logger = TaskRecorder.of(jobId, taskId, recordTime).run(commandId, actionId)
 
         var commandText = taskCommand.getString("command_text").replaceArguments(taskCommand)
-        var args = taskCommand.getString("args").replaceArguments(taskCommand)
         var error = false
 
-        val PQL = new PQL("", DataHub.DEFAULT)
-                    .set(taskCommand)
-
-        if (args != "") {
-            try {
-                args = args.$restore(PQL, "") //按PQL计算, 支持各种PQL嵌入式表达式, 但不保留引号
-            }
-            catch {
-                case e: Exception =>
-                    logger.err(e.getMessage)
-                    error = true
-            }
-        }
+        val PQL = new PQL("", DataHub.DEFAULT).set(taskCommand) //以变量方式传入
 
         if (commandType == "shell") {
             commandText = commandText.replace("%JAVA_BIN_HOME", Global.JAVA_BIN_HOME)
@@ -941,25 +931,19 @@ object QrossTask {
             }
 
             //auto add environment variable to ahead
-            if (commandText.startsWith("java ")) {
-                commandText = Global.JAVA_BIN_HOME + commandText
-            }
-            else if (commandText.startsWith("python2 ")) {
-                commandText = Global.PYTHON2_HOME + commandText
-            }
-            else if (commandText.startsWith("python3 ")) {
-                commandText = Global.PYTHON3_HOME + commandText
+            commandText.takeBefore($BLANK).toLowerCase() match {
+                case "java" => commandText = Global.JAVA_BIN_HOME + "java " + commandText.takeAfter($BLANK)
+                case "pql" => commandText = Global.JAVA_BIN_HOME + s"java -jar ${Global.QROSS_HOME}qross-worker-${Global.QROSS_VERSION}.jar " + commandText.takeAfter($BLANK)
+                case "python2" => commandText = Global.PYTHON2_HOME + "python2 " + commandText.takeAfter($BLANK)
+                case "python3" => commandText = Global.PYTHON3_HOME + "python3 "+ commandText.takeAfter($BLANK)
+                case _ =>
             }
         }
 
-        dh.set(s"UPDATE qross_tasks_dags SET status='${if (error) ActionStatus.WRONG else ActionStatus.RUNNING}', command_text=?, args=?, run_time=NOW(), waiting=TIMESTAMPDIFF(SECOND, start_time, NOW()) WHERE id=$actionId", commandText, args)
+        dh.set(s"UPDATE qross_tasks_dags SET status='${if (error) ActionStatus.WRONG else ActionStatus.RUNNING}', command_text=?, run_time=NOW(), waiting=TIMESTAMPDIFF(SECOND, start_time, NOW()) WHERE id=$actionId", commandText)
 
         if (commandType == "pql") {
             commandText = Global.PQL + s" --task $actionId"
-        }
-        else {
-            //Get full command text
-            commandText += " " + args
         }
 
         var exitValue = 1
@@ -1055,12 +1039,12 @@ object QrossTask {
                     dh.set(s"UPDATE qross_tasks SET finish_time=NOW(), spent=TIMESTAMPDIFF(SECOND, start_time, NOW()), status='${TaskStatus.FINISHED}', checked='' WHERE id=$taskId AND NOT EXISTS (SELECT id FROM qross_tasks_dags WHERE task_id=$taskId AND record_time='$recordTime' AND status!='${ActionStatus.DONE}')")
 
                     //check "after" dependencies
-                    dh.get(s"SELECT A.id, A.task_id, A.dependency_type, A.dependency_value, A.ready, B.task_time FROM qross_tasks_dependencies A INNER JOIN qross_tasks B ON A.job_id=B.job_id WHERE B.status='${TaskStatus.FINISHED}' AND A.task_id=$taskId AND A.record_time='$recordTime' AND A.dependency_moment='after' AND A.ready='no'")
+                    dh.get(s"SELECT A.id, A.task_id, A.record_time, A.dependency_type, A.dependency_label, A.dependency_content, A.dependency_option, A.ready, B.task_time FROM qross_tasks_dependencies A INNER JOIN qross_tasks B ON A.job_id=B.job_id WHERE B.status='${TaskStatus.FINISHED}' AND A.task_id=$taskId AND A.record_time='$recordTime' AND A.dependency_moment='after' AND A.ready='no'")
                             .foreach(row => {
-                                val result = TaskDependency.check(row.getString("dependency_type"), row.getString("dependency_value"), taskId, recordTime)
-                                row.set("ready", result._1)
-                                row.set("dependency_value", result._2)
-                            }).put("UPDATE qross_tasks_dependencies SET ready='#ready', dependency_value='#dependency_value' WHERE id=#id")
+                                if (TaskDependency.check(row) == "yes") {
+                                    row.set("ready", "yes")
+                                }
+                            }).put("UPDATE qross_tasks_dependencies SET ready='#ready' WHERE id=#id")
 
                     dh.get(s"SELECT COUNT(0) AS amount FROM qross_tasks_dependencies WHERE task_id=$taskId AND record_time='$recordTime' AND dependency_moment='after' AND ready='no'")
                         .insertRowIfEmpty("amount" -> 0)
@@ -1068,15 +1052,15 @@ object QrossTask {
                 }
             //timeout
             case -1 =>
-                dh.set(s"UPDATE qross_tasks_dags SET status='${ActionStatus.OVERTIME}', retry_times=$retry WHERE id=$actionId")
+                dh.set(s"UPDATE qross_tasks_dags SET status='${ActionStatus.OVERTIME}', finish_time=NOW(), elapsed=TIMESTAMPDIFF(SECOND, run_time, NOW()), retry_times=$retry WHERE id=$actionId")
                 dh.set(s"UPDATE qross_tasks SET status='${TaskStatus.TIMEOUT}', checked='no' WHERE id=$taskId")
             //killed
             case -2 =>
-                dh.set(s"UPDATE qross_tasks_dags SET status='${ActionStatus.KILLED}' WHERE id=$actionId")
+                dh.set(s"UPDATE qross_tasks_dags SET status='${ActionStatus.KILLED}', finish_time=NOW(), elapsed=TIMESTAMPDIFF(SECOND, run_time, NOW()) WHERE id=$actionId")
                 dh.set(s"UPDATE qross_tasks SET status='${TaskStatus.INTERRUPTED}' WHERE id=$taskId")
             //failed
             case _ =>
-                dh.set(s"UPDATE qross_tasks_dags SET status='${ActionStatus.EXCEPTIONAL}', retry_times=$retry WHERE id=$actionId")
+                dh.set(s"UPDATE qross_tasks_dags SET status='${ActionStatus.EXCEPTIONAL}', finish_time=NOW(), elapsed=TIMESTAMPDIFF(SECOND, run_time, NOW()), retry_times=$retry WHERE id=$actionId")
                 dh.set(s"UPDATE qross_tasks SET finish_time=NOW(), status='${TaskStatus.FAILED}', checked='no' WHERE id=$taskId")
         }
 
@@ -1093,10 +1077,6 @@ object QrossTask {
             if (dh.nonEmpty) {
                 dh.cache("events")
                 dh.cache("task_info", new DataTable(taskCommand))
-
-                //email文档中显示日志
-                dh.get(s"SELECT CAST(create_time AS CHAR) AS create_time, log_type, log_text FROM qross_tasks_logs WHERE task_id=$taskId AND action_id=$actionId ORDER BY create_time ASC")
-                    .buffer("logs")
 
                 dh.openCache()
                     .get("SELECT A.*, B.event_value AS receivers, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND event_function='SEND_MAIL_TO' AND INSTR(B.event_limit, A.start_mode)>0")
@@ -1117,7 +1097,7 @@ object QrossTask {
 
         //recent task status
         dh.openQross()
-            .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T) WHERE id=$jobId")
+            .set(s"UPDATE qross_jobs SET recent_tasks_status=(SELECT GROUP_CONCAT(concat_status ORDER BY id DESC) FROM (SELECT id, CONCAT(id, ':', status, '@', task_time) AS concat_status FROM qross_tasks WHERE job_id=$jobId LIMIT 3) T),${status}_times=${status}_times+1 WHERE id=$jobId")
 
         dh.close()
 
