@@ -359,7 +359,7 @@ object QrossTask {
             dh.get(s"SELECT task_id FROM tasks WHERE dependencies>0")
                 .put(s"UPDATE qross_tasks SET status='${TaskStatus.INITIALIZED}'")
             .get("SELECT task_id FROM tasks WHERE dependencies=0")
-                .put("UPDATE qross_tasks SET status='${TaskStatus.READY}',ready_time=NOW(), readiness=TIMESTAMP(SECOND, create_time, NOW()) WHERE id=#task_id")
+                .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW(), readiness=TIMESTAMPDIFF(SECOND, create_time, NOW()) WHERE id=#task_id")
 
             //Master will can't turn on job if no commands to execute - 2018.9.8
             dh.get("SELECT A.job_id, A.task_id FROM tasks A LEFT JOIN dags B ON A.job_id=B.job_id WHERE B.job_id IS NULL")
@@ -424,7 +424,7 @@ object QrossTask {
 
         //update tasks status
         dh.openQross()
-            .set(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW(), readiness=TIMESTAMP(SECOND, create_time, NOW()) WHERE id=$taskId")
+            .set(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW(), readiness=TIMESTAMPDIFF(SECOND, create_time, NOW()) WHERE id=$taskId")
 
         dh.close()
 
@@ -683,7 +683,7 @@ object QrossTask {
             .get("SELECT id FROM dependencies WHERE ready='no'")
                 .put("UPDATE qross_tasks_dependencies SET retry_times=retry_times+1 WHERE id=?")
             .get("SELECT job_id, task_id FROM dependencies WHERE ready='no' GROUP BY task_id HAVING COUNT(0)=0")
-                .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW(), readiness=TIMESTAMP(SECOND, create_time, NOW()) WHERE id=#task_id")
+                .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW(), readiness=TIMESTAMPDIFF(SECOND, create_time, NOW()) WHERE id=#task_id")
 
         var status: String = dh.openQross().executeSingleValue(s"SELECT status FROM qross_tasks WHERE id=$taskId").asText(TaskStatus.INITIALIZED)
 
@@ -801,7 +801,7 @@ object QrossTask {
         if (dh.nonEmpty) {
             //reset status to READY if reach 3 times
             dh.get("SELECT id, job_id, task_id FROM qross_stuck_records WHERE check_times>=3 AND renewed='no'")
-                .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW(), readiness=TIMESTAMP(SECOND, create_time, NOW()) WHERE id=#task_id AND status='${TaskStatus.EXECUTING}'")
+                .put(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW(), readiness=TIMESTAMPDIFF(SECOND, create_time, NOW()) WHERE id=#task_id AND status='${TaskStatus.EXECUTING}'")
                 .put(s"UPDATE qross_stuck_records SET renewed='yes' where id=#id")
         }
 
