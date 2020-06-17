@@ -34,8 +34,8 @@ repositories {
             username 'zRjGml'
             password 'aqGluc43el'
         }
-        url "https://repo.rdc.aliyun.com/repository/75742-snapshot-Xkjz8l/"
-        //url "https://repo.rdc.aliyun.com/repository/75742-release-biEMxs/"
+        //url "https://repo.rdc.aliyun.com/repository/75742-snapshot-Xkjz8l/"
+        url "https://repo.rdc.aliyun.com/repository/75742-release-biEMxs/"
     }
 }
 
