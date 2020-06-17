@@ -2,10 +2,12 @@ package io.qross.model
 
 import io.qross.ext.Output.{writeDebugging, writeMessage}
 import io.qross.jdbc.DataSource
-import io.qross.time.{ChronExp, DateTime}
+import io.qross.time.{ChronExp, CronExp, DateTime}
 import io.qross.ext.TypeExt._
 
 import scala.collection.mutable
+import scala.util.Try
+import scala.util.control.Breaks._
 
 object QrossJob {
 
@@ -13,67 +15,52 @@ object QrossJob {
     //每秒钟更新，value减1，当tick等于0时，触发任务
     //当任务执行完成时, 重置tick时间
     val ENDLESS_JOBS: mutable.HashMap[Int, EndlessJob] = new mutable.HashMap[Int, EndlessJob]()
-    
-    //get complement tasks for master when enable a job, 考虑移到master中
-    def tickTasks(jobId: Int, queryId: String): Unit = {
-        val ds = DataSource.QROSS
-        val job = ds.executeDataRow(s"SELECT cron_exp, CAST(switch_time AS CHAR) AS switch_time FROM qross_jobs WHERE id=$jobId")
-        val json = ChronExp.getTicks(
-                job.getString("cron_exp"),
-                job.getString("switch_time"),
-                DateTime.now.getString("yyyy-MM-dd HH:mm:ss")).toJsonString.replace("'", "''")
-        ds.executeNonQuery(s"INSERT INTO qross_query_result (query_id, result) VALUES ('$queryId', '$json')")
-        ds.close()
-    }
-
-    //手工创建时返回某一个区间段的可执行任务, 考虑移到master js
-    def manualTickTasks(messageText: String, queryId: String): Unit = {
-        val jobId = messageText.substring(0, messageText.indexOf(":"))
-        val beginTime = messageText.substring(messageText.indexOf(":") + 1, messageText.indexOf("#"))
-        val endTime = messageText.substring(messageText.indexOf("#"))
-
-        val ds = DataSource.QROSS
-        val cronExp = ds.executeSingleValue(s"SELECT cron_exp FROM qross_jobs WHERE id=$jobId").asText
-        val json = ChronExp.getTicks(cronExp, beginTime, endTime).toJsonString.replace("'", "''")
-        ds.executeNonQuery(s"INSERT INTO qross_query_result (query_id, result) VALUES ('$queryId', '$json')")
-        ds.close()
-    }
 
     def refreshEndlessJobs(): Unit = {
 
         val ds = DataSource.QROSS
 
-        val map = ds.queryDataMap[Int, Long](s"SELECT id AS job_id, CAST(cron_exp AS SIGNED) AS intervals FROM qross_jobs WHERE job_type='${JobType.ENDLESS}' AND enabled='yes'")
+        val jobs = ds.queryDataMap[Int, String](s"SELECT id AS job_id, cron_exp FROM qross_jobs WHERE job_type='${JobType.ENDLESS}' AND enabled='yes'")
+
         //remove
         ENDLESS_JOBS
                 .keys
                 .foreach(jobId => {
-                    if (!map.contains(jobId)) {
+                    if (!jobs.contains(jobId)) {
                         ENDLESS_JOBS -= jobId
                         writeDebugging(s"Endless job $jobId has removed from list!")
                     }
                 })
-        //update
-        map.foreach(job => {
+
+        //update & renew
+        jobs.foreach(job => {
             if (ENDLESS_JOBS.contains(job._1)) {
-                ENDLESS_JOBS(job._1).update(job._2.toInt)
+                ENDLESS_JOBS(job._1).update(job._2)
                 writeDebugging(s"Endless job ${job._1} has updated!")
             }
             else {
-                ENDLESS_JOBS += job._1 -> EndlessJob(job._2.toInt)
+                ENDLESS_JOBS += job._1 -> new EndlessJob(job._2)
                 writeDebugging(s"Endless job ${job._1} has added to list!")
             }
         })
-        //check stuck job
-        ENDLESS_JOBS.filter(_._2.executing)
-                    .foreach(job => {
-                        if (!ds.executeExists(s"SELECT id FROM qross_tasks WHERE job_id=${job._1} AND status='${TaskStatus.EXECUTING}'")) {
-                            job._2.renew()
-                            writeDebugging(s"Endless job ${job._1} has restored from stuck!")
-                        }
-                    })
 
-        ds.executeNonQuery("UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='TaskProducer'")
+        //check stuck job
+        ENDLESS_JOBS
+            .foreach(job => {
+                if (job._2.executing) {
+                    if (!ds.executeExists(s"SELECT id FROM qross_tasks WHERE job_id=${job._1} AND status IN ('${TaskStatus.NEW}', '${TaskStatus.INITIALIZED}', '${TaskStatus.READY}', '${TaskStatus.EXECUTING}')")) {
+                        job._2.renew()
+                        writeDebugging(s"Endless job ${job._1} has restored from stuck!")
+                    }
+                }
+                else if (job._2.suspending) {
+                    job._2.renew()
+                }
+            })
+
+        //wait a while
+
+        ds.executeNonQuery("UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='Repeater'")
         ds.close()
         writeMessage("Repeater beat!")
     }
@@ -102,18 +89,51 @@ object QrossJob {
     }
 }
 
-case class EndlessJob(var interval: Int) {
-    private var apart: Int = interval
+//interCronExp 格式为  interval-seconds@cron_exp; interval-seconds@cron_exp; ...
+//默认间隔为5秒
+class EndlessJob(private val interCronExp: String) {
+
+    private val intervals = new mutable.HashMap[String, Int]()
+    private var cronExp = ""
+
+    private var apart: Int = 0
     private var status: String = "waiting"
 
-    def update(gap: Int): Unit = {
-        if (gap != this.interval) {
-            this.interval = gap
+    update(interCronExp)
+    renew()
+
+    def update(newInterCronExp: String): Unit = {
+        if (cronExp != newInterCronExp) {
+            cronExp = newInterCronExp
+            intervals.clear()
+            newInterCronExp.split(";")
+                .foreach(interCron => {
+                    if (interCron.contains("@")) {
+                        intervals += interCron.takeAfter("@").trim() -> Try(interCron.takeBefore("@").trim().toInt).getOrElse(5)
+                    }
+                    else {
+                        intervals += "DEFAULT" -> Try(interCron.trim().toInt).getOrElse(5)
+                    }
+                })
         }
     }
 
     def renew(): Unit = {
-        this.apart = interval
+        breakable {
+            intervals.foreach(interCron => {
+                if (interCron._1 != "DEFAULT") {
+                    if (CronExp(interCron._1).matches(DateTime.now.setSecond(0))) {
+                        this.apart = interCron._2
+                        break
+                    }
+                }
+            })
+        }
+
+        if (intervals.contains("DEFAULT")) {
+            this.apart = intervals("DEFAULT")
+        }
+
         this.status = "waiting"
     }
 
@@ -125,10 +145,12 @@ case class EndlessJob(var interval: Int) {
     }
 
     def execute(): Unit = {
+        apart = -1
         status = "executing"
     }
 
     def executing: Boolean = status == "executing"
-    def waiting: Boolean = status == "waiting"
+    def waiting: Boolean = apart > 0 && status == "waiting"
     def ready: Boolean = apart == 0 && status == "waiting"
+    def suspending: Boolean = apart < 0 && status == "waiting"
 }

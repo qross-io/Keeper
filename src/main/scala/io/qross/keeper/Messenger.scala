@@ -1,12 +1,12 @@
 package io.qross.keeper
 
 import io.qross.ext.Output
-import io.qross.model._
-import io.qross.setting.{Configurations, Global, Properties}
-import io.qross.time.{DateTime, Timer}
+import io.qross.ext.TypeExt._
 import io.qross.fs.Path._
 import io.qross.jdbc.JDBC
-import io.qross.ext.TypeExt._
+import io.qross.model._
+import io.qross.setting.{Configurations, Properties}
+import io.qross.time.{DateTime, Timer}
 
 import scala.util.{Success, Try}
 
@@ -23,29 +23,19 @@ class Messenger extends WorkActor {
         do {
             MessageBox.check().foreach(row => {
                 val queryId = row.getString("query_id")
-                val sender = row.getInt("sender")
+                val sender = row.getInt("sender", 0)
                 val messageType = row.getString("message_type").toUpperCase
                 val messageKey = row.getString("message_key").toUpperCase
                 val messageText = row.getString("message_text")
-                Output.writeDebugging(s"Got A Message # $queryId # $messageType # $messageKey # $messageText")
+                Output.writeDebugging(s"Got a Message # $queryId # $messageType # $messageKey # $messageText")
 
                 messageType match {
-                    case "GLOBAL" => Configurations.set(messageKey, messageText)
-                    case "JOB" =>
-                        //JOB - COMPLEMENT - job_id
-                        //JOB - MANUAL - job_id:begin_time#end_time
-                        //JOB - CREATE -
-                        // {
-                        //      "project_id": 0,
-                        //      "title": "",
-                        //      "cron_exp": "",
-                        //      "closing_time": "",
-                        //      "command_text": ""
-                        // }
-                        messageKey match {
-                            case "COMPLEMENT" => QrossJob.tickTasks(messageText.toInt, queryId)
-                            case "MANUAL" => QrossJob.manualTickTasks(messageText, queryId)
-                            case _ =>
+                    case "GLOBAL" =>
+                        if (messageKey == "USER_GROUP") {
+
+                        }
+                        else {
+                            Configurations.set(messageKey, messageText)
                         }
                     case "TASK" =>
                         //TASK - RESTART - WHOLE@TaskID - WHOLE@123
@@ -60,20 +50,19 @@ class Messenger extends WorkActor {
                                 params: "name1:value1,name2:value2",
                                 commands: "commandId:commandText##$##commandId:commandText",
                                 delay: 0,
-                                start_time: 'yyyyMMddHHmm00',
-                                creator: @username
+                                start_time: 'yyyyMMddHHmm00'
                             }
-                             */
+                            */
                         //TASK - KILL - actionId
                         messageKey match {
-                            case "RESTART" => producer ! QrossTask.restartTask(messageText.takeAfter("@").toLong, messageText.takeBefore("@"))
-                            case "INSTANT" => QrossTask.createInstantTask(messageText) match {
+                            case "RESTART" => producer ! QrossTask.restartTask(messageText.takeAfter("@").toLong, messageText.takeBefore("@"), sender)
+                            case "INSTANT" => QrossTask.createInstantTask(messageText, sender) match {
                                                 case Some(task) => producer ! task
                                                 case None =>
                                             }
                             case "KILL" =>
                                 Try(messageText.toLong) match {
-                                    case Success(actionId) => QrossTask.TO_BE_KILLED += actionId
+                                    case Success(actionId) => QrossTask.TO_BE_KILLED += actionId -> sender
                                     case _ =>
                                 }
                             case _ =>
@@ -82,7 +71,7 @@ class Messenger extends WorkActor {
                         messageKey match {
                             case "PROCESS" =>
                                 Try(messageText.toLong) match {
-                                    case Success(noteId) => processor ! QrossNote.process(noteId, sender)
+                                    case Success(noteId) => processor ! Note(noteId, sender)
                                     case _ =>
                                 }
                             case "KILL" =>
@@ -94,8 +83,9 @@ class Messenger extends WorkActor {
                         }
                     case "USER" =>
                         messageKey match {
-                            case "MASTER" => Configurations.set("MASTER_USER_GROUP", QrossUser.getUsers("master"))
-                            case "KEEPER" => Configurations.set("KEEPER_USER_GROUP", QrossUser.getUsers("keeper"))
+                            //case "MASTER" => Configurations.set("MASTER_USER_GROUP", QrossUser.getUsers("master"))
+                            //case "KEEPER" => Configurations.set("KEEPER_USER_GROUP", QrossUser.getUsers("keeper"))
+                            case "GROUP" => Setting.renewUserGroup()
                             case _ =>
                         }
                     case "PROPERTIES" =>

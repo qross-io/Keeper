@@ -10,17 +10,15 @@ object Setting {
 
     def QUIT_ON_NEXT_BEAT: Boolean = Configurations.get("QUIT_ON_NEXT_BEAT").toBoolean(false)  //for keeper only
 
+    def COMPANY_NAME: String = Configurations.getOrProperty("COMPANY_NAME", "company.name", "")
+
     def CONCURRENT_BY_CPU_CORES: Int = Configurations.getOrProperty("CONCURRENT_BY_CPU_CORES", "concurrent.by.cpu.cores").ifNullOrEmpty("4").toInt
 
     def EMAIL_EXCEPTIONS_TO_DEVELOPER: Boolean = Configurations.getOrProperty("EMAIL_EXCEPTIONS_TO_DEVELOPER", "email.exceptions.to.developer").toBoolean(true)
 
     def MASTER_USER_GROUP: String = {
         if (!Configurations.contains("MASTER_USER_GROUP")) {
-            if (JDBC.hasQrossSystem) {
-                Configurations.set("MASTER_USER_GROUP",
-                    DataSource.QROSS.querySingleValue("SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS addresses FROM qross_users WHERE role='master'").asText
-                )
-            }
+            renewUserGroup()
         }
 
         Configurations.get("MASTER_USER_GROUP")
@@ -28,48 +26,25 @@ object Setting {
 
     def KEEPER_USER_GROUP: String = {
         if (!Configurations.contains("KEEPER_USER_GROUP")) {
-            if (JDBC.hasQrossSystem) {
-                Configurations.set("KEEPER_USER_GROUP",
-                    DataSource.QROSS.querySingleValue("SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS addresses FROM qross_users WHERE role='keeper'").asText
-                )
-            }
+            renewUserGroup()
         }
 
         Configurations.get("KEEPER_USER_GROUP")
     }
 
-    def API_ON_TASK_NEW: String = Configurations.get("API_ON_TASK_NEW")
-
-    def API_ON_TASK_CHECKING_LIMIT: String = Configurations.get("API_ON_TASK_CHECKING_LIMIT")
-
-    def API_ON_TASK_READY: String = Configurations.get("API_ON_TASK_READY")
-
-    def API_ON_TASK_FAILED: String = Configurations.get("API_ON_TASK_FAILED")
-
-    def API_ON_TASK_INCORRECT: String = Configurations.get("API_ON_TASK_INCORRECT")
-
-    def API_ON_TASK_TIMEOUT: String = Configurations.get("API_ON_TASK_TIMEOUT")
-
-    def API_ON_TASK_SUCCESS: String = Configurations.get("API_ON_TASK_SUCCESS")
-
-    def API_ON_TASK_SLOW: String = Configurations.get("API_ON_TASK_SLOW")
-
-    def API_OF_CALL: String = Configurations.get("API_OF_CALL")
-
-    def CLEAN_TASK_RECORDS_FREQUENCY: String = Configurations.getOrProperty("CLEAN_TASK_RECORDS_FREQUENCY", "task.clean.records.frequency")
-
     def BEATS_MAILING_FREQUENCY: String = Configurations.getOrProperty("BEATS_MAILING_FREQUENCY", "beats.mailing.frequency")
 
-    def DISK_MONITOR_FREQUENCY: String = Configurations.getOrProperty("DISK_MONITOR_FREQUENCY", "disk.monitor.frequency")
 
-    //Cluster relative
-    def HADOOP_AND_HIVE_ENABLED: Boolean = Configurations.getOrProperty("HADOOP_AND_HIVE_ENABLED", "hadoop.and.hive.enabled").toBoolean(false)
-
-    def KERBEROS_AUTH: Boolean = Configurations.getOrProperty("KERBEROS_AUTH", "kerberos.auth").toBoolean(false)
-
-    def KRB_USER_PRINCIPAL: String = Configurations.getOrProperty("KRB_USER_PRINCIPAL", "krb.user.principal")
-
-    def KRB_KEYTAB_PATH: String = Configurations.getOrProperty("KRB_KEYTAB_PATH", "krb.keytab.path")
-
-    def KRB_KRB5CONF_PATH: String = Configurations.getOrProperty("KRB_KRB5CONF_PATH", "krb.krb5conf.path")
+    def renewUserGroup(): Unit = {
+        if (JDBC.hasQrossSystem) {
+            DataSource.QROSS
+                .queryDataTable("SELECT role, GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS addresses FROM qross_users WHERE role='master' OR role='keeper' GROUP BY role")
+                .foreach(row => {
+                    row.getString("role") match {
+                        case "keeper" => Configurations.set("KEEPER_USER_GROUP", row.getString("addresses"))
+                        case "master" => Configurations.set("MASTER_USER_GROUP", row.getString("addresses"))
+                    }
+                }).clear()
+        }
+    }
 }

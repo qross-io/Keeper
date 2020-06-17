@@ -8,11 +8,11 @@
         #title { font-family: "Microsoft YaHei", Consolas; font-size: 20px; padding: 10px 10px 0px 10px; }
         #details { font-family: "Microsoft YaHei", Consolas; color: #666666; font-size: 14px; line-height: 150%; padding: 10px 10px 10px 10px; font-weight:bold; }
         #details span { font-size:12px; color: #006699; font-weight:normal; }
-        #title span { color: #00CCFF; }
+        .TIMEOUT { color: #00CCFF; }
     </style>
 </head>
 <body>
-<div id="title">#{title} #{task_time} <span>TIMEOUT</span> </div>
+<div id="title">#{title} #{task_time} <span class="TIMEOUT">TIMEOUT</span> </div>
 <div id="details">
         <span>JobID</span> &nbsp; #{job_id} &nbsp; <span>TaskID</span> &nbsp; #{task_id} <br/>
         <span>CommandID</span>  #{command_id} &nbsp; <span>ActionID</span> #{action_id} <br/>

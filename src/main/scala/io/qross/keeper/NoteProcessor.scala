@@ -2,15 +2,20 @@ package io.qross.keeper
 
 import akka.actor.Props
 import akka.routing.BalancingPool
-import io.qross.model.{WorkActor, Process}
+import io.qross.model.{Note, Tick, WorkActor}
 import io.qross.setting.Environment
 
-class NoteProcessor extends WorkActor{
+class NoteProcessor extends WorkActor {
 
-    private val performer = context.actorOf(Props[NotePerformer].withRouter(new BalancingPool(Environment.cpuThreads)), "performer")
+    private val querier = context.actorOf(Props[NoteQuerier].withRouter(new BalancingPool(Environment.cpuThreads)), "querier")
 
-    override def process(process: Process): Unit = {
+    override def process(noteId: Long, userId: Int): Unit = {
         //distribute Process
-        performer ! process
+        querier ! Note(noteId, userId)
+    }
+
+    override def beat(minute: String): Unit = {
+        querier ! Tick(minute)
+        super.beat(minute)
     }
 }

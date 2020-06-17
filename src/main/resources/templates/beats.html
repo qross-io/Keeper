@@ -14,7 +14,10 @@
 <div id="title">Keeper Beats at #{tick}</div>
 <div id="error"#{error}</div>
 <div id="details">
-    #{beats}
+    <%
+    OPEN QROSS;
+    OUTPUT # SELECT actor_name AS Actor, status AS Status, last_beat_time AS LastBeat FROM qross_keeper_beats -> TO HTML TABLE;
+    %>
 </div>
 </body>
 </html>

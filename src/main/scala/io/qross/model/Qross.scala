@@ -54,10 +54,10 @@ object Qross {
             .put("UPDATE qross_keeper_running_records SET status='stopping', stop_time=NOW(), duration=TIMESTAMPDIFF(SECOND, start_time, NOW()) WHERE id=#id")
 
         while(dh.get("SELECT actor_name FROM qross_keeper_beats WHERE status='running' LIMIT 1").nonEmpty) {
-            writeDebugging(dh.firstRow.getString("actor_name") + " still working.")
+            writeDebugging(dh.firstRow.getString("actor_name") + " is still working.")
             dh.clear()
             dh.get("SELECT COUNT(0) AS amount FROM qross_tasks WHERE status='executing'")
-            writeDebugging("There is " + dh.firstRow.getString("amount") + " tasks still executing.")
+            writeDebugging("There is " + dh.firstRow.getString("amount") + " tasks still to be done.")
             dh.clear()
             Timer.sleep(5000)
         }
@@ -105,7 +105,6 @@ object Qross {
                 ResourceFile.open("/templates/beats.html")
                     .replace("#{tick}", tick)
                     .replace("#{error}", error)
-                    .replace("#{beats}", dh.executeDataTable("SELECT CONCAT(actor_name, ' - ', status, ' - ', last_beat_time) AS info FROM qross_keeper_beats ORDER BY id DESC").getColumn("info").mkString("<br/>"))
                     .writeEmail(title)
                     .to(if (Setting.KEEPER_USER_GROUP != "") Setting.KEEPER_USER_GROUP else Setting.MASTER_USER_GROUP)
                     .cc(if (Setting.KEEPER_USER_GROUP != "") Setting.MASTER_USER_GROUP else "")
@@ -125,11 +124,13 @@ object Qross {
                 .cache("slow_tasks_events")
             dh.openCache()
                 .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS receivers, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='SEND_MAIL_TO' AND INSTR(event_limit, start_mode)>0")
-                    .sendEmail(s"${TaskStatus.SLOW}")
-                .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS api, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='REQUEST_API' AND INSTR(B.event_limit, A.start_mode)>0")
-                    .requestApi(s"${TaskStatus.SLOW}")
-                .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS pql, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='EXECUTE_PQL' AND INSTR(B.event_limit, A.start_mode)>0")
-                    .runPQL(s"${TaskStatus.SLOW}")
+                    .sendEmail(TaskStatus.SLOW)
+                .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS api, event_option AS method, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='REQUEST_API' AND INSTR(event_limit, start_mode)>0")
+                    .requestApi(TaskStatus.SLOW)
+                .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS roles, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE INSTR(event_function, 'CUSTOM_')>0 AND INSTR(event_limit, start_mode)>0")
+                    .fireCustomEvent(TaskStatus.SLOW)
+                .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS pql, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='EXECUTE_PQL' AND INSTR(event_limit, start_mode)>0")
+                    .runPQL(TaskStatus.SLOW)
 
             //close job if expired
             dh.clear().openQross()
@@ -145,12 +146,6 @@ object Qross {
                     writeMessage("Job " + row.getString("id") + " is opening.")
                 })
                 .put("UPDATE qross_jobs SET enabled='yes', next_tick='#next_tick', opening_time='' WHERE id=#id")
-        }
-
-        //disk space monitor
-        if (now.matches(Setting.DISK_MONITOR_FREQUENCY)) {
-            dh.set(s"INSERT INTO qross_space_monitor (moment, keeper_logs_space_usage, task_logs_space_usage, temp_space_usage) VALUES ('${now.getString("yyyy-MM-dd HH:mm:ss")}', ${Directory.spaceUsage(Global.QROSS_HOME + "logs/")}, ${Directory.spaceUsage(Global.QROSS_HOME + "tasks/")}, ${Directory.spaceUsage(Global.QROSS_HOME + "temp/")})")
-            writeDebugging("Disk info has been saved.")
         }
         
         dh.close()

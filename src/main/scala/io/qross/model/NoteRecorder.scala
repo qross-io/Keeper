@@ -4,57 +4,49 @@ import java.util.concurrent.{ConcurrentHashMap, ConcurrentLinkedQueue}
 
 import io.qross.core.DataTable
 import io.qross.ext.Output
+import io.qross.fs.FileWriter
 import io.qross.jdbc.DataSource
+import io.qross.setting.Global
 import io.qross.time.DateTime
+
+import scala.collection.mutable
 
 object NoteRecorder {
 
     val LOGS = new ConcurrentLinkedQueue[NoteLog]()
+
     private var stamp = System.currentTimeMillis()
 
     def SPAN: Long = System.currentTimeMillis() - stamp
 
-    def of(noteId: Long, procId: Long): NoteRecorder = {
-        new NoteRecorder(noteId, procId)
+    def of(noteId: Long, userId: Int): NoteRecorder = {
+        new NoteRecorder(noteId, userId)
     }
 
     def save(): Unit = synchronized {
         if (NoteRecorder.LOGS.size() > 0) {
+
+            val writers = new mutable.HashMap[String, FileWriter]()
+
             var i = 0
-            val ds = DataSource.QROSS
-            ds.setBatchCommand(s"INSERT INTO qross_notes_logs (note_id, process_id, log_type, log_text, create_time) VALUES (?, ?, ?, ?, ?)")
             while(NoteRecorder.LOGS.size() > 0 && i < 10000) {
                 val log = NoteRecorder.LOGS.poll()
-                ds.addBatch(log.noteId, log.procId, log.logType, log.logText, log.logTime)
+                if (!writers.contains(log.path)) {
+                    writers += log.path -> new FileWriter(Global.QROSS_HOME + s"notes/${log.path}.log", deleteIfExists = true)
+                }
+                writers(log.path).writeObjectLine(log.line)
+
                 i += 1
             }
-            ds.executeBatchUpdate()
-            ds.close()
 
-            stamp = System.currentTimeMillis()
+            writers.values.foreach(_.close())
         }
-    }
 
-    def toHTML(logs: DataTable): String = {
-        val sb = new StringBuilder()
-        logs.foreach(row => {
-            var time = row.getString("create_time")
-            if (time.contains(".")) {
-                time = time.substring(0, time.indexOf("."))
-            }
-
-            sb.append("<div class='TIME'>")
-            sb.append(time)
-            sb.append("</div>")
-            sb.append("<div class='" + row.getString("log_type") + "'>")
-            sb.append(row.getString("log_text").replace("\r", "<br/>").replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;"))
-            sb.append("</div>")
-        })
-        sb.toString()
+        stamp = System.currentTimeMillis()
     }
 }
 
-class NoteRecorder(val noteId: Long, val procId: Long) {
+class NoteRecorder(val noteId: Long, val userId: Int) {
 
     //记录被调度任务运行过程中的输出流
     def out(info: String): NoteRecorder = {
@@ -85,7 +77,7 @@ class NoteRecorder(val noteId: Long, val procId: Long) {
     }
 
     private def record(seal: String, text: String): NoteRecorder = {
-        NoteRecorder.LOGS.add(new NoteLog(noteId, procId, seal, text))
+        NoteRecorder.LOGS.add(new NoteLog(noteId, userId, new NoteLogLine(seal, text)))
         if (NoteRecorder.LOGS.size() >= 1000 || NoteRecorder.SPAN >= 2000) {
             NoteRecorder.save()
         }
@@ -97,16 +89,12 @@ class NoteRecorder(val noteId: Long, val procId: Long) {
     }
 }
 
-class NoteLog(var noteId: Long, var procId: Long, var logType: String = "INFO", var logText: String = "", var logTime: String = DateTime.now.getString("yyyy-MM-dd HH:mm:ss")) {
-    
-    private val limit = 65535
-    
+class NoteLog(val noteId: Long, val userId: Int, val line: NoteLogLine) {
+    val path: String = s"$userId/$noteId"
+}
+
+class NoteLogLine(val logType: String = "INFO", var logText: String = "", val logTime: String = DateTime.now.getString("yyyy-MM-dd HH:mm:ss")) {
     if (logType != "INFO" && logType != "ERROR") {
         logText = s"$logTime [$logType] $logText"
-    }
-    if (logText.length > limit) logText = logText.take(limit)
-
-    override def toString: String = {
-        s"Note: $noteId, Process: $procId - $logTime [$logType] ${logText.replace("\r", "\\r")}"
     }
 }

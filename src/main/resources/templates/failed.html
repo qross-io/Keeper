@@ -10,15 +10,13 @@
         #details span { font-size:12px; color: #006699; font-weight:normal; }
         #logs { border-top: 1px solid #CCCCCC; padding-top:10px; margin: 0px 10px 10px 10px; }
         .FAILED { color: #D90000; }
-        .INCORRECT { color: #FF7F00; }
-        .TIMEOUT { color: #00CCFF; }
         .TIME { font-family: "Microsoft YaHei", Consolas; font-size: 14px; color:#808080; border-bottom: 1px dotted #CCCCCC; margin-top:10px; line-height:200%; }
         .INFO { font-family: "Microsoft YaHei", Consolas; font-size: 14px; color:#333333; line-height:200%; }
         .ERROR { font-family: "Microsoft YaHei", Consolas; font-size: 14px; color:#D00000; line-height:200%; }
     </style>
 </head>
 <body>
-<div id="title">#{title} #{task_time} <span class="#{status}">#{status}</span> </div>
+<div id="title">#{title} #{task_time} <span class="FAILED">FAILED</span> </div>
 <div id="details">
         <span>JobID</span> &nbsp; #{job_id} &nbsp; &nbsp;
         <span>TaskID</span> &nbsp; #{task_id} &nbsp; &nbsp;
@@ -27,7 +25,18 @@
         <span>CommandText</span> &nbsp; #{command_text}
 </div>
     <div id="logs">
-        #{logs}
+        <%
+        OPEN QROSS;
+        SET $record_time := '#{record_time}';
+        SET $record_day := '#{record_time}' FORMAT 'yyyyMMdd';
+        SET $record_time := '#{record_time}' FORMAT 'yyyyMMdd_HHmmss';
+        SET $file := @QROSS_HOME + 'tasks/' + $record_day + '/#{job_id}/#{task_id}_' + $record_time + '.log';
+        OPEN JSON FILE $file AS TABLE 'logs';
+
+        FOR $time, $type, $text IN (SELECT logTime, logType, logText FROM :logs WHERE logType != 'INFO') LOOP
+        %>
+            <div title="${time}" class="${type}">${text}</div>
+        <% END LOOP %>
     </div>
 </body>
 </html>

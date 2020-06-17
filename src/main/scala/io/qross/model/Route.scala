@@ -15,4 +15,8 @@ object Route {
     def getRunningAction(actionId: Long): Option[Long] = {
         DataSource.QROSS.querySingleValue("SELECT id FROM qross_tasks_dags WHERE id=? AND status='running'", actionId).toOption[Long]
     }
+
+    def isNoteQuerying(noteId: Long): Boolean = {
+        QrossNote.QUERYING.contains(noteId)
+    }
 }

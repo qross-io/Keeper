@@ -6,6 +6,7 @@ import io.qross.core.DataTable
 import io.qross.ext.Output
 import io.qross.ext.TypeExt._
 import io.qross.fs.FileWriter
+import io.qross.jdbc.DataSource
 import io.qross.setting.Global
 import io.qross.time.DateTime
 
@@ -34,18 +35,26 @@ object TaskRecorder {
         //qross_home/tasks/record_time_day/jobId/task_id_record_time.log
 
         if (TaskRecorder.LOGS.size() > 0) {
+
+            //val ds = DataSource.QROSS
             val writers = new mutable.HashMap[String, FileWriter]()
 
-            var i = 0
+            var i = 0 //每次最多保存10000条数据
+            //ds.setBatchCommand(s"INSERT INTO qross_tasks_logs (job_id, task_id, record_time, command_id, action_id, log_type, log_text, create_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
             while(TaskRecorder.LOGS.size() > 0 && i < 10000) {
                 val log = TaskRecorder.LOGS.poll()
                 if (!writers.contains(log.path)) {
                     writers += log.path -> new FileWriter(s"${Global.QROSS_HOME}/tasks/${log.path}.log")
                 }
-                writers(log.path).writeObjectLine[TaskLogLine](log.line)
+
+                //ds.addBatch(log.jobId, log.taskId, log.recordTime, log.line.commandId, log.line.actionId, log.line.logType, log.line.logText, log.line.logTime)
+                writers(log.path).writeObjectLine(log.line)
+
                 i += 1
             }
 
+            //ds.executeBatchUpdate()
+            //ds.close()
             writers.values.foreach(_.close())
         }
     }
@@ -91,7 +100,11 @@ class TaskRecorder(jobId: Int, taskId: Long, recordTime: String) {
     }
 
     private def record(seal: String, text: String): TaskRecorder = {
-        TaskRecorder.LOGS.add(new TaskLog(jobId, taskId, recordTime, new TaskLogLine(commandId, actionId, seal, text)))
+        TaskRecorder.LOGS.add(
+            new TaskLog(jobId, taskId, recordTime,
+                new TaskLogLine(commandId, actionId, seal, text)
+            )
+        )
         if (TaskRecorder.LOGS.size() >= 2000) {
             TaskRecorder.save()
         }
@@ -103,11 +116,13 @@ class TaskRecorder(jobId: Int, taskId: Long, recordTime: String) {
     }
 }
 
-class TaskLog(var jobId: Int, var taskId: Long, var recordTime: String, val line: TaskLogLine) {
-    val path: String = s"""${recordTime.takeBefore(" ").replace("-", "")}/$jobId/${taskId}_${recordTime.replace("-", "").replace(" ", "").replace(":", "")}"""
+//完整的一行日志
+class TaskLog(val jobId: Int, val taskId: Long, val recordTime: String, val line: TaskLogLine) {
+    val path: String = s"""${recordTime.takeBefore(" ").replace("-", "")}/$jobId/${taskId}_${recordTime.replace("-", "").replace(" ", "_").replace(":", "")}"""
 }
 
-class TaskLogLine(var commandId: Int = 0, var actionId: Long = 0L, var logType: String = "INFO", var logText: String = "", var logTime: String = DateTime.now.getString("yyyy-MM-dd HH:mm:ss")) {
+//保存在日志文件中的每一行
+class TaskLogLine(val commandId: Int, val actionId: Long, val logType: String = "INFO", var logText: String = "", val logTime: String = DateTime.now.getString("yyyy-MM-dd HH:mm:ss")) {
     if (logType != "INFO" && logType != "ERROR") {
         logText = s"$logTime [$logType] $logText"
     }

@@ -3,6 +3,7 @@ package io.qross.model
 import io.qross.ext.Output
 import io.qross.fs.{FileWriter, ResourceFile}
 import io.qross.jdbc.DataSource
+import io.qross.keeper.Setting
 import io.qross.setting.Global
 import io.qross.time.DateTime
 
@@ -23,7 +24,10 @@ class KeeperLogger {
     }
     
     def err(exception: String): Unit = {
-        debug(exception)
+        """2\d{3}[/-]\d{2}[/-]\d{2} \d{2}:\d{2}:\d{2}""".r.findFirstIn(exception) match {
+            case Some(_) => debug(exception)
+            case None => debug(DateTime.now + " [ERROR] " + exception)
+        }
         
         exceptions += new KeeperException(exception)
         timer = System.currentTimeMillis()
@@ -52,21 +56,18 @@ class KeeperLogger {
             val ds = DataSource.QROSS
             ds.setBatchCommand(s"INSERT INTO qross_keeper_exceptions (exception, create_date) VALUES (?, ?)")
             exceptions.foreach(line => {
-                ds.addBatch(line.exception, line.createDate)
+                ds.addBatch(line.text, line.createDate)
             })
             ds.executeBatchUpdate()
     
             //email
-            val info = ds.executeDataRow("SELECT conf_key, conf_value FROM qross_conf WHERE conf_key IN ('EMAIL_NOTIFICATION', 'COMPANY_NAME', 'EMAIL_EXCEPTIONS_TO_DEVELOPER')")
-            if (info.getBoolean("EMAIL_NOTIFICATION")) {
-                ResourceFile.open("/templates/exception.html")
-                    .replace("#{companyName}", info.getString("COMPANY_NAME"))
-                    .replace("#{exceptions}", KeeperException.toHTML(exceptions))
-                    .writeEmail(s"KEEPER EXCEPTION: ${info.getString("COMPANY_NAME")} ${DateTime.now.toString}")
-                    .to(QrossUser.getUsers("master"))
-                    .cc(if (info.getBoolean("EMAIL_EXCEPTIONS_TO_DEVELOPER")) "Developer<garfi-wu@outlook.com>" else "")
-                    .send()
-            }
+            ResourceFile.open("/templates/exception.html")
+                .replace("#{companyName}", Setting.COMPANY_NAME)
+                .replace("#{exceptions}", KeeperException.toHTML(exceptions))
+                .writeEmail(s"KEEPER EXCEPTION: ${Setting.COMPANY_NAME} ${DateTime.now.toString}")
+                .to(Setting.MASTER_USER_GROUP)
+                .cc(if (Setting.EMAIL_EXCEPTIONS_TO_DEVELOPER) "Developer<garfi-wu@outlook.com>" else "")
+                .send()
 
             ds.close()
             
@@ -86,14 +87,14 @@ object KeeperException {
         val sb = new StringBuilder()
         exceptions.foreach(line => {
             sb.append("<div class='ERROR'>")
-            sb.append(line.exception.replace("\r", "<br/>").replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;"))
+            sb.append(line.text.replace("\r", "<br/>").replace("\t", "&nbsp;&nbsp;&nbsp;&nbsp;"))
             sb.append("</div>")
         })
         sb.toString()
     }
 }
 
-class KeeperException(var exception: String = "") {
-    if (exception.length > 65535) exception = exception.take(65535)
-    var createDate: String = DateTime.now.getString("yyyy-MM-dd")
+class KeeperException(exception: String = "") {
+    val text = if (exception.length > 65535) exception.take(65535) else exception
+    val createDate: String = DateTime.now.getString("yyyy-MM-dd")
 }
