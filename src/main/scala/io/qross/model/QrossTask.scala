@@ -441,7 +441,7 @@ object QrossTask {
                 commands: "commandId:commandText##$##commandId:commandText",
                 delay: 5,  //s
                 start_time: 'yyyyMMddHHmm00',
-                creator: @creator
+                ignoreDepends: 'yes'
             }
          */
 
@@ -458,6 +458,7 @@ object QrossTask {
         val taskTime = DateTime.now.getString("yyyyMMddHHmmss")
         val recordTime = DateTime.now.toString()
         val startTime = info.getString("start_time")
+        val ignore = info.getString("ignoreDepends", "no")
 
         //maybe convert failure
         if (jobId > 0) {
@@ -497,7 +498,7 @@ object QrossTask {
 
                 //dependencies
                 dh.openQross()
-                    .get(s"SELECT job_id, $taskId AS task_id, '$taskTime' AS task_time, '$recordTime' AS record_time, id AS dependency_id, dependency_moment, dependency_type, dependency_label, dependency_content, dependency_option FROM qross_jobs_dependencies WHERE job_id=$jobId")
+                    .get(s"SELECT job_id, $taskId AS task_id, '$taskTime' AS task_time, '$recordTime' AS record_time, id AS dependency_id, dependency_moment, dependency_type, dependency_label, dependency_content, dependency_option FROM qross_jobs_dependencies WHERE job_id=$jobId" + (if (ignore == "yes") " AND dependency_moment='after'" else ""))
                         .generateDependencies()
 
                 //DAG
@@ -589,8 +590,8 @@ object QrossTask {
         val dh = DataHub.QROSS
 
         //backup records
-        dh.get(s"SELECT job_id, task_time, record_time, start_mode, starter, status, start_time, finish_time, readiness, latency, spent FROM qross_tasks WHERE id=$taskId")
-            .put(s"INSERT INTO qross_tasks_records (job_id, task_id, record_time, start_mode, starter, status, start_time, finish_time, readiness, latency, spent) VALUES (#job_id, $taskId, '#record_time', '#start_mode', #starter, '#status', '#start_time', '#finish_time', #readiness, #latency, #spent)")
+        dh.get(s"SELECT job_id, task_time, record_time, start_mode, starter, status, killer, start_time, finish_time, readiness, latency, spent FROM qross_tasks WHERE id=$taskId")
+            .put(s"INSERT INTO qross_tasks_records (job_id, task_id, record_time, start_mode, starter, status, killer, start_time, finish_time, readiness, latency, spent) VALUES (#job_id, $taskId, '#record_time', '#start_mode', #starter, '#status', #killer, '#start_time', '#finish_time', #readiness, #latency, #spent)")
 
         val row = dh.firstRow
 
@@ -906,8 +907,6 @@ object QrossTask {
 
         if (commandType == "shell") {
             commandText = commandText.replace("%JAVA_BIN_HOME", Global.JAVA_BIN_HOME)
-                                     .replace("%QROSS_HOME", Global.QROSS_HOME)
-                                     .replace("%PQL", Global.PQL)
 
             //在Keeper中处理的好处是在命令的任何地方都可嵌入表达式
             try {
@@ -982,6 +981,7 @@ object QrossTask {
                 }
                 catch {
                     case e: Exception =>
+                        logger.err("ERROR: " + commandText)
                         e.printStackTrace()
 
                         val buf = new java.io.ByteArrayOutputStream()
