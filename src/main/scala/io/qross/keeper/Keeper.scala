@@ -69,7 +69,7 @@ object Keeper {
 
         Qross.quit("Keeper")
 
-        Output.writeDebugging("System will wait for all actors to finish their work, or you can kill Keeper manually if it stuck.")
+        Output.writeLineWithSeal("SYSTEM", "System will wait for all actors to finish their work, or you can kill Keeper manually if it stuck.")
 
         Qross.waitAndStop()
 

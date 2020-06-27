@@ -27,7 +27,7 @@ class Messenger extends WorkActor {
                 val messageType = row.getString("message_type").toUpperCase
                 val messageKey = row.getString("message_key").toUpperCase
                 val messageText = row.getString("message_text")
-                Output.writeDebugging(s"Got a Message # $queryId # $messageType # $messageKey # $messageText")
+                Output.writeLineWithSeal("SYSTEM", s"Got a Message # $queryId # $messageType # $messageKey # $messageText")
 
                 messageType match {
                     case "GLOBAL" =>
@@ -56,10 +56,7 @@ class Messenger extends WorkActor {
                         //TASK - KILL - actionId
                         messageKey match {
                             case "RESTART" => producer ! QrossTask.restartTask(messageText.takeAfter("@").toLong, messageText.takeBefore("@"), sender)
-                            case "INSTANT" => QrossTask.createInstantTask(messageText, sender) match {
-                                                case Some(task) => producer ! task
-                                                case None =>
-                                            }
+                            case "INSTANT" => producer ! QrossTask.createInstantTask(messageText, sender, queryId)
                             case "KILL" =>
                                 Try(messageText.toLong) match {
                                     case Success(actionId) => QrossTask.TO_BE_KILLED += actionId -> sender
@@ -74,18 +71,11 @@ class Messenger extends WorkActor {
                                     case Success(noteId) => processor ! Note(noteId, sender)
                                     case _ =>
                                 }
-                            case "KILL" =>
+                            case "STOP" =>
                                 Try(messageText.toLong) match {
-                                    case Success(noteId) => QrossNote.TO_BE_KILLED += noteId
+                                    case Success(noteId) => QrossNote.TO_BE_STOPPED += noteId
                                     case _ =>
                                 }
-                            case _ =>
-                        }
-                    case "USER" =>
-                        messageKey match {
-                            //case "MASTER" => Configurations.set("MASTER_USER_GROUP", QrossUser.getUsers("master"))
-                            //case "KEEPER" => Configurations.set("KEEPER_USER_GROUP", QrossUser.getUsers("keeper"))
-                            case "GROUP" => Setting.renewUserGroup()
                             case _ =>
                         }
                     case "PROPERTIES" =>

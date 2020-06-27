@@ -39,7 +39,7 @@ class KeeperLogger {
     
     private def save(): Unit = {
         if (logs.nonEmpty) {
-            new FileWriter(Global.QROSS_HOME + "logs/" + DateTime.now.getString("yyyyMMdd/HH") + ".log", deleteIfExists = false)
+            new FileWriter(Global.QROSS_HOME + "keeper/logs/" + DateTime.now.getString("yyyyMMdd/HH") + ".log", deleteIfExists = false)
                 .writeLines(logs)
                 .close()
     
@@ -65,7 +65,7 @@ class KeeperLogger {
                 .replace("#{companyName}", Setting.COMPANY_NAME)
                 .replace("#{exceptions}", KeeperException.toHTML(exceptions))
                 .writeEmail(s"KEEPER EXCEPTION: ${Setting.COMPANY_NAME} ${DateTime.now.toString}")
-                .to(Setting.MASTER_USER_GROUP)
+                .to(ds.executeSingleValue("SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS master FROM qross_users WHERE role='master' AND enabled='yes'").asText(""))
                 .cc(if (Setting.EMAIL_EXCEPTIONS_TO_DEVELOPER) "Developer<garfi-wu@outlook.com>" else "")
                 .send()
 

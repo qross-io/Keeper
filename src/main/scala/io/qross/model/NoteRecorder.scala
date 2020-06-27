@@ -32,7 +32,7 @@ object NoteRecorder {
             while(NoteRecorder.LOGS.size() > 0 && i < 10000) {
                 val log = NoteRecorder.LOGS.poll()
                 if (!writers.contains(log.path)) {
-                    writers += log.path -> new FileWriter(Global.QROSS_HOME + s"notes/${log.path}.log", deleteIfExists = true)
+                    writers += log.path -> new FileWriter(Global.QROSS_HOME + s"notes/${log.path}.log", deleteIfExists = false)
                 }
                 writers(log.path).writeObjectLine(log.line)
 

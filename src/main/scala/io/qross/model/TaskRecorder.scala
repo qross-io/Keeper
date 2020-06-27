@@ -118,7 +118,7 @@ class TaskRecorder(jobId: Int, taskId: Long, recordTime: String) {
 
 //完整的一行日志
 class TaskLog(val jobId: Int, val taskId: Long, val recordTime: String, val line: TaskLogLine) {
-    val path: String = s"""${recordTime.takeBefore(" ").replace("-", "")}/$jobId/${taskId}_${recordTime.replace("-", "").replace(" ", "_").replace(":", "")}"""
+    val path: String = s"""${recordTime.takeBefore(" ").replace("-", "")}/$jobId/${taskId}_${recordTime.takeAfter(" ").replace(":", "")}"""
 }
 
 //保存在日志文件中的每一行

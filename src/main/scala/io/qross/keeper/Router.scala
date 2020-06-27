@@ -58,23 +58,19 @@ object Router {
                         (more, starter) => {
                             val task = QrossTask.restartTask(taskId, more, Try(starter.toInt).getOrElse(0))
                             producer ! task
-                            complete(Json.serialize(task))
+                            complete(s"""{"id":${task.id},"status":"${task.status}","recordTime":"${task.recordTime}"}""")
                         }
                     }
                 }
             } ~
-            //PUT /task/instant?more={}&creator=
+            //PUT /task/instant?info={}&creator=
             path("task" / "instant") {
                 put {
                     parameter("info", "creator") {
                         (info, creator) => {
-                                QrossTask.createInstantTask(info, Try(creator.toInt).getOrElse(0)) match {
-                                    case Some(task) =>
-                                        producer ! task
-                                        complete(Json.serialize(task))
-                                    case None =>
-                                        complete("{ }")
-                                }
+                                val task = QrossTask.createInstantTask(info, Try(creator.toInt).getOrElse(0))
+                                producer ! task
+                                complete(s"""{"id":${task.id}}""")
                         }
                     }
                 }
@@ -88,7 +84,7 @@ object Router {
                             actions.foreach(action => {
                                 QrossTask.TO_BE_KILLED += action -> killer
                             })
-                            complete(s"""{ "actionsToBeKilled": [${actions.mkString(", ")}] }""")
+                            complete(s"""{ "actions": [${actions.mkString(", ")}] }""")
                         }
                     }
                 }
@@ -102,7 +98,7 @@ object Router {
                             actions.foreach(action => {
                                 QrossTask.TO_BE_KILLED += action -> killer
                             })
-                            complete(s"""{ "actionsToBeKilled": [${actions.mkString(", ")}] }""")
+                            complete(s"""{ "actions": [${actions.mkString(", ")}] }""")
                         }
                     }
                 }
@@ -115,10 +111,10 @@ object Router {
                                 case Some(_) =>
                                     Output.writeDebugging(s"Action $actionId will be killed.")
                                     QrossTask.TO_BE_KILLED += actionId -> killer
-                                    complete(s"""{ "actionToBeKilled": $actionId }""")
+                                    complete(s"""{ "action": $actionId }""")
                                 case None =>
                                     Output.writeDebugging(s"Action $actionId is not running.")
-                                    complete(s"""{ "actionToBeKilled": 0 }""")
+                                    complete(s"""{ "action": 0 }""")
                             }
                         }
                     }
@@ -128,12 +124,12 @@ object Router {
                 put {
                     if (Route.isNoteQuerying(noteId)) {
                         Output.writeDebugging(s"Note $noteId will be killed.")
-                        QrossNote.TO_BE_KILLED += noteId
-                        complete(s"""{ "noteToBeKilled": $noteId }""")
+                        QrossNote.TO_BE_STOPPED += noteId
+                        complete(s"""{ "id": $noteId }""")
                     }
                     else {
                         Output.writeDebugging(s"Note $noteId is not running.")
-                        complete(s"""{ "noteToBeKilled": 0 }""")
+                        complete(s"""{ "id": 0 }""")
                     }
                 }
             } ~
@@ -142,18 +138,39 @@ object Router {
                     parameter("user".as[Int]) {
                         user => {
                             processor ! Note(noteId, user)
-                            complete(s"$noteId")
+                            complete(s"""{"id":$noteId}""")
+                        }
+                    }
+                }
+            }
+            /* ~
+            path ("test" / "int") {
+                get {
+                    parameter("id".as[Int]) {
+                        id => {
+                            complete(s"""$id""")
                         }
                     }
                 }
             } ~
-            path ("user" / "group") {
-                put {
-                    Setting.renewUserGroup()
-                    complete(s"""{ "keeper": "${Setting.KEEPER_USER_GROUP}", "master": "${Setting.MASTER_USER_GROUP}" }""")
+            path ("test" / "char") {
+                get {
+                    parameter("name".as[String]) {
+                        name => {
+                            complete(s""""$name""")
+                        }
+                    }
                 }
-            }
-        /*
+            } ~
+            path ("test" / "json") {
+                get {
+                    parameter("id".as[Int], "name".as[String]) {
+                        (id, name) => {
+                            complete(s"""{"id":$id,"name":"$name"}""")
+                        }
+                    }
+                }
+            } ~
             path("") {
                 get {
                     complete(HttpEntity(ContentTypes.`application/json`,  Json.serialize(List[Int](1,2,3))))

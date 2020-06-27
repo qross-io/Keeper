@@ -16,35 +16,5 @@ object Setting {
 
     def EMAIL_EXCEPTIONS_TO_DEVELOPER: Boolean = Configurations.getOrProperty("EMAIL_EXCEPTIONS_TO_DEVELOPER", "email.exceptions.to.developer").toBoolean(true)
 
-    def MASTER_USER_GROUP: String = {
-        if (!Configurations.contains("MASTER_USER_GROUP")) {
-            renewUserGroup()
-        }
-
-        Configurations.get("MASTER_USER_GROUP")
-    }
-
-    def KEEPER_USER_GROUP: String = {
-        if (!Configurations.contains("KEEPER_USER_GROUP")) {
-            renewUserGroup()
-        }
-
-        Configurations.get("KEEPER_USER_GROUP")
-    }
-
     def BEATS_MAILING_FREQUENCY: String = Configurations.getOrProperty("BEATS_MAILING_FREQUENCY", "beats.mailing.frequency")
-
-
-    def renewUserGroup(): Unit = {
-        if (JDBC.hasQrossSystem) {
-            DataSource.QROSS
-                .queryDataTable("SELECT role, GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS addresses FROM qross_users WHERE role='master' OR role='keeper' GROUP BY role")
-                .foreach(row => {
-                    row.getString("role") match {
-                        case "keeper" => Configurations.set("KEEPER_USER_GROUP", row.getString("addresses"))
-                        case "master" => Configurations.set("MASTER_USER_GROUP", row.getString("addresses"))
-                    }
-                }).clear()
-        }
-    }
 }

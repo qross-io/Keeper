@@ -11,7 +11,7 @@ import scala.sys.process._
 object QrossNote {
 
     val QUERYING: mutable.HashSet[Long] = new mutable.HashSet[Long]()
-    val TO_BE_KILLED: mutable.HashSet[Long] = new mutable.HashSet[Long]()
+    val TO_BE_STOPPED: mutable.HashSet[Long] = new mutable.HashSet[Long]()
 
     //run note
     def query(noteId: Long, userId: Int): Unit = {
@@ -22,6 +22,8 @@ object QrossNote {
         val stamp = System.currentTimeMillis()
 
         QUERYING += noteId
+
+        DataSource.QROSS.queryUpdate(s"UPDATE qross_notes SET status='querying' WHERE id=$noteId")
 
         logger.debug(s"Note $noteId is running.")
 
@@ -36,41 +38,47 @@ object QrossNote {
 
             while (process.isAlive()) {
                 //if killed
-                if (TO_BE_KILLED.contains(noteId)) {
-                    TO_BE_KILLED -= noteId
+                if (TO_BE_STOPPED.contains(noteId)) {
+                    TO_BE_STOPPED -= noteId
                     process.destroy() //kill it
                     exitValue = -2
 
-                    logger.warn(s"Note $noteId has been KILLED.")
+                    logger.warn(s"Note $noteId has been STOPPED.")
                 }
 
                 Timer.sleep(1000)
             }
 
-            exitValue = process.exitValue()
+            if (exitValue != -2) {
+                exitValue = process.exitValue()
+            }
         }
         catch {
             case e: Exception =>
-                e.printStackTrace()
 
-                val buf = new java.io.ByteArrayOutputStream()
-                e.printStackTrace(new java.io.PrintWriter(buf, true))
-                logger.err(buf.toString())
-                buf.close()
+                //e.printStackTrace()
+                //将明细输出到流
+                //val buf = new java.io.ByteArrayOutputStream()
+                //e.printStackTrace(new java.io.PrintWriter(buf, true))
+                //logger.err(buf.toString())
+                //buf.close()
 
-                logger.err(s"Note $noteId is exceptional: ${e.getMessage}")
+                logger.err(s"Exception: ${e.getMessage}")
 
                 exitValue = 2
         }
 
         val status = exitValue match {
-            case 0 => "SUCCESS"
-            case -2 => "KILLED"
-            case _ => "FAILED"
+            case 0 => "success"
+            case -2 => "stopped"
+            case _ => "failed"
         }
 
         QUERYING -= noteId
 
-        logger.debug(s"Note $noteId has finished with status $status, elapsed ${ (System.currentTimeMillis() - stamp) / 1000 }s.").dispose()
+        logger.debug(s"Note $noteId has finished with status $status, elapsed ${ (System.currentTimeMillis() - stamp) / 1000 }s.")
+            .dispose()
+
+        DataSource.QROSS.queryUpdate(s"UPDATE qross_notes SET status='$status' WHERE id=$noteId")
     }
 }

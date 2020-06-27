@@ -23,8 +23,11 @@ object Qross {
         
         ds.executeNonQuery(s"INSERT INTO qross_keeper_running_records (method) VALUES ('$method')")
         
-        if (method != "manual" && Setting.MASTER_USER_GROUP != "") {
-            Email.write(s"RESTART: Keeper start by <$method> at " + DateTime.now.getString("yyyy-MM-dd HH:mm:ss")).to(Setting.MASTER_USER_GROUP).send()
+        if (method != "manual") {
+            Email.write(s"RESTART: Keeper start by <$method> at " + DateTime.now.getString("yyyy-MM-dd HH:mm:ss"))
+                .to(ds.executeSingleValue("SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS keeper FROM qross_users WHERE role='keeper' AND enabled='yes'").asText(""))
+                .cc(ds.executeSingleValue("SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS master FROM qross_users WHERE role='master' AND enabled='yes'").asText(""))
+                .send()
         }
     
         ds.executeNonQuery("UPDATE qross_keeper_beats SET status='running',start_time=NOW() WHERE actor_name='Keeper'")
@@ -33,17 +36,17 @@ object Qross {
     }
     
     def run(actor: String, message: String = ""): Unit = {
-        writeDebugging(actor + " start! " + message)
+        writeLineWithSeal("SYSTEM", actor + " start! " + message)
         DataSource.QROSS.queryUpdate(s"UPDATE qross_keeper_beats SET status='running',start_time=NOW() WHERE actor_name='$actor'")
     }
     
     def beat(actor: String): Unit = {
-        writeMessage(actor + " beat!")
+        writeLineWithSeal("SYSTEM", actor + " beat!")
         DataSource.QROSS.queryUpdate(s"UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE actor_name='$actor'")
     }
     
     def quit(actor: String): Unit = {
-        writeDebugging(s"$actor quit!")
+        writeLineWithSeal("SYSTEM", s"$actor quit!")
         DataSource.QROSS.queryUpdate(s"UPDATE qross_keeper_beats SET status='rest', quit_time=NOW() WHERE actor_name='$actor'")
         
     }
@@ -54,14 +57,13 @@ object Qross {
             .put("UPDATE qross_keeper_running_records SET status='stopping', stop_time=NOW(), duration=TIMESTAMPDIFF(SECOND, start_time, NOW()) WHERE id=#id")
 
         while(dh.get("SELECT actor_name FROM qross_keeper_beats WHERE status='running' LIMIT 1").nonEmpty) {
-            writeDebugging(dh.firstRow.getString("actor_name") + " is still working.")
+            writeLineWithSeal("SYSTEM", dh.firstRow.getString("actor_name") + " is still working.")
             dh.clear()
             dh.get("SELECT COUNT(0) AS amount FROM qross_tasks WHERE status='executing'")
-            writeDebugging("There is " + dh.firstRow.getString("amount") + " tasks still to be done.")
+            writeLineWithSeal("SYSTEM", "There is " + dh.firstRow.getString("amount") + " tasks still to be done.")
             dh.clear()
             Timer.sleep(5000)
         }
-
         dh.close()
     }
     
@@ -72,25 +74,23 @@ object Qross {
         val tick = now.getString("yyyy-MM-dd HH:mm:ss")
         now = now.setSecond(0)
 
-        writeDebugging(s"Inspector beats at $now")
+        writeLineWithSeal("SYSTEM", s"Inspector beats at $now")
 
         val dh = DataHub.QROSS
         if (dh.executeSingleValue("SELECT status FROM qross_keeper_running_records ORDER BY id DESC LIMIT 1").asText == "running") {
 
-            var error = ""
             var toSend = true
             var title = ""
 
             //irregular - will restart Keeper
-            dh.get("SELECT actor_name FROM qross_keeper_beats WHERE actor_name IN ('Keeper', 'Messenger', 'TaskProducer', 'TaskStarter', 'TaskChecker', 'TaskExecutor', 'TaskLogger') AND status='rest'")
+            dh.get("SELECT actor_name FROM qross_keeper_beats WHERE actor_name IN ('Keeper', 'Messenger', 'TaskProducer', 'TaskStarter', 'TaskChecker', 'TaskExecutor', 'TaskLogger', 'NoteProcessor', 'NoteQuerier') AND status='rest'")
             if (dh.nonEmpty) {
                 //quit system and auto restart
-                Configurations.set("QUIT_ON_NEXT_BEAT", true)
-                //mail info
-                error = "Keeper will restart on next tick. Please wait util all executing task finished."
-                title = s"Keeper Beats Exception: ${dh.getColumn("actor_name").mkString(",")} at $tick"
+                //这样重启无效，因为与Keeper是两个进程，不能通信，而且有可能在重启过程中，所以暂不实现自动重启逻辑
+                //Configurations.set("QUIT_ON_NEXT_BEAT", true)
 
-                writeWarning(error)
+                //mail info
+                title = s"Keeper Beats Exception: ${dh.getColumn("actor_name").mkString(",")} at $tick"
             }
             else if (now.matches(Setting.BEATS_MAILING_FREQUENCY)) {
                 //regular
@@ -101,25 +101,24 @@ object Qross {
             }
 
             //send beats mail
-            if (toSend && (Setting.KEEPER_USER_GROUP != "" || Setting.MASTER_USER_GROUP != "")) {
+            if (toSend) {
                 ResourceFile.open("/templates/beats.html")
                     .replace("#{tick}", tick)
-                    .replace("#{error}", error)
                     .writeEmail(title)
-                    .to(if (Setting.KEEPER_USER_GROUP != "") Setting.KEEPER_USER_GROUP else Setting.MASTER_USER_GROUP)
-                    .cc(if (Setting.KEEPER_USER_GROUP != "") Setting.MASTER_USER_GROUP else "")
+                    .to(dh.executeSingleValue("SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS keeper FROM qross_users WHERE role='keeper' AND enabled='yes'").asText(""))
+                    .cc(dh.executeSingleValue("SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS master FROM qross_users WHERE role='master' AND enabled='yes'").asText(""))
                     .send()
 
-                writeDebugging("Beats mail has been sent.")
+                writeLineWithSeal("SYSTEM", "Beats mail has been sent.")
             }
 
             //slow tasks
             import io.qross.model.QrossTask._
-            dh.get(s"""SELECT A.job_id, A.owner, A.title, B.event_value, B.event_function, B.event_limit, C.task_id, C.status, C.start_mode, C.task_time, C.record_time FROM
+            dh.get(s"""SELECT A.job_id, A.owner, A.title, B.event_name, B.event_value, B.event_function, B.event_limit, C.task_id, C.status, C.start_mode, C.task_time, C.record_time FROM
                     (SELECT id AS job_id, title, owner, warning_overtime FROM qross_jobs WHERE enabled='yes' AND warning_overtime>0) A
-               INNER JOIN (SELECT job_id, event_function, event_limit, event_value, event_option FROM qross_jobs_events WHERE event_name='onTaskSlow' AND enabled='yes') B ON A.job_id=B.job_id
+               INNER JOIN (SELECT job_id, event_name, event_function, event_limit, event_value, event_option FROM qross_jobs_events WHERE event_name='onTaskSlow' AND enabled='yes') B ON A.job_id=B.job_id
                INNER JOIN (SELECT id AS task_id, job_id, task_time, record_time, status, start_mode, create_time FROM qross_tasks WHERE status IN ('${TaskStatus.NEW}', '${TaskStatus.INITIALIZED}', '${TaskStatus.READY}', '${TaskStatus.EXECUTING}')) C
-                ON A.job_id=C.job_id AND TIMESTAMPDIFF(MINUTE, B.create_time, NOW())>A.warning_overtime
+                ON A.job_id=C.job_id AND TIMESTAMPDIFF(MINUTE, C.record_time, NOW())>A.warning_overtime
                 """)
                 .cache("slow_tasks_events")
             dh.openCache()
@@ -137,13 +136,13 @@ object Qross {
                 .get(s"SELECT id FROM qross_jobs WHERE enabled='yes' AND closing_time<>'' AND TIMESTAMPDIFF(MINUTE, '${now.getString("yyyy-MM-dd HH:mm:00")}', closing_time)<=1")
                     .put("UPDATE qross_jobs SET enabled='no', next_tick='N/A', closing_time='' WHERE id=#id")
                     .foreach(row => {
-                        writeMessage("Job " + row.getString("id") + " has been closed.")
+                        writeDebugging("Job " + row.getString("id") + " has been closed.")
                     })
                 //open job if arrived
                 .get(s"SELECT id, opening_time, cron_exp, next_tick FROM qross_jobs WHERE enabled='no' AND opening_time<>'' AND TIMESTAMPDIFF(MINUTE, '${now.getString("yyyy-MM-dd HH:mm:00")}', opening_time)<=1")
                 .foreach(row => {
                     row.set("next_tick", ChronExp(row.getString("cron_exp")).getNextTickOrNone(row.getDateTime("opening_time")))
-                    writeMessage("Job " + row.getString("id") + " is opening.")
+                    writeDebugging("Job " + row.getString("id") + " is opening.")
                 })
                 .put("UPDATE qross_jobs SET enabled='yes', next_tick='#next_tick', opening_time='' WHERE id=#id")
         }
