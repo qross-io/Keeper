@@ -85,6 +85,7 @@ object QrossTask {
                 else {
                     row.set("event_result", "EMPTY API")
                 }
+                row.set("api", api)
             }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_limit, event_value, event_result) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_limit', '#api', '#event_result')")
                 .clear()
         }
@@ -115,7 +116,7 @@ object QrossTask {
                 TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time"))
                     .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> fire custom event $custom on task $taskStatus.")
 
-            }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_limit, event_value, event_result) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_limit', '#api', '#event_result')")
+            }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_limit, event_value, event_result) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_limit', '#roles', '#event_result')")
                 .clear()
                 .openCache()
         }

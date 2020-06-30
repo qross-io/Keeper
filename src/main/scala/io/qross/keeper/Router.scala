@@ -144,24 +144,6 @@ object Router {
                 }
             }
             /* ~
-            path ("test" / "int") {
-                get {
-                    parameter("id".as[Int]) {
-                        id => {
-                            complete(s"""$id""")
-                        }
-                    }
-                }
-            } ~
-            path ("test" / "char") {
-                get {
-                    parameter("name".as[String]) {
-                        name => {
-                            complete(s""""$name""")
-                        }
-                    }
-                }
-            } ~
             path ("test" / "json") {
                 get {
                     parameter("id".as[Int], "name".as[String]) {

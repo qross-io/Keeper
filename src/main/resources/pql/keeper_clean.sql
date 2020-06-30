@@ -1,6 +1,8 @@
 
 DEBUG ON;
 
+OPEN QROSS;
+
 PRINT INFO 'Cleaning tasks mechanism is ready to execute.';
 
 VAR $TO_CLEAR := SELECT B.job_id, A.keep_x_task_records FROM qross_jobs A

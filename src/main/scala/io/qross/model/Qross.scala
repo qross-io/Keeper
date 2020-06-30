@@ -99,6 +99,7 @@ object Qross {
             else {
                 toSend = false
             }
+            dh.clear()
 
             //send beats mail
             if (toSend) {
@@ -114,25 +115,32 @@ object Qross {
 
             //slow tasks
             import io.qross.model.QrossTask._
-            dh.get(s"""SELECT A.job_id, A.owner, A.title, B.event_name, B.event_value, B.event_function, B.event_limit, C.task_id, C.status, C.start_mode, C.task_time, C.record_time FROM
-                    (SELECT id AS job_id, title, owner, warning_overtime FROM qross_jobs WHERE enabled='yes' AND warning_overtime>0) A
-               INNER JOIN (SELECT job_id, event_name, event_function, event_limit, event_value, event_option FROM qross_jobs_events WHERE event_name='onTaskSlow' AND enabled='yes') B ON A.job_id=B.job_id
-               INNER JOIN (SELECT id AS task_id, job_id, task_time, record_time, status, start_mode, create_time FROM qross_tasks WHERE status IN ('${TaskStatus.NEW}', '${TaskStatus.INITIALIZED}', '${TaskStatus.READY}', '${TaskStatus.EXECUTING}')) C
-                ON A.job_id=C.job_id AND TIMESTAMPDIFF(MINUTE, C.record_time, NOW())>A.warning_overtime
-                """)
+            dh.get(s"""SELECT A.job_id, A.owner, A.title, B.event_name, B.event_value, B.event_function, B.event_limit, B.event_option, C.task_id, C.status, C.start_mode, C.task_time, C.record_time FROM
+                                (SELECT id AS job_id, title, owner, warning_overtime FROM qross_jobs WHERE warning_overtime>0) A
+                           INNER JOIN (SELECT job_id, event_name, event_function, event_limit, event_value, event_option FROM qross_jobs_events WHERE event_name='onTaskSlow' AND enabled='yes') B ON A.job_id=B.job_id
+                           INNER JOIN (
+                             SELECT S.id AS task_id, S.job_id, S.task_time, S.record_time, S.status, S.start_mode, S.create_time, T.event_name FROM qross_tasks S LEFT JOIN qross_tasks_events T
+                              ON S.id=T.task_id AND S.record_time=T.record_time AND T.event_name='onTaskSlow' WHERE S.status IN ('new', 'initialized', 'ready', 'executing') AND T.id IS NULL
+                           ) C ON A.job_id=C.job_id AND TIMESTAMPDIFF(MINUTE, C.record_time, NOW())>A.warning_overtime;
+                            """)
                 .cache("slow_tasks_events")
-            dh.openCache()
-                .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS receivers, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='SEND_MAIL_TO' AND INSTR(event_limit, start_mode)>0")
-                    .sendEmail(TaskStatus.SLOW)
-                .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS api, event_option AS method, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='REQUEST_API' AND INSTR(event_limit, start_mode)>0")
-                    .requestApi(TaskStatus.SLOW)
-                .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS roles, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE INSTR(event_function, 'CUSTOM_')>0 AND INSTR(event_limit, start_mode)>0")
-                    .fireCustomEvent(TaskStatus.SLOW)
-                .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS pql, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='EXECUTE_PQL' AND INSTR(event_limit, start_mode)>0")
-                    .runPQL(TaskStatus.SLOW)
+
+            if (dh.nonEmpty) {
+                writeLineWithSeal("SYSTEM", s"${dh.COUNT_OF_LAST_GET} event(s) have been fired by slow Tasks.")
+
+                dh.openCache()
+                    .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS receivers, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='SEND_MAIL_TO' AND INSTR(event_limit, start_mode)>0")
+                        .sendEmail(TaskStatus.SLOW)
+                    .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS api, event_option AS method, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='REQUEST_API' AND INSTR(event_limit, start_mode)>0")
+                        .requestApi(TaskStatus.SLOW)
+                    .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS roles, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE INSTR(event_function, 'CUSTOM_')>0 AND INSTR(event_limit, start_mode)>0")
+                        .fireCustomEvent(TaskStatus.SLOW)
+                    .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS pql, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='EXECUTE_PQL' AND INSTR(event_limit, start_mode)>0")
+                        .runPQL(TaskStatus.SLOW)
+            }
 
             //close job if expired
-            dh.clear().openQross()
+            dh.openQross()
                 .get(s"SELECT id FROM qross_jobs WHERE enabled='yes' AND closing_time<>'' AND TIMESTAMPDIFF(MINUTE, '${now.getString("yyyy-MM-dd HH:mm:00")}', closing_time)<=1")
                     .put("UPDATE qross_jobs SET enabled='no', next_tick='N/A', closing_time='' WHERE id=#id")
                     .foreach(row => {

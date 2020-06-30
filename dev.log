@@ -1,6 +1,32 @@
 
+2020/06/29  0.6.2-27-RELEASE run
+Master管理工具终于有了模样。
+1. QUIT_ON_NEXT_BEAT 等多个全局变量移除
+2. 新增 onTaskSlow 事件，单位分钟
+    超时时间在调度详情页设置
+3. 日志保存在文件中，而不是数据库中
+4. task 增加 ready_time 和 latency 和 readiness
+    latency用来评价延时时间，表示任务是否集中
+    readiness 表示任务准备时间
+    任务详情页增加瀑布流图
+5. dags新增lagged字段，表示执行前的准备时间
+6. @PQL 修改为PQL
+    如 PQL --file /usr/qross/pql/file.sql
+7.  增加PQL依赖，接口依赖、文件依赖和HDFS依赖移除
+8. 新增系统任务
+    1) 清理日志
+    2) 小时统计
+9. 自定义事件，可支持电话/企业微信/短信
+    事件处理逻辑重写
+10. 预警邮件模板更新
+11. Note升级
+12. Endless任务可以按时段设置，如可以分忙时和闲时
+    格式 1@cron_exp; 2@cron_exp
+13. DAG中的command可暂时禁用
+14. 支持python脚本任务
+
+
 2019/10/22 0.6.0-40-RELEASE run.
-2019/10/21 0.6.0-34-RELEASE run.
 2019/9/25 0.6.0 Code Finished.
     1. PQL launched! Includes PQL Job, PQL Task Event, PQL Note, PQL Embedded.
     2. 可以编写 PQL Note 来运行即时任务, 实时查询和计算, 并可将Note保存为PQL Job
