@@ -24,19 +24,21 @@
         <span>ActionID</span> &nbsp; #{action_id} <br />
         <span>CommandText</span> &nbsp; #{command_text}
 </div>
-    <div id="logs">
-        <%
-        OPEN QROSS;
-        SET $record_time := '#{record_time}';
-        SET $record_day := '#{record_time}' FORMAT 'yyyyMMdd';
-        SET $record_time := '#{record_time}' FORMAT 'yyyyMMdd_HHmmss';
-        SET $file := @QROSS_HOME + 'tasks/' + $record_day + '/#{job_id}/#{task_id}_' + $record_time + '.log';
-        OPEN JSON FILE $file AS TABLE 'logs';
-
-        FOR $time, $type, $text IN (SELECT logTime, logType, logText FROM :logs WHERE logType != 'INFO') LOOP
-        %>
-            <div title="${time}" class="${type}">${text}</div>
-        <% END LOOP %>
-    </div>
+<div id="logs">
+<%
+OPEN QROSS;
+SET $record_time := '#{record_time}';
+SET $record_day := '#{record_time}' FORMAT 'yyyyMMdd';
+SET $record_time := '#{record_time}' FORMAT 'HHmmss';
+SET $file := @QROSS_HOME + 'tasks/' + $record_day + '/#{job_id}/#{task_id}_' + $record_time + '.log';
+IF FILE EXISTS $file THEN
+    OPEN JSON FILE $file AS TABLE 'logs';
+    FOR $time, $type, $text IN (SELECT logTime, logType, logText FROM :logs WHERE logType != 'INFO') LOOP
+%>
+    <div title="${time}" class="${type}">${text}</div>
+<%  END LOOP;
+END IF;
+%>
+</div>
 </body>
 </html>

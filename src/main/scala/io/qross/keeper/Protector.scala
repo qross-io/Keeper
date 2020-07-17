@@ -11,7 +11,7 @@ object Protector {
 
     def main(args: Array[String]): Unit = {
         //val bash = if (Setting.HADOOP_AND_HIVE_ENABLED) "hadoop jar" else s"${Global.JAVA_BIN_HOME}java -cp"
-        val bash = s"${Global.JAVA_BIN_HOME}java -cp"
+        val bash = s"${Global.JAVA_BIN_HOME}java -Dfile.coding=${Global.CHARSET} -cp"
         val command = s"$bash ${Global.QROSS_HOME}qross-keeper-${Global.QROSS_VERSION}.jar io.qross.keeper.Keeper ${Global.QROSS_HOME}qross.properties"
         Output.writeMessage("Run: " + command)
         

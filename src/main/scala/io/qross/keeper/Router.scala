@@ -43,7 +43,7 @@ object Router {
             // PUT  /global/set?name=&value=
             path("global" / "set") {
                 put {
-                    parameter("name", "value") {
+                    parameters("name", "value") {
                         (name, value) => {
                             Configurations.set(name, value)
                             complete(s"1")
@@ -63,14 +63,28 @@ object Router {
                     }
                 }
             } ~
-            //PUT /task/instant?info={}&creator=
+            path("task" / "instant" / IntNumber) { jobId =>
+                put {
+                    parameter("creator".?[Int](0), "delay".?[Int](0), "ignore".?[String]("no")) {
+                        (creator, delay, ignore) => {
+                            val task = QrossTask.createInstantWholeTask(jobId, delay, ignore, creator)
+                            producer ! task
+                            complete(s"""{"id":${task.id},"recordTime":"${task.recordTime}"}""")
+                        }
+                    }
+                }
+            } ~
             path("task" / "instant") {
                 put {
-                    parameter("info", "creator") {
-                        (info, creator) => {
-                                val task = QrossTask.createInstantTask(info, Try(creator.toInt).getOrElse(0))
-                                producer ! task
-                                complete(s"""{"id":${task.id}}""")
+                    parameter("creator".as[Int]) {
+                        creator => {
+                            entity(as[String]) {
+                                info => {
+                                    val task = QrossTask.createInstantTask(info, creator)
+                                    producer ! task
+                                    complete(s"""{"id":${task.id},"recordTime":"${task.recordTime}"}""")
+                                }
+                            }
                         }
                     }
                 }
@@ -142,17 +156,18 @@ object Router {
                         }
                     }
                 }
-            }
-            /* ~
+            }  ~
             path ("test" / "json") {
-                get {
+                put {
                     parameter("id".as[Int], "name".as[String]) {
-                        (id, name) => {
-                            complete(s"""{"id":$id,"name":"$name"}""")
+                        (id, name) =>
+                            entity(as[String]) { json => {
+                                complete(s"""[{"id":$id,"name":"$name"}, $json]""")
+                            }
                         }
                     }
                 }
-            } ~
+            } /* ~
             path("") {
                 get {
                     complete(HttpEntity(ContentTypes.`application/json`,  Json.serialize(List[Int](1,2,3))))

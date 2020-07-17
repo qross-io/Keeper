@@ -1,7 +1,6 @@
 package io.qross.keeper
 
 import io.qross.ext.TypeExt._
-import io.qross.jdbc.{DataSource, JDBC}
 import io.qross.setting.Configurations
 
 object Setting {

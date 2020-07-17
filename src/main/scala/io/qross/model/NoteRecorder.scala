@@ -34,6 +34,7 @@ object NoteRecorder {
                 if (!writers.contains(log.path)) {
                     writers += log.path -> new FileWriter(Global.QROSS_HOME + s"notes/${log.path}.log", deleteIfExists = false)
                 }
+                println(log.line.logText)
                 writers(log.path).writeObjectLine(log.line)
 
                 i += 1
@@ -97,4 +98,8 @@ class NoteLogLine(val logType: String = "INFO", var logText: String = "", val lo
     if (logType != "INFO" && logType != "ERROR") {
         logText = s"$logTime [$logType] $logText"
     }
+
+//    override def toString: String = {
+//        s"""{"logType":"$logType","logText":"${logText.replace("\"", """\"""")}","logTime":"$logTime"}"""
+//    }
 }

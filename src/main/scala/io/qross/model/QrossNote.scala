@@ -1,11 +1,15 @@
 package io.qross.model
 
+import java.io.{BufferedReader, ByteArrayOutputStream, File, InputStreamReader, PrintWriter}
+import java.nio.charset.Charset
+
 import io.qross.core.DataHub
 import io.qross.jdbc.DataSource
 import io.qross.setting.Global
 import io.qross.time.Timer
 
 import scala.collection.mutable
+import scala.io.Source
 import scala.sys.process._
 
 object QrossNote {
@@ -16,7 +20,7 @@ object QrossNote {
     //run note
     def query(noteId: Long, userId: Int): Unit = {
 
-        val commandText = Global.JAVA_BIN_HOME + s"java -jar ${Global.QROSS_HOME}qross-worker-${Global.QROSS_VERSION}.jar --note ${noteId}"
+        val commandText = Global.JAVA_BIN_HOME + s"java -Dfile.encoding=UTF-8 -jar ${Global.QROSS_HOME}qross-worker-${Global.QROSS_VERSION}.jar --note ${noteId}"
 
         val logger = NoteRecorder.of(noteId, userId: Int)
         val stamp = System.currentTimeMillis()
@@ -30,11 +34,29 @@ object QrossNote {
         var exitValue = 1
 
         try {
-            val process = commandText.run(ProcessLogger(out => {
-                logger.out(out)
-            }, err => {
-                logger.err(err)
-            }))
+            val process = commandText.run(
+                ProcessLogger(out => {
+                    logger.out(out)
+                }, err => {
+                    logger.err(err)
+                }))
+
+//            val process = Process(commandText).run(
+//                new ProcessIO(
+//                    in  => in.close(),
+//                    out => {
+//                        val reader = new BufferedReader(new InputStreamReader(out, Global.CHARSET))
+//                        while (alive) {
+//                            logger.out(reader.readLine)
+//                        }
+//                        reader.close()
+//                    },
+//                    err => {
+//                        scala.io.Source.fromInputStream(err).getLines.foreach(line => {
+//                            logger.err(line)
+//                        })
+//                    })
+//            )
 
             while (process.isAlive()) {
                 //if killed

@@ -4,7 +4,7 @@ apply plugin: 'idea'
 apply plugin: "com.github.johnrengelman.shadow"
 
 group = 'io.qross'
-version = '0.6.2-RELEASE'
+version = '0.6.3-8-SNAPSHOT'
 sourceCompatibility = 1.8
 
 //archivesBaseName = "qross-keeper"
@@ -31,11 +31,11 @@ repositories {
     jcenter()
     maven{
         credentials {
-            username 'zRjGml'
-            password 'aqGluc43el'
+            username 'PtbpNI'
+            password 'kwCz3C0wHx'
         }
-        //url "https://repo.rdc.aliyun.com/repository/75742-snapshot-Xkjz8l/"
-        url "https://repo.rdc.aliyun.com/repository/75742-release-biEMxs/"
+        url "https://packages.aliyun.com/maven/repository/2011186-snapshot-FSoDsK/"
+        //url "https://packages.aliyun.com/maven/repository/2011186-release-Aa5YmC/"
     }
 }
 
@@ -66,13 +66,13 @@ dependencies {
 
     //libraryDependencies += "org.apache.poi" % "poi-ooxml" % "3.17" //for office 2017
 
-    compile (group: 'io.qross', name: 'qross-pql', version: '0.6.2-16-RELEASE')
+    compile (group: 'io.qross', name: 'pql', version: '0.6.3-21-SNAPSHOT')
 }
 
 shadowJar {
     zip64 true
     //mergeServiceFiles('META-INF/spring.*')
-    archiveName = "qross-keeper-0.6.2.jar"
+    archiveName = "qross-keeper-0.6.3.jar"
 }
 
 artifacts {
