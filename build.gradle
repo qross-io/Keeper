@@ -59,14 +59,12 @@ dependencies {
     //compile group: 'org.apache.hadoop', name: 'hadoop-hdfs', version: '2.7.1'
     //compile group: 'org.apache.hadoop', name: 'hadoop-auth', version: '2.7.1'
 
-    //compile group: 'javax.mail', name: 'mail', version: '1.4.7'
-
     //libraryDependencies += "com.github.noraui" % "ojdbc8" % "12.2.0.1" //oracle
     //libraryDependencies += "ojdbc" % "ojdbc" % "14" //oracle
 
     //libraryDependencies += "org.apache.poi" % "poi-ooxml" % "3.17" //for office 2017
 
-    compile (group: 'io.qross', name: 'pql', version: '0.6.3-21-SNAPSHOT')
+    compile (group: 'io.qross', name: 'pql', version: '0.6.3-63-SNAPSHOT')
 }
 
 shadowJar {

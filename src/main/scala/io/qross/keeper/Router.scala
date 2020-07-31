@@ -45,6 +45,7 @@ object Router {
                 put {
                     parameters("name", "value") {
                         (name, value) => {
+                            Output.writeLineWithSeal("SYSTEM", s"Update System Configruation '$name' to '$value'.")
                             Configurations.set(name, value)
                             complete(s"1")
                         }

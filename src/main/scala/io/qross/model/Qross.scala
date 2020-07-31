@@ -2,11 +2,10 @@ package io.qross.model
 
 import io.qross.core.DataHub
 import io.qross.ext.Output._
-import io.qross.fs.{Directory, ResourceFile}
+import io.qross.fs.ResourceFile
 import io.qross.jdbc.DataSource
 import io.qross.keeper.Setting
 import io.qross.net.Email
-import io.qross.setting.{Configurations, Global}
 import io.qross.time.{ChronExp, DateTime, Timer}
 
 object Qross {
@@ -135,8 +134,8 @@ object Qross {
                         .requestApi(TaskStatus.SLOW)
                     .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS roles, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE INSTR(event_function, 'CUSTOM_')>0 AND INSTR(event_limit, start_mode)>0")
                         .fireCustomEvent(TaskStatus.SLOW)
-                    .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS pql, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='EXECUTE_PQL' AND INSTR(event_limit, start_mode)>0")
-                        .runPQL(TaskStatus.SLOW)
+                    .get("SELECT task_id, job_id, title, owner, task_time, record_time, B.event_option AS script_type, event_value AS script, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='EXECUTE_PQL' AND INSTR(event_limit, start_mode)>0")
+                        .runScript(TaskStatus.SLOW)
             }
 
             //close job if expired

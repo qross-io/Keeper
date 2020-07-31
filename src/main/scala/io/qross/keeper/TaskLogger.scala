@@ -17,6 +17,6 @@ class TaskLogger extends WorkActor {
     }
     
     override def cleanup(): Unit = {
-        TaskRecorder.save()
+        TaskRecorder.dispose()
     }
 }
