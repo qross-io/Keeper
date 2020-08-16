@@ -132,9 +132,9 @@ object Qross {
                         .sendEmail(TaskStatus.SLOW)
                     .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS api, event_option AS method, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='REQUEST_API' AND INSTR(event_limit, start_mode)>0")
                         .requestApi(TaskStatus.SLOW)
-                    .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS roles, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE INSTR(event_function, 'CUSTOM_')>0 AND INSTR(event_limit, start_mode)>0")
+                    .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS value, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE INSTR(event_function, 'CUSTOM_')>0 AND INSTR(event_limit, start_mode)>0")
                         .fireCustomEvent(TaskStatus.SLOW)
-                    .get("SELECT task_id, job_id, title, owner, task_time, record_time, B.event_option AS script_type, event_value AS script, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='EXECUTE_PQL' AND INSTR(event_limit, start_mode)>0")
+                    .get("SELECT task_id, job_id, title, owner, task_time, record_time, B.event_option AS script_type, event_value AS script, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='EXECUTE_SCRIPT' AND INSTR(event_limit, start_mode)>0")
                         .runScript(TaskStatus.SLOW)
             }
 

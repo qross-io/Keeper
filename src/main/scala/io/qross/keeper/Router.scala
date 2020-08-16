@@ -168,7 +168,14 @@ object Router {
                         }
                     }
                 }
-            } /* ~
+            }
+            /* 上条勿删
+            REQUEST JSON API '''http://@KEEPER_HTTP_ADDRESS:@KEEPER_HTTP_PORT/test/json?id=1&name=Tom'''
+                METHOD 'PUT'
+                SEND DATA { "id": 2, "name": "Ted" };
+            PARSE "/";
+            */
+            /* ~
             path("") {
                 get {
                     complete(HttpEntity(ContentTypes.`application/json`,  Json.serialize(List[Int](1,2,3))))

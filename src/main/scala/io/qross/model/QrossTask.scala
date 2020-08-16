@@ -11,7 +11,7 @@ import io.qross.net.Json
 import io.qross.pql.Patterns.$BLANK
 import io.qross.pql.Solver._
 import io.qross.pql.{PQL, Sharp}
-import io.qross.script.Script
+import io.qross.script.{Script, Shell}
 import io.qross.setting.Global
 import io.qross.time.TimeSpan._
 import io.qross.time.{ChronExp, DateTime, Timer}
@@ -109,20 +109,20 @@ object QrossTask {
         def fireCustomEvent(taskStatus: String): DataHub = {
             dh.openQross().foreach(row => {
                 val jobId = row.getInt("job_id")
-                val roles = row.getString("roles")
-                if (roles != "") {
-                    row.set("owner", if (roles.contains("_OWNER")) { dh.executeDataTable(s"SELECT id, username, fullname, email, mobile, wechat_work_id FROM qross_users WHERE id IN (SELECT user_id FROM qross_jobs_owners WHERE job_id=$jobId) AND enabled='yes'") } else { new DataTable() }, DataType.TABLE)
-                    row.set("leader", if (roles.contains("_LEADER")) { dh.executeDataTable(s"SELECT id, username, fullname, email, mobile, wechat_work_id FROM qross_users WHERE id IN (SELECT leader_id FROM qross_teams_members WHERE user_id IN (SELECT user_id FROM qross_jobs_owners WHERE job_id=$jobId)) AND enabled='yes'") } else { new DataTable() }, DataType.TABLE)
-                    row.set("keeper", if (roles.contains("_KEEPER")) { dh.executeDataTable("SELECT id, username, fullname, email, mobile, wechat_work_id FROM qross_users WHERE role='keeper' AND enabled='yes'") } else { new DataTable() }, DataType.TABLE)
-                    row.set("master", if (roles.contains("_MASTER")) { dh.executeDataTable("SELECT id, username, fullname, email, mobile, wechat_work_id FROM qross_users WHERE role='master' AND enabled='yes'") } else { new DataTable() }, DataType.TABLE)
-                }
+                val value = row.getString("value")
                 val custom = row.getString("event_function").takeAfter("_")
-                val script = dh.executeDataRow("SELECT event_script_type, event_logic FROM qross_keeper_custom_events WHERE id=" + custom)
+                val script = dh.executeDataRow("SELECT event_value_type, event_script_type, event_logic FROM qross_keeper_custom_events WHERE id=" + custom)
+                if (script.getString("event_value_type") == "roles") {
+                    row.set("owner", if (value.contains("_OWNER")) { dh.executeDataTable(s"SELECT id, username, fullname, email, mobile, wechat_work_id FROM qross_users WHERE id IN (SELECT user_id FROM qross_jobs_owners WHERE job_id=$jobId) AND enabled='yes'") } else { new DataTable() }, DataType.TABLE)
+                    row.set("leader", if (value.contains("_LEADER")) { dh.executeDataTable(s"SELECT id, username, fullname, email, mobile, wechat_work_id FROM qross_users WHERE id IN (SELECT leader_id FROM qross_teams_members WHERE user_id IN (SELECT user_id FROM qross_jobs_owners WHERE job_id=$jobId)) AND enabled='yes'") } else { new DataTable() }, DataType.TABLE)
+                    row.set("keeper", if (value.contains("_KEEPER")) { dh.executeDataTable("SELECT id, username, fullname, email, mobile, wechat_work_id FROM qross_users WHERE role='keeper' AND enabled='yes'") } else { new DataTable() }, DataType.TABLE)
+                    row.set("master", if (value.contains("_MASTER")) { dh.executeDataTable("SELECT id, username, fullname, email, mobile, wechat_work_id FROM qross_users WHERE role='master' AND enabled='yes'") } else { new DataTable() }, DataType.TABLE)
+                }
                 val logic = script.getString("event_logic").replaceArguments(row)
                 //execute
                 try {
                     val result = {
-                        script.getString("event_script_type") match {
+                        script.getString("event_script_type").toLowerCase() match {
                             case "pql" => new PQL(logic, DataHub.QROSS).set(row).run()
                             case "shell" => Script.runShell(logic)
                             case "python" => Script.runPython(logic)
@@ -151,7 +151,7 @@ object QrossTask {
 
                 try {
                     val result = {
-                        scriptType match {
+                        scriptType.toLowerCase() match {
                             case "pql" => new PQL(script, DataHub.DEFAULT).set(row).run()
                             case "shell" => Script.runShell(script)
                             case "python" => Script.runPython(script)
@@ -167,9 +167,9 @@ object QrossTask {
                 }
 
                 TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time"))
-                        .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> execute PQL on task $taskStatus.")
-            }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_limit, event_value, event_result) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_limit', '#pql', '#event_result')")
-                    .clear()
+                        .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> run ${script.toUpperCase()} on task $taskStatus.")
+            }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_limit, event_value, event_option, event_result) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_limit', '#script', '#script_type', '#event_result')")
+                .clear()
         }
 
         def restartTask(taskStatus: String): DataHub = {
@@ -405,9 +405,9 @@ object QrossTask {
                         .sendEmail(TaskStatus.NEW)
                     .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS api, B.event_option AS method, B.event_name, B.event_function, B.event_limit, '' AS event_result FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='REQUEST_API' AND INSTR(B.event_limit, A.start_mode)>0")
                         .requestApi(TaskStatus.NEW)
-                    .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS roles, B.event_name, B.event_function, B.event_limit, '' AS event_result FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND INSTR(B.event_function, 'CUSTOM_')>0 AND INSTR(B.event_limit, A.start_mode)>0")
+                    .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS value, B.event_name, B.event_function, B.event_limit, '' AS event_result FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND INSTR(B.event_function, 'CUSTOM_')>0 AND INSTR(B.event_limit, A.start_mode)>0")
                         .fireCustomEvent(TaskStatus.NEW)
-                    .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_option AS script_type, B.event_value AS script, B.event_name, B.event_function, B.event_limit, '' AS event_result FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_PQL' AND INSTR(B.event_limit, A.start_mode)>0")
+                    .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_option AS script_type, B.event_value AS script, B.event_name, B.event_function, B.event_limit, '' AS event_result FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_SCRIPT' AND INSTR(B.event_limit, A.start_mode)>0")
                         .runScript(TaskStatus.NEW)
             }
             dh.clear()
@@ -491,9 +491,9 @@ object QrossTask {
                     .sendEmail(TaskStatus.NEW)
                 .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS api, B.event_option AS method, B.event_name, B.event_function, B.event_limit, '' AS event_result FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND event_function='REQUEST_API' AND INSTR(B.event_limit, A.start_mode)>0")
                     .requestApi(TaskStatus.NEW)
-                .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS roles, B.event_name, B.event_function, B.event_limit, '' AS event_result FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND INSTR(B.event_function, 'CUSTOM_')>0 AND INSTR(B.event_limit, A.start_mode)>0")
+                .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS value, B.event_name, B.event_function, B.event_limit, '' AS event_result FROM tasks A INNER JOIN events B ON A.job_id=B.job_id AND INSTR(B.event_function, 'CUSTOM_')>0 AND INSTR(B.event_limit, A.start_mode)>0")
                     .fireCustomEvent(TaskStatus.NEW)
-                .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_option AS script_type, B.event_value AS script, B.event_name, B.event_function, B.event_limit, '' AS event_result FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND event_function='EXECUTE_PQL' AND INSTR(B.event_limit, A.start_mode)>0")
+                .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_option AS script_type, B.event_value AS script, B.event_name, B.event_function, B.event_limit, '' AS event_result FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND event_function='EXECUTE_SCRIPT' AND INSTR(B.event_limit, A.start_mode)>0")
                     .runScript(TaskStatus.NEW)
         }
         dh.clear()
@@ -546,9 +546,9 @@ object QrossTask {
                     .sendEmail(TaskStatus.NEW)
                 .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS api, B.event_option AS method, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='REQUEST_API' AND INSTR(B.event_limit, A.start_mode)>0")
                     .requestApi(TaskStatus.NEW)
-                .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS roles, B.event_name, B.event_function, B.event_limit, '' AS event_result FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND INSTR(B.event_function, 'CUSTOM_')>0 AND INSTR(B.event_limit, A.start_mode)>0")
+                .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS value, B.event_name, B.event_function, B.event_limit, '' AS event_result FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND INSTR(B.event_function, 'CUSTOM_')>0 AND INSTR(B.event_limit, A.start_mode)>0")
                     .fireCustomEvent(TaskStatus.NEW)
-                .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_option AS script_type, B.event_value AS script, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_PQL' AND INSTR(B.event_limit, A.start_mode)>0")
+                .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_option AS script_type, B.event_value AS script, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_SCRIPT' AND INSTR(B.event_limit, A.start_mode)>0")
                     .runScript(TaskStatus.NEW)
         }
 
@@ -640,9 +640,9 @@ object QrossTask {
                             .sendEmail(TaskStatus.NEW)
                         .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS api, B.event_option AS method, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='REQUEST_API' AND INSTR(B.event_limit, A.start_mode)>0")
                             .requestApi(TaskStatus.NEW)
-                        .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS roles, B.event_name, B.event_function, B.event_limit, '' AS event_result FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND INSTR(B.event_function, 'CUSTOM_')>0 AND INSTR(B.event_limit, A.start_mode)>0")
+                        .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS value, B.event_name, B.event_function, B.event_limit, '' AS event_result FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND INSTR(B.event_function, 'CUSTOM_')>0 AND INSTR(B.event_limit, A.start_mode)>0")
                             .fireCustomEvent(TaskStatus.NEW)
-                        .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_option AS script_type, B.event_value AS script, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_PQL' AND INSTR(B.event_limit, A.start_mode)>0")
+                        .get("SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_option AS script_type, B.event_value AS script, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_SCRIPT' AND INSTR(B.event_limit, A.start_mode)>0")
                             .runScript(TaskStatus.NEW)
                 }
 
@@ -875,11 +875,11 @@ object QrossTask {
                             .sendEmail(TaskStatus.CHECKING_LIMIT)
                         .get("SELECT A.*, B.event_value AS api, B.event_option AS method, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='REQUEST_API' AND INSTR(B.event_limit, A.start_mode)>0")
                             .requestApi(TaskStatus.CHECKING_LIMIT)
-                        .get("SELECT A.*, B.event_value AS roles, B.event_function, B.event_limit, '' AS event_result, B.event_name FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND INSTR(B.event_function, 'CUSTOM_')>0 AND INSTR(B.event_limit, A.start_mode)>0")
+                        .get("SELECT A.*, B.event_value AS value, B.event_function, B.event_limit, '' AS event_result, B.event_name FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND INSTR(B.event_function, 'CUSTOM_')>0 AND INSTR(B.event_limit, A.start_mode)>0")
                             .fireCustomEvent(TaskStatus.CHECKING_LIMIT)
                         .get("SELECT A.*, B.event_value AS delay, B.event_function, B.event_limit, '' AS to_be_start_time, B.event_name FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='RESTART_CHECKING_AFTER' AND (B.event_option=0 OR B.current_option<B.event_option) AND INSTR(B.event_limit, A.start_mode)>0")
                             .restartTask(TaskStatus.CHECKING_LIMIT)
-                        .get("SELECT A.*, B.event_option AS script_type, B.event_value AS script, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_PQL' AND INSTR(B.event_limit, A.start_mode)>0")
+                        .get("SELECT A.*, B.event_option AS script_type, B.event_value AS script, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_SCRIPT' AND INSTR(B.event_limit, A.start_mode)>0")
                             .runScript(TaskStatus.CHECKING_LIMIT)
                 }
 
@@ -905,9 +905,9 @@ object QrossTask {
                         .sendEmail(TaskStatus.READY)
                     .get(s"SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS api, B.event_option AS method, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='REQUEST_API' AND INSTR(B.event_limit, A.start_mode)>0")
                         .requestApi(TaskStatus.READY)
-                    .get(s"SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS roles, B.event_function, B.event_limit, '' AS event_result, B.event_name FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND INSTR(B.event_function, 'CUSTOM_')>0 AND INSTR(B.event_limit, A.start_mode)>0")
+                    .get(s"SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_value AS value, B.event_function, B.event_limit, '' AS event_result, B.event_name FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND INSTR(B.event_function, 'CUSTOM_')>0 AND INSTR(B.event_limit, A.start_mode)>0")
                         .fireCustomEvent(TaskStatus.READY)
-                    .get(s"SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_option AS script_type, B.event_value AS script, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_PQL' AND INSTR(B.event_limit, A.start_mode)>0")
+                    .get(s"SELECT A.task_id, A.job_id, A.title, A.owner, A.task_time, A.record_time, B.event_option AS script_type, B.event_value AS script, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_SCRIPT' AND INSTR(B.event_limit, A.start_mode)>0")
                         .runScript(TaskStatus.READY)
             }
 
@@ -1089,11 +1089,11 @@ object QrossTask {
                 case _ =>
             }
 
-            //多行shell保存为文件 Qross_home/python/actionId.py
+            //多行shell保存为文件 Qross_home/shell/actionId.py
             if (commandText.contains("\n")) {
                 path = Global.QROSS_HOME + s"shell/$actionId.sh"
-                s"chmod +x $path".shell.!
                 new FileWriter(path, true).write(commandText).close()
+                s"chmod +x $path".bash()
                 commandText = path
             }
         }
@@ -1142,6 +1142,26 @@ object QrossTask {
                             logger.warn(s"Action $actionId - command $commandId of task $taskId - job $jobId at <$recordTime> is TIMEOUT: $commandText", commandId, actionId)
                         }
                         else if (TO_BE_KILLED.contains(actionId)) {
+                            //kill child process first
+                            if (commandType == "shell") {
+                                if (path != "") {
+                                    Shell.end(path)
+                                }
+                                else {
+                                    //仅支持单行sh文件命令 且参数中不能包含双引号
+                                    """(^|;)(/[^;\s]+\.sh)""".r.findFirstMatchIn(commandText) match {
+                                        case Some(m) =>
+                                            val sh = commandText.substring(commandText.indexOf(m.group(2)))
+                                            if (sh.contains("\"")) {
+                                                Shell.end(sh.takeBefore("\""))
+                                            }
+                                            else {
+                                                Shell.end(sh)
+                                            }
+                                        case None =>
+                                    }
+                                }
+                            }
                             //kill it
                             process.destroy()
                             killed = true
@@ -1216,11 +1236,11 @@ object QrossTask {
 
                         dh.get(s"SELECT id FROM qross_tasks_dependencies WHERE task_id=$taskId AND record_time='$recordTime' AND dependency_moment='after' AND ready='no'")
                         if (dh.nonEmpty) {
-                            dh.set(s"UPDATE qross_tasks SET status='${TaskStatus.INCORRECT}', checked='no' WHERE id=$taskId AND status='${TaskStatus.FINISHED}'")
+                            dh.clear().set(s"UPDATE qross_tasks SET status='${TaskStatus.INCORRECT}', checked='no' WHERE id=$taskId AND status='${TaskStatus.FINISHED}'")
                             TaskStatus.INCORRECT
                         }
                         else {
-                            dh.set(s"UPDATE qross_tasks SET status='${TaskStatus.SUCCESS}' WHERE id=$taskId AND status='${TaskStatus.FINISHED}'")
+                            dh.clear().set(s"UPDATE qross_tasks SET status='${TaskStatus.SUCCESS}' WHERE id=$taskId AND status='${TaskStatus.FINISHED}'")
                             TaskStatus.SUCCESS
                         }
 //                     .put(s"UPDATE qross_tasks SET status=IF(#amount > 0, '${TaskStatus.INCORRECT}', '${TaskStatus.SUCCESS}'), checked=IF(#amount > 0, 'no', '') WHERE id=$taskId AND status='${TaskStatus.FINISHED}'")
@@ -1269,9 +1289,9 @@ object QrossTask {
                         .requestApi(status)
                     .get(s"SELECT A.*, B.event_value AS delay, B.event_limit, '' AS to_be_start_time, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id WHERE B.event_function='RESTART_TASK' AND (B.event_option=0 OR B.current_option<B.event_option) AND INSTR(B.event_limit, A.start_mode)>0") //SIGNED is MySQL syntax, but SQLite will ignore it.
                         .restartTask(status)
-                    .get(s"SELECT A.*, B.event_value AS roles, B.event_function, B.event_limit, '' AS event_result, B.event_name FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND INSTR(B.event_function, 'CUSTOM_')>0 AND INSTR(B.event_limit, A.start_mode)>0")
+                    .get(s"SELECT A.*, B.event_value AS value, B.event_function, B.event_limit, '' AS event_result, B.event_name FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND INSTR(B.event_function, 'CUSTOM_')>0 AND INSTR(B.event_limit, A.start_mode)>0")
                         .fireCustomEvent(status)
-                    .get("SELECT A.*, B.event_option AS script_type, B.event_value AS script, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_PQL' AND INSTR(B.event_limit, A.start_mode)>0")
+                    .get("SELECT A.*, B.event_option AS script_type, B.event_value AS script, B.event_limit, '' AS event_result, B.event_name, B.event_function FROM task_info A INNER JOIN events B ON A.job_id=B.job_id AND B.event_function='EXECUTE_SCRIPT' AND INSTR(B.event_limit, A.start_mode)>0")
                         .runScript(status)
             }
 
