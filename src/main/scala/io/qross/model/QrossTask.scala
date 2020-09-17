@@ -1081,11 +1081,11 @@ object QrossTask {
             }
 
             //auto add environment variable to ahead
-            commandText.takeBefore($BLANK).toLowerCase() match {
-                case "java" => commandText = Global.JAVA_BIN_HOME + "java " + commandText.takeAfter($BLANK)
-                case "pql" => commandText = Global.JAVA_BIN_HOME + s"java -Dfile.encoding=${Global.CHARSET} -jar ${Global.QROSS_HOME}qross-worker-${Global.QROSS_VERSION}.jar " + commandText.takeAfter($BLANK)
-                case "python2" => commandText = Global.PYTHON2_HOME + "python2 " + commandText.takeAfter($BLANK)
-                case "python3" => commandText = Global.PYTHON3_HOME + "python3 "+ commandText.takeAfter($BLANK)
+            commandText.takeBeforeX($BLANK).toLowerCase() match {
+                case "java" => commandText = Global.JAVA_BIN_HOME + "java " + commandText.takeAfterX($BLANK)
+                case "pql" => commandText = Global.JAVA_BIN_HOME + s"java -Dfile.encoding=${Global.CHARSET} -jar ${Global.QROSS_HOME}qross-worker-${Global.QROSS_VERSION}.jar " + commandText.takeAfterX($BLANK)
+                case "python2" => commandText = Global.PYTHON2_HOME + "python2 " + commandText.takeAfterX($BLANK)
+                case "python3" => commandText = Global.PYTHON3_HOME + "python3 "+ commandText.takeAfterX($BLANK)
                 case _ =>
             }
 

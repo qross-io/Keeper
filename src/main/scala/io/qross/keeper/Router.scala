@@ -6,7 +6,6 @@ import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
 import io.qross.ext.Output
 import io.qross.model.{Note, QrossNote, QrossTask, Route}
-import io.qross.net.Json
 import io.qross.setting.Configurations
 
 import scala.util.Try

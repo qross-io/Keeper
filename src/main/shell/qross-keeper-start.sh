@@ -8,8 +8,8 @@ then
     #/srv/jdk1.8/bin/java -cp /home/panda/qross-keeper-0.5.4.jar io.qross.keeper.Protector --debug --cluster --properties /data/config/qinling/databases.properties
     #`date +%F`.log
     /srv/jdk1.8/bin/java -cp /qross/qross-keeper-0.6.2.jar io.qross.keeper.Protector
-else
-    echo "qross keeper is running." >> "/qross/keeper/beats/${day}.log" 2>&1
+#else
+    #echo "qross keeper is running." >> "/qross/keeper/beats/${day}.log" 2>&1
     #>> file1 2>> file2
 fi
-/srv/jdk1.8/bin/java -cp /qross/qross-keeper-0.6.2.jar io.qross.keeper.Inspector >> "/qross/keeper/beats/${day}.log" 2>&1
+/srv/jdk1.8/bin/java -cp /qross/qross-kopeeper-0.6.2.jar io.qross.keeper.Inspector >> "/qross/keeper/beats/${day}.log" 2>&1

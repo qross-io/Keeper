@@ -34,8 +34,7 @@ object Keeper {
             system.actorOf(Props[TaskStarter], "starter"),
             system.actorOf(Props[NoteProcessor], "processor"),
             system.actorOf(Props[TaskLogger], "logger"),
-            system.actorOf(Props[Repeater], "repeater"),
-            system.actorOf(Props[Monitor], "monitor")
+            system.actorOf(Props[Repeater], "repeater")
         )
 
         //for akka http

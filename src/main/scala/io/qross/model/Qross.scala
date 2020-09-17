@@ -6,6 +6,7 @@ import io.qross.fs.ResourceFile
 import io.qross.jdbc.DataSource
 import io.qross.keeper.Setting
 import io.qross.net.Email
+import io.qross.setting.Environment
 import io.qross.time.{ChronExp, DateTime, Timer}
 
 object Qross {
@@ -72,6 +73,7 @@ object Qross {
         var now = DateTime.now
         val tick = now.getString("yyyy-MM-dd HH:mm:ss")
         now = now.setSecond(0)
+        val moment = now.getString("yyyy-MM-dd HH:mm:00")
 
         writeLineWithSeal("SYSTEM", s"Inspector beats at $now")
 
@@ -123,10 +125,8 @@ object Qross {
                            ) C ON A.job_id=C.job_id AND TIMESTAMPDIFF(MINUTE, C.record_time, NOW())>A.warning_overtime;
                             """)
                 .cache("slow_tasks_events")
-
             if (dh.nonEmpty) {
                 writeLineWithSeal("SYSTEM", s"${dh.COUNT_OF_LAST_GET} event(s) have been fired by slow Tasks.")
-
                 dh.openCache()
                     .get("SELECT task_id, job_id, title, owner, task_time, record_time, event_value AS receivers, event_name, event_function, event_limit, '' AS event_result FROM slow_tasks_events WHERE event_function='SEND_MAIL_TO' AND INSTR(event_limit, start_mode)>0")
                         .sendEmail(TaskStatus.SLOW)
@@ -140,18 +140,24 @@ object Qross {
 
             //close job if expired
             dh.openQross()
-                .get(s"SELECT id FROM qross_jobs WHERE enabled='yes' AND closing_time<>'' AND TIMESTAMPDIFF(MINUTE, '${now.getString("yyyy-MM-dd HH:mm:00")}', closing_time)<=1")
+                .get(s"SELECT id FROM qross_jobs WHERE enabled='yes' AND closing_time<>'' AND TIMESTAMPDIFF(MINUTE, '$moment', closing_time)<=1")
                     .put("UPDATE qross_jobs SET enabled='no', next_tick='N/A', closing_time='' WHERE id=#id")
                     .foreach(row => {
                         writeDebugging("Job " + row.getString("id") + " has been closed.")
                     })
                 //open job if arrived
-                .get(s"SELECT id, opening_time, cron_exp, next_tick FROM qross_jobs WHERE enabled='no' AND opening_time<>'' AND TIMESTAMPDIFF(MINUTE, '${now.getString("yyyy-MM-dd HH:mm:00")}', opening_time)<=1")
+                .get(s"SELECT id, opening_time, cron_exp, next_tick FROM qross_jobs WHERE enabled='no' AND opening_time<>'' AND TIMESTAMPDIFF(MINUTE, '$moment', opening_time)<=1")
                 .foreach(row => {
                     row.set("next_tick", ChronExp(row.getString("cron_exp")).getNextTickOrNone(row.getDateTime("opening_time")))
                     writeDebugging("Job " + row.getString("id") + " is opening.")
                 })
                 .put("UPDATE qross_jobs SET enabled='yes', next_tick='#next_tick', opening_time='' WHERE id=#id")
+
+
+            //server monitor
+            val executingTasks = dh.executeSingleValue(s"SELECT COUNT(0) AS tasks FROM qross_tasks WHERE status='${TaskStatus.EXECUTING}'").asInteger
+            val runningActions = dh.executeSingleValue(s"SELECT COUNT(0) AS actions FROM qross_tasks_dags WHERE status='${ActionStatus.RUNNING}'").asInteger
+            dh.executeNonQuery(s"INSERT INTO qross_server_monitor (moment, cpu_usage, memory_usage, executing_tasks, running_actions) VALUES ('$moment', ${Environment.cpuUsage}, ${Environment.systemMemoryUsage}, $executingTasks, $runningActions)")
         }
         
         dh.close()
