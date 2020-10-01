@@ -831,7 +831,7 @@ object QrossTask {
 
         val status = {
             if (dh.isEmpty) {
-                dh.openQross().set(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW(), readiness=TIMESTAMPDIFF(SECOND, create_time, NOW()) WHERE id=$taskId")
+                dh.openQross().set(s"UPDATE qross_tasks SET status='${TaskStatus.READY}', ready_time=NOW(), readiness=TIMESTAMPDIFF(SECOND, create_time, NOW()) WHERE id=$taskId").clear()
                 TaskStatus.READY
             }
             else {

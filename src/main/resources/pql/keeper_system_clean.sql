@@ -5,7 +5,7 @@ SET $days := @KEEP_LOGS_FOR_X_DAYS;
 IF $days > 0 THEN
     SET $point := @NOW MINUS DAYS $days FORMAT 'yyyy-MM-dd HH:mm:ss';
 
-    DELETE FROM qross_stuck_tasks WHERE create_time<$point;
+    DELETE FROM qross_stuck_records WHERE create_time<$point;
     DELETE FROM qross_keeper_exceptions WHERE create_time<$point;
     DELETE FROM qross_server_monitor WHERE moment<$point;
 

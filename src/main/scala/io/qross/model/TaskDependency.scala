@@ -125,12 +125,15 @@ object TaskDependency {
                 val dh = new DataHub(depend.getString("dependency_label"))
                 val result = {
                     try {
-                        new PQL(depend.getString("dependency_content"), dh)
-                          .set(depend)
-                          .output
-                          .lastOption match {
-                            case Some(value) => value.toBoolean(false)
-                            case None => false
+                        val output = new PQL(depend.getString("dependency_content"), dh).set(depend).output
+                        if (output != null) {
+                            output.toBoolean(false)
+                        }
+                        else {
+                            TaskRecorder.of(depend.getInt("job_id"), depend.getLong("task_id"), depend.getString("record_time"))
+                                .warn(s"No return value in PQL dependency: " + depend.getString("dependency_content"))
+
+                            false
                         }
                     }
                     catch {
@@ -139,6 +142,7 @@ object TaskDependency {
                             TaskRecorder.of(depend.getInt("job_id"), depend.getLong("task_id"), depend.getString("record_time"))
                               .warn(s"Wrong PQL statement: " + depend.getString("dependency_content"))
                               .err(e.getMessage)
+
                             false
                     }
                 }
@@ -147,7 +151,7 @@ object TaskDependency {
                     ready = "yes"
 
                     try {
-                        new PQL(depend.getString("dependency_option"), dh).set(depend).run()
+                        new PQL(depend.getString("dependency_option"), dh).set(depend).$run()
                     }
                     catch {
                         case e: Exception =>
@@ -157,6 +161,8 @@ object TaskDependency {
                               .err(e.getMessage)
                     }
                 }
+
+                dh.close()
         }
 
         ready
