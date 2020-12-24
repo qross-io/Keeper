@@ -150,15 +150,17 @@ object TaskDependency {
                 if (result) {
                     ready = "yes"
 
-                    try {
-                        new PQL(depend.getString("dependency_option"), dh).set(depend).$run()
-                    }
-                    catch {
-                        case e: Exception =>
-                            e.printStackTrace()
-                            TaskRecorder.of(depend.getInt("job_id"), depend.getLong("task_id"), depend.getString("record_time"))
-                              .warn(s"Wrong PQL statement: " + depend.getString("dependency_option"))
-                              .err(e.getMessage)
+                    if (depend.getString("dependency_option") != "") {
+                        try {
+                            new PQL(depend.getString("dependency_option"), dh).set(depend).$run()
+                        }
+                        catch {
+                            case e: Exception =>
+                                e.printStackTrace()
+                                TaskRecorder.of(depend.getInt("job_id"), depend.getLong("task_id"), depend.getString("record_time"))
+                                    .warn(s"Wrong PQL statement: " + depend.getString("dependency_option"))
+                                    .err(e.getMessage)
+                        }
                     }
                 }
 

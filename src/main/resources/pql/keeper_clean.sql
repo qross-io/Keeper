@@ -23,7 +23,7 @@ FOR $job_id, $keep_tasks IN $TO_CLEAR
     DELETE FROM qross_tasks_events WHERE job_id=$job_id AND task_id<=$task_id;
     DELETE FROM qross_tasks_records WHERE job_id=$job_id AND task_id<=$task_id;
     SET $rows := DELETE FROM qross_tasks WHERE job_id=$job_id AND id<=$task_id;
-    INSERT INTO qross_jobs_clean_records (job_id, amount, info) VALUES ($job_id, $rows, $task_id);
+    --INSERT INTO qross_jobs_clean_records (job_id, amount, info) VALUES ($job_id, $rows, $task_id);
 
     PRINT DEBUG $rows + ' tasks of job ' + $job_id + ' has been deleted.';
   END LOOP;

@@ -79,7 +79,7 @@ object QrossTask {
 
         def requestApi(taskStatus: String): DataHub = {
             dh.foreach(row => {
-                val api = row.getString("api").replaceArguments(row).$restore(new PQL("", DataHub.DEFAULT).set(row), "").replace(" ", "%20").replace("&amp;", "&")
+                val api = row.getString("api").replaceArguments(row).$restore(new PQL("", DataHub.DEFAULT).set(row).keepIntact(), "").replace(" ", "%20").replace("&amp;", "&")
                 val method = row.getString("method", "GET")
 
                 if (api != "") {
@@ -109,23 +109,30 @@ object QrossTask {
         def fireCustomEvent(taskStatus: String): DataHub = {
             dh.openQross().foreach(row => {
                 val jobId = row.getInt("job_id")
-                val value = row.getString("value")
+                val value = row.getString("value") //value为传参
                 val custom = row.getString("event_function").takeAfter("_")
                 val script = dh.executeDataRow("SELECT event_value_type, event_script_type, event_logic FROM qross_keeper_custom_events WHERE id=" + custom)
+                val scriptType = script.getString("event_script_type").toLowerCase()
                 if (script.getString("event_value_type") == "roles") {
-                    row.set("owner", if (value.contains("_OWNER")) { dh.executeDataTable(s"SELECT id, username, fullname, email, mobile, wechat_work_id FROM qross_users WHERE id IN (SELECT user_id FROM qross_jobs_owners WHERE job_id=$jobId) AND enabled='yes'") } else { new DataTable() }, DataType.TABLE)
-                    row.set("leader", if (value.contains("_LEADER")) { dh.executeDataTable(s"SELECT id, username, fullname, email, mobile, wechat_work_id FROM qross_users WHERE id IN (SELECT leader_id FROM qross_teams_members WHERE user_id IN (SELECT user_id FROM qross_jobs_owners WHERE job_id=$jobId)) AND enabled='yes'") } else { new DataTable() }, DataType.TABLE)
-                    row.set("keeper", if (value.contains("_KEEPER")) { dh.executeDataTable("SELECT id, username, fullname, email, mobile, wechat_work_id FROM qross_users WHERE role='keeper' AND enabled='yes'") } else { new DataTable() }, DataType.TABLE)
-                    row.set("master", if (value.contains("_MASTER")) { dh.executeDataTable("SELECT id, username, fullname, email, mobile, wechat_work_id FROM qross_users WHERE role='master' AND enabled='yes'") } else { new DataTable() }, DataType.TABLE)
+                        val owner = if (value.contains("_OWNER")) { dh.executeDataTable(s"SELECT id, username, fullname, email, CONCAT(fullname, '<', email, '>') AS personal, mobile, wechat_work_id FROM qross_users WHERE id IN (SELECT user_id FROM qross_jobs_owners WHERE job_id=$jobId) AND enabled='yes'") } else { new DataTable() }
+                        val leader = if (value.contains("_LEADER")) { dh.executeDataTable(s"SELECT id, username, fullname, email, CONCAT(fullname, '<', email, '>') AS personal, mobile, wechat_work_id FROM qross_users WHERE id IN (SELECT leader_id FROM qross_teams_members WHERE user_id IN (SELECT user_id FROM qross_jobs_owners WHERE job_id=$jobId)) AND enabled='yes'") } else { new DataTable() }
+                        val keeper = if (value.contains("_KEEPER")) { dh.executeDataTable("SELECT id, username, fullname, email, CONCAT(fullname, '<', email, '>') AS personal, mobile, wechat_work_id FROM qross_users WHERE role='keeper' AND enabled='yes'") } else { new DataTable() }
+                        val master = if (value.contains("_MASTER")) { dh.executeDataTable("SELECT id, username, fullname, email, CONCAT(fullname, '<', email, '>') AS personal, mobile, wechat_work_id FROM qross_users WHERE role='master' AND enabled='yes'") } else { new DataTable() }
+                        row.set("owner", owner, DataType.TABLE)
+                        row.set("leader", leader, DataType.TABLE)
+                        row.set("keeper", keeper, DataType.TABLE)
+                        row.set("master", master, DataType.TABLE)
+                        row.set("users", new DataTable().union(owner).union(leader).union(keeper).union(master), DataType.TABLE)
                 }
                 val logic = script.getString("event_logic").replaceArguments(row)
                 //execute
                 try {
                     val result = {
-                        script.getString("event_script_type").toLowerCase() match {
+                        scriptType match {
                             case "pql" => new PQL(logic, DataHub.QROSS).set(row).run()
-                            case "shell" => Script.runShell(logic)
-                            case "python" => Script.runPython(logic)
+                            //shell和python支持PQL的嵌入表达式
+                            case "shell" => Script.runShell(logic.$restore(new PQL("", DataHub.DEFAULT).set(row).keepIntact(), ""))
+                            case "python" => Script.runPython(logic.$restore(new PQL("", DataHub.DEFAULT).set(row).keepIntact(), ""))
                         }
                     }
                     row.set("event_result", if (result == null) "SUCCESS" else result.toString)
@@ -139,7 +146,7 @@ object QrossTask {
                 TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time"))
                     .debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> fire custom event $custom on task $taskStatus.")
 
-            }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_limit, event_value, event_result) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_limit', '#roles', '#event_result')")
+            }).put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_limit, event_value, event_result) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_limit', '#value', '#event_result')")
                 .clear()
                 .openCache()
         }
@@ -178,7 +185,7 @@ object QrossTask {
                 dh.put("INSERT INTO qross_tasks_events (job_id, task_id, record_time, event_name, event_function, event_limit, event_value, event_result) VALUES (#job_id, #task_id, '#record_time', '#event_name', '#event_function', '#event_limit', '#delay', 'RESTARTED.')")
                 .foreach(row => {
                     val delay = row.getInt("delay", 30)
-                    row.set("to_be_start_time", DateTime.now.plusMinutes(delay).getString("yyyyMMddHHmm00"))
+                    row.set("to_be_start_time", DateTime.now.plusMinutes(delay).getTickValue)
 
                     TaskRecorder.of(row.getInt("job_id"), row.getLong("task_id"), row.getString("record_time")).debug(s"Task ${row.getLong("task_id")} of job ${row.getInt("job_id")} at <${row.getString("record_time")}> will restart after $delay minutes by $taskStatus.")
                 })
@@ -227,8 +234,7 @@ object QrossTask {
                                     ""
                                 }, DataType.TEXT)
                         case "SQL" =>
-                            val PQL = new PQL("", DataHub.DEFAULT)
-                            PQL.set(row)
+                            val PQL = new PQL("", DataHub.DEFAULT).set(row).keepIntact()
                             try {
                                 row.set("dependency_content",
                                     row.getString("dependency_content")
@@ -366,7 +372,7 @@ object QrossTask {
         //excluding jobs with executing tasks
         dh.get(s"""SELECT id AS job_id FROM qross_jobs WHERE job_type='${JobType.DEPENDENT}' AND enabled='yes' AND id NOT IN (SELECT DISTINCT job_id FROM qross_tasks WHERE
                                     status NOT IN ('${TaskStatus.FINISHED}', '${TaskStatus.INCORRECT}', '${TaskStatus.FAILED}', '${TaskStatus.TIMEOUT}', '${TaskStatus.SUCCESS}'))""")
-            .put(s"INSERT INTO qross_tasks (job_id, task_time, record_time, create_mode, start_mode) VALUES (#job_id, '${DateTime.now.getString("yyyyMMddHHmmss")}', '${DateTime.now}', 'trigger', 'auto_start')")
+            .put(s"INSERT INTO qross_tasks (job_id, task_time, record_time, create_mode, start_mode) VALUES (#job_id, '${DateTime.now.getString("yyyy-MM-dd HH:mm:ss")}', '${DateTime.now}', 'trigger', 'auto_start')")
 
         //jobs with cron_exp
         dh.get(s"SELECT id AS job_id, cron_exp, next_tick FROM qross_jobs WHERE next_tick='$tick' AND job_type='${JobType.SCHEDULED}' AND enabled='yes' AND id NOT IN (SELECT job_id FROM qross_tasks WHERE task_time='$tick')")
@@ -470,7 +476,7 @@ object QrossTask {
         val dh = DataHub.QROSS
 
         val recordTime = DateTime.now
-        val taskTime = recordTime.getString("yyyyMMddHHmmss")
+        val taskTime = recordTime.getString("yyyy-MM-dd HH:mm:ss")
 
         dh.set(s"INSERT INTO qross_tasks (job_id, task_time, record_time, create_mode, start_mode) VALUES ($jobId, '$taskTime', '${recordTime.toString()}', 'interval', 'auto_start')")
 
@@ -521,7 +527,7 @@ object QrossTask {
 
         val dh = DataHub.QROSS
 
-        val taskTime = DateTime.now.getString("yyyyMMddHHmmss")
+        val taskTime = DateTime.now.getString("yyyy-MM-dd HH:mm:ss")
         val recordTime = DateTime.now.toString()
         val status = if (ignoreDepends == "yes") TaskStatus.READY else TaskStatus.INITIALIZED
 
@@ -603,7 +609,7 @@ object QrossTask {
         val params = info.getString("params").$split(",", ":") //to replace #{param} in command text
         val commands = java.net.URLDecoder.decode(info.getString("commands"), Global.CHARSET).$split("##\\$##", ":")
         val delay = info.getInt("delay")
-        val taskTime = DateTime.now.getString("yyyyMMddHHmmss")
+        val taskTime = DateTime.now.getString("yyyy-MM-dd HH:mm:ss")
         val recordTime = DateTime.now.toString()
         val ignore = info.getString("ignoreDepends", "no")
 
@@ -923,7 +929,7 @@ object QrossTask {
         val dh = DataHub.QROSS
 
         //tasks to be restart
-        dh.get(s"SELECT id AS task_id, job_id,  status FROM qross_tasks WHERE to_be_start_time='$tick'")
+        dh.get(s"SELECT id AS task_id, job_id, status FROM qross_tasks WHERE to_be_start_time='$tick'")
         if (dh.nonEmpty) {
             dh.cache("tasks")
             dh.openCache()
@@ -1071,7 +1077,7 @@ object QrossTask {
         if (commandType == "shell") {
             //在Keeper中处理的好处是在命令的任何地方都可嵌入表达式
             try {
-                commandText = commandText.$restore(new PQL("", DataHub.DEFAULT).set(taskCommand), "") //按PQL计算, 支持各种PQL嵌入式表达式, 但不保留引号
+                commandText = commandText.$restore(new PQL("", DataHub.DEFAULT).set(taskCommand).keepIntact(), "") //按PQL计算, 支持各种PQL嵌入式表达式, 但不保留引号
             }
             catch {
                 case e: Exception =>

@@ -50,7 +50,7 @@ class Messenger extends WorkActor {
                                 params: "name1:value1,name2:value2",
                                 commands: "commandId:commandText##$##commandId:commandText",
                                 delay: 0,
-                                start_time: 'yyyyMMddHHmm00'
+                                start_time: 'yyyy-MM-dd HH:mm:00'
                             }
                             */
                         //TASK - KILL - actionId

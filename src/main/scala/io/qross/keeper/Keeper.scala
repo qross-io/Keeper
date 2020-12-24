@@ -29,7 +29,7 @@ object Keeper {
 
         implicit val system: ActorSystem = ActorSystem("keeper")
         val actors = List(
-            system.actorOf(Props[Messenger], "messenger"),
+            //system.actorOf(Props[Messenger], "messenger"),
             system.actorOf(Props[TaskProducer], "producer"),
             system.actorOf(Props[TaskStarter], "starter"),
             system.actorOf(Props[NoteProcessor], "processor"),
@@ -53,7 +53,7 @@ object Keeper {
                 actors(1) ! Tick(minute) //actors(1) = TaskProducer
             })
         
-            val minute = DateTime.now.getString("yyyyMMddHHmm00")
+            val minute = DateTime.now.getTickValue
             //to be ack
             TO_BE_ACK += minute
             //send tick
