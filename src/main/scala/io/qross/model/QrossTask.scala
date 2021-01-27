@@ -79,7 +79,7 @@ object QrossTask {
 
         def requestApi(taskStatus: String): DataHub = {
             dh.foreach(row => {
-                val api = row.getString("api").replaceArguments(row).$restore(new PQL("", DataHub.DEFAULT).set(row).keepIntact(), "").replace(" ", "%20").replace("&amp;", "&")
+                val api = row.getString("api").replaceArguments(row).$restore(new PQL("", DataHub.DEFAULT).set(row), "").replace(" ", "%20").replace("&amp;", "&")
                 val method = row.getString("method", "GET")
 
                 if (api != "") {
@@ -131,8 +131,8 @@ object QrossTask {
                         scriptType match {
                             case "pql" => new PQL(logic, DataHub.QROSS).set(row).run()
                             //shell和python支持PQL的嵌入表达式
-                            case "shell" => Script.runShell(logic.$restore(new PQL("", DataHub.DEFAULT).set(row).keepIntact(), ""))
-                            case "python" => Script.runPython(logic.$restore(new PQL("", DataHub.DEFAULT).set(row).keepIntact(), ""))
+                            case "shell" => Script.runShell(logic.$restore(new PQL("", DataHub.DEFAULT).set(row), ""))
+                            case "python" => Script.runPython(logic.$restore(new PQL("", DataHub.DEFAULT).set(row), ""))
                         }
                     }
                     row.set("event_result", if (result == null) "SUCCESS" else result.toString)
@@ -234,7 +234,7 @@ object QrossTask {
                                     ""
                                 }, DataType.TEXT)
                         case "SQL" =>
-                            val PQL = new PQL("", DataHub.DEFAULT).set(row).keepIntact()
+                            val PQL = new PQL("", DataHub.DEFAULT).set(row)
                             try {
                                 row.set("dependency_content",
                                     row.getString("dependency_content")
@@ -1077,7 +1077,7 @@ object QrossTask {
         if (commandType == "shell") {
             //在Keeper中处理的好处是在命令的任何地方都可嵌入表达式
             try {
-                commandText = commandText.$restore(new PQL("", DataHub.DEFAULT).set(taskCommand).keepIntact(), "") //按PQL计算, 支持各种PQL嵌入式表达式, 但不保留引号
+                commandText = commandText.$restore(new PQL("", DataHub.DEFAULT).set(taskCommand), "") //按PQL计算, 支持各种PQL嵌入式表达式, 但不保留引号
             }
             catch {
                 case e: Exception =>

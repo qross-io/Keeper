@@ -20,6 +20,7 @@ object Test {
 
     def main(args: Array[String]): Unit = {
 
+        PQL.runFile("/pql/metadata_quality.sql")
         //ChronExp("WEEKLY 7 10-23:0/2").getNextTick(DateTime.now).print
 
         //QrossTask.getTaskCommandsToExecute(Task(12L, TaskStatus.READY).of(544).at("20190927101800", "2019-09-27 10:18:00.018"))
