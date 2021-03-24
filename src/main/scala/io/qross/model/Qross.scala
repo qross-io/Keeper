@@ -13,15 +13,17 @@ object Qross {
     
     def start(): Unit = {
         val ds = DataSource.QROSS
-        val method =
+        val method = {
             if (ds.executeExists("SELECT id FROM qross_keeper_beats WHERE actor_name='Keeper' AND status='rest'")) {
                 "manual"
             }
             else {
                 "crontab"
             }
-        
+        }
         ds.executeNonQuery(s"INSERT INTO qross_keeper_running_records (method) VALUES ('$method')")
+
+        ds.executeNonQuery("UPDATE qross_conf SET conf_value=NOW() WHERE conf_key='KEEPER_BOOT_TIME'")
         
         if (method != "manual") {
             Email.write(s"RESTART: Keeper start by <$method> at " + DateTime.now.getString("yyyy-MM-dd HH:mm:ss"))
@@ -29,7 +31,7 @@ object Qross {
                 .cc(ds.executeSingleValue("SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS master FROM qross_users WHERE role='master' AND enabled='yes'").asText(""))
                 .send()
         }
-    
+
         ds.executeNonQuery("UPDATE qross_keeper_beats SET status='running',start_time=NOW() WHERE actor_name='Keeper'")
         
         ds.close()

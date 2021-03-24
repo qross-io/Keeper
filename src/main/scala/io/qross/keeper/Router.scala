@@ -5,8 +5,10 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
 import io.qross.ext.Output
+import io.qross.jdbc.JDBC
 import io.qross.model.{Note, QrossNote, QrossTask, Route}
-import io.qross.setting.Configurations
+import io.qross.pql.GlobalFunction
+import io.qross.setting.{Configurations, Properties}
 
 import scala.util.Try
 
@@ -157,6 +159,59 @@ object Router {
                     }
                 }
             }  ~
+            path ("configurations" / "reload") {
+                put {
+                    Configurations.load()
+                    complete("1")
+                }
+            } ~
+            path ("properties" / "load" / IntNumber) { id =>
+                put {
+                    Properties.load(id)
+                    complete("1")
+                }
+            } ~
+            path ("connection" / "setup" / IntNumber) { id =>
+                put {
+                    JDBC.setup(id)
+                    complete("1")
+                }
+                complete("1")
+            } ~
+            path ("connection" / "remove") {
+                put {
+                    parameter("connection_name") {
+                        connectionName => {
+                            JDBC.remove(connectionName)
+                            complete("1")
+                        }
+                    }
+                }
+                complete("1")
+            } ~
+            path ("function" / "renew") {
+                put {
+                    parameter("function_name") {
+                        functionName => {
+                            GlobalFunction.renew(functionName)
+                            complete("1")
+                        }
+                    }
+                }
+            } ~
+            path ("function" / "remove") {
+                put {
+                    parameter("function_name") {
+                        functionName => {
+                            GlobalFunction.remove(functionName)
+                            complete("1")
+                        }
+                    }
+                }
+            } ~
+            path ("variable" / "renew") {
+                complete("1")
+            } ~
             path ("test" / "json") {
                 put {
                     parameter("id".as[Int], "name".as[String]) {
