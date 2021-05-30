@@ -1,7 +1,14 @@
 DEBUG OFF;
 
-SET $metadata := 'mysql.datax';
-SET $prefix := '';
+--需要参数 $metadata, $prefix
+
+IF $metadata IS UNDEFINED THEN
+    SET $metadata := 'mysql.qross';
+END IF;
+
+IF $prefix IS UNDEFINED THEN
+    SET $prefix := 'qross_';
+END IF;
 
 OPEN $metadata;
 SAVE TO $metadata;
@@ -89,6 +96,35 @@ FUNCTION $SCRAPE ($connection)
                                     FROM TBLS A
                                     INNER JOIN DBS B ON A.DB_ID = B.DB_ID
                                     INNER JOIN COLUMNS_V2 C ON A.TBL_ID = C.CD_ID;
+            --Phoenix
+	    WHEN 'Phoenix' THEN
+                CACHE 'SCHEMATA' # SELECT null AS database_name,TABLE_SCHEM AS schema_name  FROM SYSTEM.CATALOG WHERE TABLE_SCHEM <> 'SYSTEM' GROUP BY TABLE_SCHEM;
+                CACHE 'TABLES' # SELECT
+                                NULL AS database_name,
+                                a.TABLE_SCHEMA AS table_schema,
+                                a.TABLE_NAME AS table_name,
+                                b.TABLE_ROWS AS table_rows,
+                                NULL AS table_comment,
+                                NULL AS auto_increment,
+                                NULL AS create_time,
+                                NULL AS update_time
+                                FROM
+                                (
+                                SELECT
+                                    TABLE_SCHEM AS table_schema,
+                                    TABLE_NAME AS table_name
+                                from
+                                    SYSTEM.CATALOG
+                                where TABLE_SCHEM <> 'SYSTEM' AND COLUMN_NAME IS NOT NULL)a
+                                LEFT JOIN
+                                (select COUNT(1) AS TABLE_ROWS,
+                                    TABLE_NAME,
+                                    TABLE_SCHEM
+                                FROM SYSTEM.CATALOG
+                                WHERE TABLE_SCHEM <> 'SYSTEM' AND COLUMN_NAME IS NOT NULL
+                                GROUP BY TABLE_NAME,TABLE_SCHEM
+                                ) b ON a.table_schema=b.TABLE_SCHEM AND a.table_name=b.TABLE_NAME;
+                CACHE 'COLUMNS' # SELECT null AS database_name, TABLE_SCHEM AS table_schema, TABLE_NAME AS table_name, COLUMN_NAME AS column_name, NULL AS column_default, null AS column_type, null AS column_comment from SYSTEM.CATALOG WHERE TABLE_SCHEM <> 'SYSTEM' AND COLUMN_NAME IS NOT NULL;
             ELSE
                 --MySQL
                 SET $not_in := "('information_schema', 'dbhealth', 'mysql', 'performance_schema', 'binlog_', 'test', 'sys', 'sakila')";
@@ -101,7 +137,7 @@ FUNCTION $SCRAPE ($connection)
         PRINT 'Scrape: ' + $connection.connection_name + ", CACHE OK";
 
         OPEN $metadata;
-        CACHE 'current_databases' # SELECT id, database_name, schema_name, connection_id, enabled FROM $prefix!metadata_databases WHERE connection_id=$connection.id;
+        CACHE 'current_databases' # SELECT id, database_name, schema_name, connection_id, enabled FROM $prefix!_metadata_databases WHERE connection_id=$connection.id;
 
         OPEN CACHE;
         -- record the max id
@@ -111,22 +147,22 @@ FUNCTION $SCRAPE ($connection)
         GET # SELECT DISTINCT $connection.id, A.database_name, A.schema_name
                  FROM SCHEMATA A
                     LEFT JOIN current_databases B ON A.database_name=B.database_name AND A.schema_name=B.schema_name AND A.schema_name=B.schema_name WHERE B.database_name IS NULL;
-        PUT # INSERT INTO $prefix!metadata_databases (connection_id, database_name, schema_name) VALUES (?, ?, ?);
+        PUT # INSERT INTO $prefix!_metadata_databases (connection_id, database_name, schema_name) VALUES (?, ?, ?);
         --miss databases
         GET # SELECT A.id FROM current_databases A LEFT JOIN SCHEMATA B ON A.database_name=B.database_name AND A.schema_name=B.schema_name WHERE B.schema_name IS NULL;
-        PUT # UPDATE $prefix!metadata_databases SET missed='yes' WHERE id=?;
+        PUT # UPDATE $prefix!_metadata_databases SET missed='yes' WHERE id=?;
         -- update scrape time
-        PREP # UPDATE $prefix!metadata_databases SET scrape_time=NOW() WHERE connection_id=$connection.id;
+        PREP # UPDATE $prefix!_metadata_databases SET scrape_time=NOW() WHERE connection_id=$connection.id;
 
         -- refresh databases in cache
         OPEN $metadata;
-        CACHE 'current_databases' # SELECT id, database_name, schema_name, connection_id, enabled FROM $prefix!metadata_databases WHERE connection_id=$connection.id AND id>$max;
+        CACHE 'current_databases' # SELECT id, database_name, schema_name, connection_id, enabled FROM $prefix!_metadata_databases WHERE connection_id=$connection.id AND id>$max;
 
         PRINT "Scrape: " + $connection.connection_name + ", SCRAPE DATABASES OK";
 
         --exists tables
         CACHE 'current_tables' # SELECT A.id, A.connection_id, A.database_id, B.database_name, B.schema_name, B.enabled, A.table_name, A.table_comment, A.table_rows,
-                    A.create_time, A.update_time, A.auto_increment FROM $prefix!metadata_tables A INNER JOIN $prefix!metadata_databases B ON A.database_id=B.id
+                    A.create_time, A.update_time, A.auto_increment FROM $prefix!_metadata_tables A INNER JOIN $prefix!_metadata_databases B ON A.database_id=B.id
                      WHERE A.connection_id=$connection.id;
 
         -- different tables
@@ -146,29 +182,29 @@ FUNCTION $SCRAPE ($connection)
                 (SELECT A.* FROM TABLES A LEFT JOIN current_tables B ON A.table_schema=B.schema_name AND A.database_name=B.database_name
                     AND A.table_name=B.table_name WHERE B.table_name IS NULL) C
                      INNER JOIN current_databases D ON C.table_schema=D.schema_name AND C.database_name=D.database_name  WHERE D.enabled='yes';
-            PUT # INSERT INTO $prefix!metadata_tables (connection_id, database_id, table_name, table_comment, table_rows, create_time, update_time, auto_increment) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-            PREP # UPDATE $prefix!metadata_tables SET scrape_time=NOW() WHERE connection_id=$connection.id;
+            PUT # INSERT INTO $prefix!_metadata_tables (connection_id, database_id, table_name, table_comment, table_rows, create_time, update_time, auto_increment) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            PREP # UPDATE $prefix!_metadata_tables SET scrape_time=NOW() WHERE connection_id=$connection.id;
 
         -- select missed
         GET # SELECT A.id FROM current_tables A LEFT JOIN TABLES B ON A.database_name=B.database_name AND A.schema_name=B.table_schema AND A.table_name=B.table_name WHERE B.table_name IS NULL;
-            PUT # UPDATE $prefix!metadata_tables SET missed='yes' WHERE id=?;
+            PUT # UPDATE $prefix!_metadata_tables SET missed='yes' WHERE id=?;
         -- update comment
         GET # SELECT update_comment, table_id FROM diff_tables WHERE current_comment<>update_comment;
-            PUT # UPDATE $prefix!metadata_tables SET table_comment=? WHERE id=?;
+            PUT # UPDATE $prefix!_metadata_tables SET table_comment=? WHERE id=?;
         -- update rows
         GET # SELECT update_rows, table_id FROM diff_tables WHERE current_rows<>update_rows;
-            PUT # UPDATE $prefix!metadata_tables SET table_rows=? WHERE id=?;
+            PUT # UPDATE $prefix!_metadata_tables SET table_rows=? WHERE id=?;
         -- update update_time
         GET # SELECT update_time, table_id FROM diff_tables WHERE current_time<>update_time;
-            PUT # UPDATE $prefix!metadata_tables SET update_time=? WHERE id=?;
+            PUT # UPDATE $prefix!_metadata_tables SET update_time=? WHERE id=?;
         -- update max value of primary key
         GET # SELECT update_increment, table_id FROM diff_tables WHERE current_increment<>update_increment;
-            PUT # UPDATE $prefix!metadata_tables SET auto_increment=? WHERE id=?;
+            PUT # UPDATE $prefix!_metadata_tables SET auto_increment=? WHERE id=?;
 
         OPEN $metadata;
         -- refresh tables
         CACHE 'current_tables' # SELECT A.id, A.connection_id, A.database_id, B.database_name, B.schema_name, B.enabled, A.table_name, A.table_comment, A.table_rows,
-                    A.create_time, A.update_time, A.auto_increment FROM $prefix!metadata_tables A INNER JOIN $prefix!metadata_databases B ON A.database_id=B.id
+                    A.create_time, A.update_time, A.auto_increment FROM $prefix!_metadata_tables A INNER JOIN $prefix!_metadata_databases B ON A.database_id=B.id
                      WHERE A.connection_id=$connection.id AND A.id>$max;
 
         PRINT "Scrape: " + $connection.connection_name + ", SCRAPE TABLES OK";
@@ -176,9 +212,9 @@ FUNCTION $SCRAPE ($connection)
         -- exists columns
         CACHE 'current_columns' # SELECT A.id, A.connection_id, A.database_id, C.database_name, C.schema_name, C.enabled, A.table_id, B.table_name,
                                 A.column_name, A.column_default, A.column_type, A.column_comment
-                                FROM $prefix!metadata_columns A
-                                INNER JOIN $prefix!metadata_tables B ON A.table_id=B.id
-                                INNER JOIN $prefix!metadata_databases C ON A.database_id=C.id
+                                FROM $prefix!_metadata_columns A
+                                INNER JOIN $prefix!_metadata_tables B ON A.table_id=B.id
+                                INNER JOIN $prefix!_metadata_databases C ON A.database_id=C.id
                                 WHERE A.connection_id=$connection.id;
 
         -- different columns
@@ -197,26 +233,26 @@ FUNCTION $SCRAPE ($connection)
                     C.column_name, C.column_type, C.column_default, C.column_comment
                     FROM (SELECT A.* FROM COLUMNS A LEFT JOIN current_columns B ON A.table_schema=B.schema_name AND A.database_name=B.database_name AND A.table_name=B.table_name AND A.column_name=B.column_name WHERE B.column_name IS NULL) C
                     INNER JOIN current_tables D ON C.table_schema=D.schema_name AND c.database_name=D.database_name AND C.table_name=D.table_name WHERE D.enabled='yes';
-             PUT # INSERT INTO $prefix!metadata_columns (connection_id, database_id, table_id, column_name, column_type, column_default, column_comment) VALUES (?, ?, ?, ?, ?, ?, ?);
-             PREP # UPDATE $prefix!metadata_columns SET scrape_time=NOW() WHERE connection_id=$connection.id;
+             PUT # INSERT INTO $prefix!_metadata_columns (connection_id, database_id, table_id, column_name, column_type, column_default, column_comment) VALUES (?, ?, ?, ?, ?, ?, ?);
+             PREP # UPDATE $prefix!_metadata_columns SET scrape_time=NOW() WHERE connection_id=$connection.id;
 
         --missed columns;
         GET # SELECT A.id FROM current_columns A LEFT JOIN COLUMNS B ON A.database_name=B.database_name AND A.schema_name=B.table_schema AND A.table_name=B.table_name AND A.column_name=B.column_name WHERE B.column_name IS NULL;
-            PUT # UPDATE $prefix!metadata_columns SET missed='yes' WHERE id=?;
+            PUT # UPDATE $prefix!_metadata_columns SET missed='yes' WHERE id=?;
         -- details
         GET # SELECT column_id, 'column_type' AS update_item, update_type FROM diff_columns WHERE current_type<>update_type;
         GET # SELECT column_id, 'column_default' AS update_item, update_default FROM diff_columns WHERE current_default<>update_default;
         GET # SELECT column_id, 'column_comment' AS update_item, SUBSTR(update_comment, 1, 500) FROM diff_columns WHERE current_comment<>update_comment;
-            PUT # INSERT INTO $prefix!metadata_columns_details (column_id, update_item, update_value) VALUES (?, ?, ?);
+            PUT # INSERT INTO $prefix!_metadata_columns_details (column_id, update_item, update_value) VALUES (?, ?, ?);
         -- column_type
         GET # SELECT update_type, column_id FROM diff_columns WHERE current_type<>update_type;
-            PUT # UPDATE $prefix!metadata_columns SET column_type=? WHERE id=?;
+            PUT # UPDATE $prefix!_metadata_columns SET column_type=? WHERE id=?;
         -- column_default
         GET # SELECT update_default, column_id FROM diff_columns WHERE current_default<>update_default;
-            PUT # UPDATE $prefix!metadata_columns SET column_default=? WHERE id=?;
+            PUT # UPDATE $prefix!_metadata_columns SET column_default=? WHERE id=?;
         -- column_comment
         GET # SELECT update_comment, column_id FROM diff_columns WHERE current_comment<>update_comment;
-            PUT # UPDATE $prefix!metadata_columns SET column_comment=? WHERE id=?;
+            PUT # UPDATE $prefix!_metadata_columns SET column_comment=? WHERE id=?;
 
         PRINT "Scrape: " + $connection.connection_name + ", SCRAPE COLUMNS OK";
 

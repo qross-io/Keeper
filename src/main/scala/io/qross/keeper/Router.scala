@@ -1,14 +1,18 @@
 package io.qross.keeper
 
+import java.io.File
+
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
+import io.qross.core.DataHub
 import io.qross.ext.Output
 import io.qross.jdbc.JDBC
 import io.qross.model.{Note, QrossNote, QrossTask, Route}
-import io.qross.pql.GlobalFunction
-import io.qross.setting.{Configurations, Properties}
+import io.qross.pql.{GlobalFunction, GlobalVariable}
+import io.qross.setting.{Configurations, Global, Properties}
+import io.qross.fs.TextFile._
 
 import scala.util.Try
 
@@ -91,7 +95,7 @@ object Router {
                     }
                 }
             } ~
-            path("kill" / "job" / IntNumber) { jobId =>
+            path("job" / "kill" / IntNumber) { jobId =>
                 put {
                     parameter("killer".as[Int]) {
                         killer => {
@@ -105,7 +109,7 @@ object Router {
                     }
                 }
             } ~
-            path("kill" / "task" / LongNumber) { taskId =>
+            path("task" / "kill" / LongNumber) { taskId =>
                 put {
                     parameter("killer".as[Int]) {
                         killer => {
@@ -119,7 +123,53 @@ object Router {
                     }
                 }
             } ~
-            path("kill" / "action" / LongNumber) { actionId =>
+            path("task" / "logs") {
+                get {
+                    parameter("jobId".as[Int], "taskId".as[Long], "recordTime".as[String],"cursor".?[Int](0), "actionId".?[Long](0), "mode".?[String]("all")) {
+                        (jobId, taskId, recordTime, cursor, actionId, mode) => {
+                            val datetime = new io.qross.time.DateTime(recordTime)
+                            val path = s"""${Global.QROSS_HOME}/tasks/${datetime.getString("yyyyMMdd")}/$jobId/${taskId}_${datetime.getString("HHmmss")}.log"""
+                            val file = new File(path)
+                            if (file.exists()) {
+                                val where = {
+                                    if (mode == "debug") {
+                                        if (actionId > 0) {
+                                            s"WHERE actionId=$actionId AND logType<>'INFO'"
+                                        }
+                                        else {
+                                            "WHERE logType<>'INFO'"
+                                        }
+                                    }
+                                    else if (mode == "error") {
+                                        if (actionId > 0) {
+                                            s"WHERE actionId=$actionId AND logType='ERROR'"
+                                        }
+                                        else {
+                                            "WHERE logType='ERROR'"
+                                        }
+                                    }
+                                    else if (actionId > 0) {
+                                        "WHERE actionId=" + actionId
+                                    }
+                                    else {
+                                        ""
+                                    }
+                                }
+
+                                val dh = DataHub.QROSS
+                                dh.openJsonFile(path).asTable("logs")
+                                val result = s"""{"logs": ${dh.executeDataTable(s"SELECT * FROM :logs SEEK $cursor $where LIMIT 100").toString}, "cursor": ${dh.cursor} }"""
+                                dh.close()
+                                complete(result)
+                            }
+                            else {
+                                complete("""{"logs": [], cursor: -1, "error": "File not found."}""")
+                            }
+                        }
+                    }
+                }
+            } ~
+            path("action" / "kill" / LongNumber) { actionId =>
                 put {
                     parameter("killer".as[Int]) {
                         killer => {
@@ -136,7 +186,7 @@ object Router {
                     }
                 }
             } ~
-            path("kill" / "note" / LongNumber) { noteId =>
+            path("note" / "kill" / LongNumber) { noteId =>
                 put {
                     if (Route.isNoteQuerying(noteId)) {
                         Output.writeDebugging(s"Note $noteId will be killed.")
@@ -187,7 +237,6 @@ object Router {
                         }
                     }
                 }
-                complete("1")
             } ~
             path ("function" / "renew") {
                 put {
@@ -210,10 +259,27 @@ object Router {
                 }
             } ~
             path ("variable" / "renew") {
-                complete("1")
+                put {
+                    parameter("variable_name") {
+                        variableName => {
+                            GlobalVariable.renew(variableName)
+                            complete("1")
+                        }
+                    }
+                }
+            } ~
+            path ("variable" / "remove") {
+                put {
+                    parameter("variable_name") {
+                        variableName => {
+                            GlobalVariable.remove(variableName)
+                            complete("1")
+                        }
+                    }
+                }
             } ~
             path ("test" / "json") {
-                put {
+                get {
                     parameter("id".as[Int], "name".as[String]) {
                         (id, name) =>
                             entity(as[String]) { json => {

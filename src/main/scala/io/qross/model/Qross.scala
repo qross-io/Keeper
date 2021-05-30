@@ -6,13 +6,14 @@ import io.qross.fs.ResourceFile
 import io.qross.jdbc.DataSource
 import io.qross.keeper.Setting
 import io.qross.net.Email
-import io.qross.setting.Environment
+import io.qross.setting.{Environment, Global}
 import io.qross.time.{ChronExp, DateTime, Timer}
 
 object Qross {
     
     def start(): Unit = {
         val ds = DataSource.QROSS
+
         val method = {
             if (ds.executeExists("SELECT id FROM qross_keeper_beats WHERE actor_name='Keeper' AND status='rest'")) {
                 "manual"
@@ -21,11 +22,12 @@ object Qross {
                 "crontab"
             }
         }
+
         ds.executeNonQuery(s"INSERT INTO qross_keeper_running_records (method) VALUES ('$method')")
 
         ds.executeNonQuery("UPDATE qross_conf SET conf_value=NOW() WHERE conf_key='KEEPER_BOOT_TIME'")
-        
-        if (method != "manual") {
+
+        if (method != "manual" && Global.EMAIL_NOTIFICATION && Global.EMAIL_KEEPER_EXCEPTION) {
             Email.write(s"RESTART: Keeper start by <$method> at " + DateTime.now.getString("yyyy-MM-dd HH:mm:ss"))
                 .to(ds.executeSingleValue("SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS keeper FROM qross_users WHERE role='keeper' AND enabled='yes'").asText(""))
                 .cc(ds.executeSingleValue("SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS master FROM qross_users WHERE role='master' AND enabled='yes'").asText(""))
@@ -33,7 +35,7 @@ object Qross {
         }
 
         ds.executeNonQuery("UPDATE qross_keeper_beats SET status='running',start_time=NOW() WHERE actor_name='Keeper'")
-        
+
         ds.close()
     }
     
@@ -105,7 +107,7 @@ object Qross {
             dh.clear()
 
             //send beats mail
-            if (toSend) {
+            if (toSend && Global.EMAIL_NOTIFICATION) {
                 ResourceFile.open("/templates/beats.html")
                     .replace("#{tick}", tick)
                     .writeEmail(title)

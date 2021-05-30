@@ -42,7 +42,7 @@ object Keeper {
         implicit val executionContext: ExecutionContextExecutor = system.dispatcher
         //akka http
         val bindingFuture = Http().bindAndHandle(Router.rests(system),"0.0.0.0", Global.KEEPER_HTTP_PORT)
-        
+
         while (!Setting.QUIT_ON_NEXT_BEAT) {
             // mm:00
             Timer.sleepToNextMinute()
@@ -61,7 +61,7 @@ object Keeper {
                 actor ! Tick(minute)
             })
         }
-        
+
         for(actor <- actors) {
             actor ! PoisonPill
         }

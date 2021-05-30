@@ -61,13 +61,15 @@ class KeeperLogger {
             ds.executeBatchUpdate()
     
             //email
-            ResourceFile.open("/templates/exception.html")
-                .replace("#{companyName}", Setting.COMPANY_NAME)
-                .replace("#{exceptions}", KeeperException.toHTML(exceptions))
-                .writeEmail(s"KEEPER EXCEPTION: ${Setting.COMPANY_NAME} ${DateTime.now.toString}")
-                .to(ds.executeSingleValue("SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS master FROM qross_users WHERE role='master' AND enabled='yes'").asText(""))
-                .cc(if (Setting.EMAIL_EXCEPTIONS_TO_DEVELOPER) "Developer<garfi-wu@outlook.com>" else "")
-                .send()
+            if (Global.EMAIL_NOTIFICATION && Global.EMAIL_KEEPER_EXCEPTION) {
+                ResourceFile.open("/templates/exception.html")
+                    .replace("#{companyName}", Setting.COMPANY_NAME)
+                    .replace("#{exceptions}", KeeperException.toHTML(exceptions))
+                    .writeEmail(s"KEEPER EXCEPTION: ${Setting.COMPANY_NAME} ${DateTime.now.toString}")
+                    .to(ds.executeSingleValue("SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS master FROM qross_users WHERE role='master' AND enabled='yes'").asText(""))
+                    .cc(if (Setting.EMAIL_EXCEPTIONS_TO_DEVELOPER) "Developer<garfi-wu@outlook.com>" else "")
+                    .send()
+            }
 
             ds.close()
             
