@@ -13,7 +13,7 @@ object Setting {
 
     def CONCURRENT_BY_CPU_CORES: Int = Configurations.getOrProperty("CONCURRENT_BY_CPU_CORES", "concurrent.by.cpu.cores").ifNullOrEmpty("4").toInt
 
-    def EMAIL_EXCEPTIONS_TO_DEVELOPER: Boolean = Configurations.getOrProperty("EMAIL_EXCEPTIONS_TO_DEVELOPER", "email.exceptions.to.developer").toBoolean(true)
+    def BEAT_EVENTS_FIRE_FREQUENCY: String = Configurations.getOrProperty("BEAT_EVENTS_FIRE_FREQUENCY", "beat.events.fire.frequency")
 
-    def BEATS_MAILING_FREQUENCY: String = Configurations.getOrProperty("BEATS_MAILING_FREQUENCY", "beats.mailing.frequency")
+    def KEEP_LOGS_FOR_X_DAYS: Int = Configurations.getOrProperty("KEEP_LOGS_FOR_X_DAYS", "keep.logs.for.x.days").toInt
 }

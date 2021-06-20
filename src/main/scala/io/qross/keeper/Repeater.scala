@@ -1,6 +1,6 @@
 package io.qross.keeper
 
-import io.qross.model.{QrossJob, QrossTask, Task, WorkActor}
+import io.qross.model.{EndlessJob, QrossTask, WorkActor, Workshop}
 import io.qross.time.{DateTime, Timer}
 
 class Repeater extends WorkActor {
@@ -9,16 +9,19 @@ class Repeater extends WorkActor {
 
     override def beat(tick: String): Unit = {
 
-        QrossJob.refreshEndlessJobs()
+        Workshop.delay()
 
-        val nextMinute = new DateTime(tick).plusMinutes(1).toEpochSecond
-        do {
-            QrossJob.tickEndlessJobs()
+        val locked = EndlessJob.refreshEndlessJobs(tick)
+        if (locked) {
+            val nextMinute = new DateTime(tick).plusMinutes(1).toEpochSecond
+            do {
+                EndlessJob.tickEndlessJobs()
                     .foreach(jobId => {
                         starter ! QrossTask.createEndlessTask(jobId)
                     })
+            }
+            while (Timer.rest() < nextMinute)
         }
-        while (Timer.rest() < nextMinute)
         //sleep to next second and return epoch second
     }
 }

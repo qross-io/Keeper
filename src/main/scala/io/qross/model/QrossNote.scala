@@ -1,15 +1,10 @@
 package io.qross.model
 
-import java.io.{BufferedReader, ByteArrayOutputStream, File, InputStreamReader, PrintWriter}
-import java.nio.charset.Charset
-
-import io.qross.core.DataHub
 import io.qross.jdbc.DataSource
 import io.qross.setting.Global
 import io.qross.time.Timer
 
 import scala.collection.mutable
-import scala.io.Source
 import scala.sys.process._
 
 object QrossNote {

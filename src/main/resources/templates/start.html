@@ -1,0 +1,21 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Qross Keeper Notification Mail for Failed or Incorrect Task</title>
+    <style type="text/css">
+        body { margin:0px; }
+        #title { font-family: "Microsoft YaHei", Consolas; font-size: 20px; padding: 10px 10px 0px 10px; }
+        #details { font-family: "Microsoft YaHei", Consolas; color: #666666; font-size: 14px; line-height: 150%; padding: 10px 10px 10px 10px; font-weight:bold; }
+    </style>
+</head>
+<body>
+<div id="title">Keeper Node Start - #{node_address} </div>
+<div id="details">
+    <%
+    OPEN QROSS;
+    OUTPUT # SELECT node_name AS NodeName, node_address AS NodeAddress, status AS Status, CAST(online_time AS CHAR) AS OnlineTime FROM qross_keeper_nodes' -> TO HTML TABLE;
+    %>
+</div>
+</body>
+</html>

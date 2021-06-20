@@ -1,43 +1,24 @@
 package io.qross.keeper
 
-import java.io.File
-
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
-import io.qross.core.DataHub
 import io.qross.ext.Output
+import io.qross.ext.TypeExt._
+import io.qross.fs.Directory
 import io.qross.jdbc.JDBC
-import io.qross.model.{Note, QrossNote, QrossTask, Route}
+import io.qross.model._
 import io.qross.pql.{GlobalFunction, GlobalVariable}
 import io.qross.setting.{Configurations, Global, Properties}
-import io.qross.fs.TextFile._
-
-import scala.util.Try
 
 
 object Router {
 
-    /*
-    # PUT  /global/set?name=&value=
-    # PUT /task/restart/taskId?more=
-    # PUT /task/instant/jobId?dag=&params=&commands=&delay=&startTime=&creator=
-    # PUT /task/kill/taskId
-    PUT /note/process/noteid
-    PUT /note/kill/noteId
-    PUT /user/update/master
-    PUT /user/update/keeper
-    PUT /properties/load?path=
-    PUT /connection/setup/id
-    PUT /connection/enable/id
-    PUT /connection/disable/id
-    PUT /connection/remove/id
-    */
-
     def rests(context: ActorSystem): server.Route = {
 
         val producer = context.actorSelection("akka://keeper/user/producer")
+        val starter = context.actorSelection("akka://keeper/user/starter")
         val processor = context.actorSelection("akka://keeper/user/processor")
 
         pathSingleSlash {
@@ -48,21 +29,50 @@ object Router {
             // PUT  /global/set?name=&value=
             path("global" / "set") {
                 put {
-                    parameters("name", "value") {
-                        (name, value) => {
+                    parameter("name", "value", "terminus".?[String]("no")) {
+                        (name, value, terminus) => {
                             Output.writeLineWithSeal("SYSTEM", s"Update System Configuration '$name' to '$value'.")
                             Configurations.set(name, value)
-                            complete(s"1")
+                            if (terminus == "no") {
+                                Qross.distribute("PUT", s"global/set?name=$name&value=$value&")
+                            }
+                            complete("1")
                         }
                     }
+                }
+            } ~
+            path("task" / "check" / LongNumber) { taskId =>
+                put {
+                    parameter("jobId".as[Int], "taskTime".as[String], "recordTime".as[String]) {
+                        (jobId, taskTime, recordTime) => {
+                            producer ! Task(taskId, TaskStatus.INITIALIZED).of(jobId).at(taskTime, recordTime)
+                            complete("accept")
+                        }
+                    }
+                }
+            } ~
+            path("task" / "start" / LongNumber) { taskId =>
+                put {
+                    parameter("jobId".as[Int], "taskTime".as[String], "recordTime".as[String], "terminus".?[String]("no")) {
+                        (jobId, taskTime, recordTime, terminus) => {
+                            if (Workshop.idle > 0 || terminus == "yes") {
+                                starter ! Task(taskId, TaskStatus.READY).of(jobId).at(taskTime, recordTime)
+                                complete("accept")
+                            }
+                            else {
+                                complete("reject")
+                            }
+                        }
+                    }
+
                 }
             } ~
             // PUT /task/restart/taskId?more=
             path("task" / "restart" / LongNumber) { taskId =>
                 put {
-                    parameter("more", "starter") {
+                    parameter("more".?[String]("WHOLE"), "starter".?[Int](0)) {
                         (more, starter) => {
-                            val task = QrossTask.restartTask(taskId, more, Try(starter.toInt).getOrElse(0))
+                            val task = QrossTask.restartTask(taskId, more, starter)
                             producer ! task
                             complete(s"""{"id":${task.id},"status":"${task.status}","recordTime":"${task.recordTime}"}""")
                         }
@@ -97,28 +107,18 @@ object Router {
             } ~
             path("job" / "kill" / IntNumber) { jobId =>
                 put {
-                    parameter("killer".as[Int]) {
+                    parameter("killer".?[Int](0)) {
                         killer => {
-                            Output.writeDebugging(s"All tasks of job $jobId will be killed.")
-                            val actions = Route.getRunningActionsOfJob(jobId)
-                            actions.foreach(action => {
-                                QrossTask.TO_BE_KILLED += action -> killer
-                            })
-                            complete(s"""{ "actions": [${actions.mkString(", ")}] }""")
+                                complete(QrossJob.killJob(jobId, killer))
                         }
                     }
                 }
             } ~
             path("task" / "kill" / LongNumber) { taskId =>
                 put {
-                    parameter("killer".as[Int]) {
+                    parameter("killer".?[Int](0)) {
                         killer => {
-                            Output.writeDebugging(s"All actions of task $taskId will be killed.")
-                            val actions = Route.getRunningActionsOfTask(taskId)
-                            actions.foreach(action => {
-                                QrossTask.TO_BE_KILLED += action -> killer
-                            })
-                            complete(s"""{ "actions": [${actions.mkString(", ")}] }""")
+                            complete(QrossTask.killTask(taskId, killer))
                         }
                     }
                 }
@@ -127,68 +127,36 @@ object Router {
                 get {
                     parameter("jobId".as[Int], "taskId".as[Long], "recordTime".as[String],"cursor".?[Int](0), "actionId".?[Long](0), "mode".?[String]("all")) {
                         (jobId, taskId, recordTime, cursor, actionId, mode) => {
-                            val datetime = new io.qross.time.DateTime(recordTime)
-                            val path = s"""${Global.QROSS_HOME}/tasks/${datetime.getString("yyyyMMdd")}/$jobId/${taskId}_${datetime.getString("HHmmss")}.log"""
-                            val file = new File(path)
-                            if (file.exists()) {
-                                val where = {
-                                    if (mode == "debug") {
-                                        if (actionId > 0) {
-                                            s"WHERE actionId=$actionId AND logType<>'INFO'"
-                                        }
-                                        else {
-                                            "WHERE logType<>'INFO'"
-                                        }
-                                    }
-                                    else if (mode == "error") {
-                                        if (actionId > 0) {
-                                            s"WHERE actionId=$actionId AND logType='ERROR'"
-                                        }
-                                        else {
-                                            "WHERE logType='ERROR'"
-                                        }
-                                    }
-                                    else if (actionId > 0) {
-                                        "WHERE actionId=" + actionId
-                                    }
-                                    else {
-                                        ""
-                                    }
-                                }
-
-                                val dh = DataHub.QROSS
-                                dh.openJsonFile(path).asTable("logs")
-                                val result = s"""{"logs": ${dh.executeDataTable(s"SELECT * FROM :logs SEEK $cursor $where LIMIT 100").toString}, "cursor": ${dh.cursor} }"""
-                                dh.close()
-                                complete(result)
+                            complete(QrossTask.getTaskLogs(jobId, taskId, recordTime, cursor, actionId, mode))
+                        }
+                    }
+                }
+            } ~
+            path("job" / "logs" / IntNumber) { jobId =>
+                delete {
+                    parameter("terminus".?[String]("no")) {
+                        terminus => {
+                            QrossJob.deleteLogs(jobId)
+                            if (terminus == "no") {
+                                Qross.distribute("DELETE", s"job/logs/$jobId?")
                             }
-                            else {
-                                complete("""{"logs": [], cursor: -1, "error": "File not found."}""")
-                            }
+                            complete("1")
                         }
                     }
                 }
             } ~
             path("action" / "kill" / LongNumber) { actionId =>
                 put {
-                    parameter("killer".as[Int]) {
+                    parameter("killer".?[Int](0)) {
                         killer => {
-                            Route.getRunningAction(actionId) match {
-                                case Some(_) =>
-                                    Output.writeDebugging(s"Action $actionId will be killed.")
-                                    QrossTask.TO_BE_KILLED += actionId -> killer
-                                    complete(s"""{ "action": $actionId }""")
-                                case None =>
-                                    Output.writeDebugging(s"Action $actionId is not running.")
-                                    complete(s"""{ "action": 0 }""")
-                            }
+                            complete(QrossTask.killAction(actionId, killer))
                         }
                     }
                 }
             } ~
             path("note" / "kill" / LongNumber) { noteId =>
                 put {
-                    if (Route.isNoteQuerying(noteId)) {
+                    if (QrossNote.QUERYING.contains(noteId)) {
                         Output.writeDebugging(s"Note $noteId will be killed.")
                         QrossNote.TO_BE_STOPPED += noteId
                         complete(s"""{ "id": $noteId }""")
@@ -201,94 +169,148 @@ object Router {
             } ~
             path ("note" / LongNumber) { noteId =>
                 put {
-                    parameter("user".as[Int]) {
+                    parameter("user".?[Int](0)) {
                         user => {
                             processor ! Note(noteId, user)
-                            complete(s"""{"id":$noteId}""")
+                            complete(s"""{"id": $noteId}""")
                         }
                     }
                 }
             }  ~
             path ("configurations" / "reload") {
                 put {
-                    Configurations.load()
-                    complete("1")
+                    parameter("terminus".?[String]("no")) {
+                        terminus => {
+                            Configurations.load()
+                            if (terminus == "no") {
+                                Qross.distribute("PUT", s"configurations/reload?")
+                            }
+                            complete("1")
+                        }
+                    }
                 }
             } ~
             path ("properties" / "load" / IntNumber) { id =>
                 put {
-                    Properties.load(id)
-                    complete("1")
+                    parameter("terminus".?[String]("no")) {
+                        terminus => {
+                            Properties.load(id)
+                            if (terminus == "no") {
+                                Qross.distribute("PUT", s"properties/load/$id?")
+                            }
+                            complete("1")
+                        }
+                    }
                 }
             } ~
-            path ("connection" / "setup" / IntNumber) { id =>
+            path ("connection" / IntNumber) { id =>
                 put {
-                    JDBC.setup(id)
-                    complete("1")
+                    parameter("terminus".?[String]("no")) {
+                        terminus => {
+                            JDBC.setup(id)
+                            if (terminus == "no") {
+                                Qross.distribute("PUT", s"connection/$id?")
+                            }
+                            complete("1")
+                        }
+                    }
                 }
-                complete("1")
             } ~
-            path ("connection" / "remove") {
-                put {
-                    parameter("connection_name") {
-                        connectionName => {
+            path ("connection") {
+                delete {
+                    parameter("connectionName", "terminus".?[String]("no")) {
+                        (connectionName, terminus) => {
                             JDBC.remove(connectionName)
+                            if (terminus == "no") {
+                                Qross.distribute("DELETE", s"connection?connectionName=$connectionName&")
+                            }
                             complete("1")
                         }
                     }
                 }
             } ~
-            path ("function" / "renew") {
+            path ("function") {
                 put {
-                    parameter("function_name") {
-                        functionName => {
+                    parameter("functionName", "terminus".?[String]("no")) {
+                        (functionName, terminus) => {
                             GlobalFunction.renew(functionName)
+                            if (terminus == "no") {
+                                Qross.distribute("PUT", s"function?functionName=$functionName&")
+                            }
                             complete("1")
                         }
                     }
                 }
             } ~
-            path ("function" / "remove") {
-                put {
-                    parameter("function_name") {
-                        functionName => {
+            path ("function") {
+                delete {
+                    parameter("functionName", "terminus".?[String]("no")) {
+                        (functionName, terminus) => {
                             GlobalFunction.remove(functionName)
+                            if (terminus == "no") {
+                                Qross.distribute("DELETE", s"function?functionName=$functionName&")
+                            }
                             complete("1")
                         }
                     }
                 }
             } ~
-            path ("variable" / "renew") {
+            path ("variable") {
                 put {
-                    parameter("variable_name") {
-                        variableName => {
+                    parameter("variableName", "terminus".?[String]("no")) {
+                        (variableName, terminus) => {
                             GlobalVariable.renew(variableName)
+                            if (terminus == "no") {
+                                Qross.distribute("PUT", s"variable?variableName=$variableName&")
+                            }
                             complete("1")
                         }
                     }
                 }
             } ~
-            path ("variable" / "remove") {
-                put {
-                    parameter("variable_name") {
-                        variableName => {
+            path ("variable") {
+                delete {
+                    parameter("variableName", "terminus".?[String]("no")) {
+                        (variableName, terminus) => {
                             GlobalVariable.remove(variableName)
+                            if (terminus == "no") {
+                                Qross.distribute("DELETE", s"variable?variableName=$variableName&")
+                            }
                             complete("1")
                         }
                     }
+                }
+            } ~
+            path("space" / "home") {
+                get {
+                    complete(Directory.spaceUsage(Global.QROSS_HOME).toHumanized)
+                }
+            } ~
+            path("space" / "keeper-logs") {
+                get {
+                    complete(Directory.spaceUsage(s"${Global.QROSS_HOME}/keeper/logs").toHumanized)
+                }
+            } ~
+            path("space" / "tasks") {
+                get {
+                    complete(Directory.spaceUsage(s"${Global.QROSS_HOME}/tasks").toHumanized)
                 }
             } ~
             path ("test" / "json") {
                 get {
-                    parameter("id".as[Int], "name".as[String]) {
-                        (id, name) =>
-                            entity(as[String]) { json => {
-                                complete(s"""[{"id":$id,"name":"$name"}, $json]""")
+                    parameter("id".as[Int], "name".?[String]("Tom"), "age".?("18")) {
+                        (id, name, age) => {
+                            entity(as[String]) {
+                                json => {
+                                    complete(HttpEntity(ContentTypes.`application/json`, s"""[{"id":$id,"name":"$name", "age": $age}, $json]"""))
+                                }
                             }
                         }
                     }
                 }
             }
+
+
             /* 上条勿删
             REQUEST JSON API '''http://@KEEPER_HTTP_ADDRESS:@KEEPER_HTTP_PORT/test/json?id=1&name=Tom'''
                 METHOD 'PUT'

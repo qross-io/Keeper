@@ -7,7 +7,7 @@ import io.qross.time.{ChronExp, DateTime}
 import io.qross.ext.TypeExt._
 import io.qross.fs.FileWriter
 import io.qross.jdbc.DataSource
-import io.qross.net.Json
+import io.qross.net.{Http, Json}
 import io.qross.pql.PQL
 
 import scala.collection.mutable
@@ -20,7 +20,10 @@ object Test {
 
     def main(args: Array[String]): Unit = {
 
-        PQL.openFile("/pql/metadata.sql").place("prefix=datago").run()
+        val content = Http.GET(s"http://localhost:8082").request()
+        println(content)
+
+        //PQL.openFile("/pql/metadata.sql").place("prefix=qross").run()
         //ChronExp("WEEKLY 7 10-23:0/2").getNextTick(DateTime.now).print
 
         //QrossTask.getTaskCommandsToExecute(Task(12L, TaskStatus.READY).of(544).at("20190927101800", "2019-09-27 10:18:00.018"))

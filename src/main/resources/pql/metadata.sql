@@ -1,19 +1,24 @@
 DEBUG OFF;
 
---需要参数 $metadata, $prefix
+--需要参数 $prefix
 
 IF $metadata IS UNDEFINED THEN
     SET $metadata := 'mysql.qross';
 END IF;
 
 IF $prefix IS UNDEFINED THEN
-    SET $prefix := 'qross_';
+    SET $prefix := 'qross';
 END IF;
 
 OPEN $metadata;
 SAVE TO $metadata;
 
-VAR $connections := SELECT id, open_mode, database_type, connection_name, connection_string, jdbc_driver, username, password FROM qross_connections WHERE database_class='system' AND enabled='yes';
+VAR $connections := SELECT id, database_name, connection_name, connection_string, jdbc_driver, username, password FROM
+            qross_connections WHERE enabled='yes' AND metadata_connection_name='' AND connection_name NOT IN
+            (SELECT DISTINCT metadata_connection_name FROM qross_connections WHERE metadata_connection_name<>'')
+	            UNION ALL
+        SELECT A.id, A.database_name, B.connection_name, B.connection_string, B.jdbc_driver, B.username, B.password  FROM qross_connections A
+            INNER JOIN qross_connections B ON A.metadata_connection_name=B.connection_name WHERE A.enabled='yes' AND A.metadata_connection_name <> '';
 
 FOR $connection OF $connections LOOP
     CALL $SCRAPE($connection);
@@ -23,6 +28,9 @@ FUNCTION $SCRAPE ($connection)
     BEGIN
 
         PRINT "Scrape Start: " + $connection.connection_name;
+
+        PRINT $connection;
+        PRINT;
 
         --OPEN $connection.connection_name;
         CASE $connection.open_mode
@@ -35,7 +43,9 @@ FUNCTION $SCRAPE ($connection)
                 OPEN DATABASE $connection.connection_string DRIVER $connection.jdbc_driver USERNAME $connection.username PASSWORD $connection.password AS $connection.connection_name;
         END CASE;
 
-        CASE $connection.database_type
+        PRINT $connection.database_name;
+
+        CASE $connection.database_name
             WHEN 'PostgreSQL' THEN
                 SET $not_in := "('information_schema', 'pg_temp_1', 'pg_toast_temp_1', 'public', 'pg_toast', 'pg_catalog')";
                 CACHE 'SCHEMATA' # SELECT catalog_name AS database_name, schema_name FROM information_schema.SCHEMATA WHERE schema_name NOT IN $not_in!;

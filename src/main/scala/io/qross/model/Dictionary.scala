@@ -4,6 +4,15 @@ import io.qross.core.DataRow
 
 //case class Message(value: Any)
 
+object NodeEvent {
+    val START = "Start"
+    val BEAT = "Beat"
+    val BEAT_EXCEPTION = "BeatException"
+    val ERROR_OCCUR = "ErrorOccur"
+    val SHUT_DOWN = "ShutDown"
+    val DISCONNECT = "Disconnect"
+}
+
 case class Tick(minute: String)
 
 object JobType {
@@ -19,6 +28,7 @@ object TaskStatus {
     val NO_COMMANDS = "no_commands"
     //val MANUAL = "manual"
     //val RESTARTING = "restarting"
+    val CHECKING = "initialized"
     val INITIALIZED = "initialized"
     val READY = "ready"
     val EXECUTING = "executing"
@@ -50,6 +60,12 @@ case class Task(id: Long, var status: String = TaskStatus.INITIALIZED) {
     var jobId: Int = 0
     var taskTime: String = ""
     var recordTime: String = ""
+    var address: String = ""
+
+    def in(node: String): Task = {
+        this.address = node
+        this
+    }
 
     def of(jobId: Int): Task = {
         this.jobId = jobId
