@@ -5,13 +5,14 @@ import io.qross.jdbc.DataSource
 import io.qross.keeper.Keeper
 import io.qross.net.Http
 import io.qross.setting.Global
+import io.qross.ext.TypeExt.ExceptionExt
 
 import scala.collection.mutable
 
 object QrossJob {
 
     def deleteLogs(jobId: Int): Unit = {
-        DataSource.QROSS.queryDataTable(s"SELECT task_id, record_time FROM qross_tasks_records WHERE job_id=$jobId AND node_address=${Keeper.NODE_ADDRESS} UNION ALL SELECT id AS task_id, record_time FROM qross_tasks WHERE job_id=$jobId AND node_address=${Keeper.NODE_ADDRESS}")
+        DataSource.QROSS.queryDataTable(s"SELECT task_id, record_time FROM qross_tasks_records WHERE job_id=$jobId AND node_address='${Keeper.NODE_ADDRESS}' UNION ALL SELECT id AS task_id, record_time FROM qross_tasks WHERE job_id=$jobId AND node_address=${Keeper.NODE_ADDRESS}")
             .foreach(row => {
                 val datetime = row.getDateTime("record_time")
                 new java.io.File(s"""${Global.QROSS_HOME}/tasks/${datetime.getString("yyyyMMdd")}/$jobId/${row.getLong("task_id")}_${datetime.getString("HHmmss")}.log""").delete()
@@ -44,9 +45,8 @@ object QrossJob {
                 Http.PUT(s"""http://${task._2}/task/kill/${task._1}?killer=$killer""").request()
             }
             catch {
-                case e: Exception =>
-                    e.printStackTrace()
-                    Qross.disconnect(task._2)
+                case e: java.net.ConnectException => Qross.disconnect(task._2, e)
+                case e: Exception => e.printReferMessage()
             }
         })
 

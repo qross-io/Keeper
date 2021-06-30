@@ -68,7 +68,7 @@ dependencies {
     compile group: 'com.microsoft.sqlserver', name: 'mssql-jdbc', version: '8.2.2.jre8'
     compile group: 'com.oracle.database.jdbc', name: 'ojdbc8', version: '19.9.0.0'
 
-    compile group: 'io.qross', name: 'pql', version: '1.6.21-SNAPSHOT'
+    compile group: 'io.qross', name: 'pql', version: '1.6.35-SNAPSHOT'
 }
 
 shadowJar {

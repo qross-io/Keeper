@@ -2,9 +2,11 @@ package io.qross.keeper
 
 import akka.actor.{ActorRef, ActorSelection, Props}
 import akka.routing.BalancingPool
+import io.qross.ext.Output
 import io.qross.model._
 import io.qross.net.Http
 import io.qross.setting.Environment
+import io.qross.ext.TypeExt._
 
 import scala.collection.mutable
 import scala.util.control.Breaks._
@@ -93,12 +95,11 @@ object TaskProducer {
                                         }
                                     }
                                     catch {
-                                        case e: Exception =>
-                                            e.printStackTrace()
-                                            Qross.disconnect(node)
-
-                                            nodes -= node
+                                        case e: java.net.ConnectException =>
+                                            Qross.disconnect(node, e)
+                                            nodes -= node //remove disconnected node
                                             node = nodes.freest()
+                                        case e: Exception => e.printReferMessage()
                                     }
                                 }
                             }

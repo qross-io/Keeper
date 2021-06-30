@@ -55,7 +55,7 @@ class KeeperLogger {
         if (exceptions.nonEmpty) {
             //save to database
             val ds = DataSource.QROSS
-            ds.setBatchCommand(s"INSERT INTO qross_keeper_exceptions (exception, create_date) VALUES (?, ?)")
+            ds.setBatchCommand(s"INSERT INTO qross_keeper_exceptions (node_address, exception, create_date) VALUES ('${Keeper.NODE_ADDRESS}', ?, ?)")
             exceptions.foreach(line => {
                 ds.addBatch(line.text, line.createDate)
             })

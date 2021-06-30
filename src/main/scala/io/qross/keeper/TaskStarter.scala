@@ -1,8 +1,10 @@
 package io.qross.keeper
 import akka.actor.Props
 import akka.routing.BalancingPool
+import io.qross.ext.Output
 import io.qross.model._
 import io.qross.net.Http
+import io.qross.ext.TypeExt._
 
 class TaskStarter extends WorkActor {
     
@@ -30,12 +32,12 @@ class TaskStarter extends WorkActor {
                                 Http.PUT(s"""http://${task.address}/task/start/${task.id}?jobId=${task.jobId}&taskTime=${task.taskTime}&recordTime=${task.recordTime}&terminus=yes""").request()
                             }
                             catch {
-                                case e: Exception =>
-                                    e.printStackTrace()
+                                case e: java.net.ConnectException =>
                                     //disconnect the unreachable node
-                                    Qross.disconnect(task.address)
+                                    Qross.disconnect(task.address, e)
                                     //还在当前机器运行
                                     runTask(task)
+                                case e: Exception => e.printReferMessage()
                             }
                         }
                     case _ =>

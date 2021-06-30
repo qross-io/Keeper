@@ -55,10 +55,10 @@ object TaskDependency {
                     }
                     catch {
                         case e: Exception =>
-                            e.printStackTrace()
+                            e.printReferMessage()
                             TaskRecorder.of(depend.getInt("job_id"), depend.getLong("task_id"), depend.getString("record_time"))
                                 .warn(s"Wrong or no default dataSource name: " + connection)
-                                .err(e.getMessage)
+                                .err(e.getReferMessage)
                             null
                     }
                 }
@@ -70,10 +70,10 @@ object TaskDependency {
                         }
                         catch {
                             case e: Exception =>
-                                e.printStackTrace()
+                                e.printReferMessage()
                                 TaskRecorder.of(depend.getInt("job_id"), depend.getLong("task_id"), depend.getString("record_time"))
                                     .warn(s"Wrong SELECT sentence: " + depend.getString("dependency_content"))
-                                    .err(e.getMessage)
+                                    .err(e.getReferMessage)
                                 new DataTable()
                         }
                     } //selectSQL
@@ -88,10 +88,10 @@ object TaskDependency {
                             }
                             catch {
                                 case e: Exception =>
-                                    e.printStackTrace()
+                                    e.printReferMessage()
                                     TaskRecorder.of(depend.getInt("job_id"), depend.getLong("task_id"), depend.getString("record_time"))
                                         .warn(s"Wrong non Query sentence: " + updateSQL)
-                                        .err(e.getMessage)
+                                        .err(e.getReferMessage)
                             }
                         }
 
@@ -138,10 +138,10 @@ object TaskDependency {
                     }
                     catch {
                         case e: Exception =>
-                            e.printStackTrace()
+                            e.printReferMessage()
                             TaskRecorder.of(depend.getInt("job_id"), depend.getLong("task_id"), depend.getString("record_time"))
                               .warn(s"Wrong PQL statement: " + depend.getString("dependency_content"))
-                              .err(e.getMessage)
+                              .err(e.getReferMessage)
 
                             false
                     }
@@ -156,10 +156,10 @@ object TaskDependency {
                         }
                         catch {
                             case e: Exception =>
-                                e.printStackTrace()
+                                e.printReferMessage()
                                 TaskRecorder.of(depend.getInt("job_id"), depend.getLong("task_id"), depend.getString("record_time"))
                                     .warn(s"Wrong PQL statement: " + depend.getString("dependency_option"))
-                                    .err(e.getMessage)
+                                    .err(e.getReferMessage)
                         }
                     }
                 }

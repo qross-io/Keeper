@@ -3,6 +3,7 @@ package io.qross.model
 import java.io.File
 
 import io.qross.core.{DataHub, DataRow}
+import io.qross.ext.Output
 import io.qross.ext.Output._
 import io.qross.fs.{Directory, ResourceFile}
 import io.qross.jdbc.DataSource
@@ -59,15 +60,15 @@ object Qross {
 
     // all available nodes
     def nodes: mutable.HashMap[String, Int] = {
-        new mutable.HashMap[String, Int]() ++= DataSource.QROSS.queryDataMap[String, Int]("SELECT node_address, executors - busy_executors AS free_executors FROM qross_keeper_nodes WHERE status='online'")
+        new mutable.HashMap[String, Int]() ++= DataSource.QROSS.queryDataMap[String, Int]("SELECT node_address, executors - busy_executors AS free_executors FROM qross_keeper_nodes WHERE status='online' AND disconnection=0")
     }
 
     def otherNodes: List[String] = {
-        DataSource.QROSS.querySingleList[String](s"SELECT node_address FROM qross_keeper_nodes WHERE node_address<>'${Keeper.NODE_ADDRESS}' AND status='online'")
+        DataSource.QROSS.querySingleList[String](s"SELECT node_address FROM qross_keeper_nodes WHERE node_address<>'${Keeper.NODE_ADDRESS}' AND status='online' AND disconnection=0")
     }
 
     def idleNode: String = {
-        DataSource.QROSS.querySingleValue("SELECT node_address FROM qross_keeper_nodes WHERE status='online' ORDER BY busy_score ASC LIMIT 1").asText("")
+        DataSource.QROSS.querySingleValue("SELECT node_address FROM qross_keeper_nodes WHERE status='online' AND disconnection=0 ORDER BY busy_score ASC LIMIT 1").asText("")
     }
 
     def distribute(method: String, path: String): Unit = {
@@ -76,14 +77,16 @@ object Qross {
                 new Http(method, s"http://$address/${path}terminus=yes").request()
             }
             catch {
-                case e: Exception =>
-                    e.printStackTrace()
-                    Qross.disconnect(address)
+                case e: java.net.ConnectException => Qross.disconnect(address, e)
+                case e: Exception => e.printReferMessage()
             }
         })
     }
 
-    def disconnect(node: String): Unit = {
+    def disconnect(node: String, e: java.net.ConnectException): Unit = {
+
+        Output.writeException(e.getReferMessage + s" to $node")
+
         val ds = DataSource.QROSS
         ds.executeNonQuery(s"UPDATE qross_keeper_nodes SET disconnection=disconnection+1 WHERE node_address='$node'")
         val count = ds.executeNonQuery(s"UPDATE qross_keeper_nodes SET disconnection=0, status='disconnected', disconnect_time=NOW() WHERE node_address='$node' AND disconnection>=3")
@@ -141,7 +144,7 @@ object Qross {
         dh.set(s"UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE node_address='$address' AND actor_name='Inspector'")
 
         //node monitor
-        dh.get(s"""SELECT COUNT(0) AS tasks FROM qross_tasks WHERE node_address='$address' AND status='${TaskStatus.EXECUTING}'""".stripMargin)
+        dh.get(s"""SELECT COUNT(0) AS tasks FROM qross_tasks WHERE status='${TaskStatus.EXECUTING}' AND node_address='$address'""".stripMargin)
             .put(s"""INSERT INTO qross_keeper_nodes_monitor (node_address, moment, cpu_usage, memory_usage, executing_tasks, busy_executors, busy_score)
                | VALUES ('$address', '$tick', ${Environment.cpuUsage}, ${Environment.systemMemoryUsage}, #tasks, ${Workshop.busy}, ${Workshop.busyScore})""".stripMargin)
 
@@ -157,22 +160,22 @@ object Qross {
                         Http.GET(s"http://$node").request()
                     }
                     catch {
-                        case e: Exception =>
-                            e.printStackTrace()
-
+                        case e: java.net.ConnectException =>
+                            Output.writeException(s"${e.getReferMessage} to $node")
                             dh.executeNonQuery(s"UPDATE qross_keeper_nodes SET disconnection=disconnection+1 WHERE node_address='$node'")
                             dh.executeNonQuery(s"UPDATE qross_keeper_nodes SET disconnection=0, status='disconnected', disconnect_time=NOW() WHERE node_address='$node' AND disconnection>=3")
+                        case e: Exception => e.printReferMessage()
                     }
                 })
 
         //slow tasks - only check
         dh.get(s"""SELECT A.job_id, A.owner, A.title, B.event_name, B.event_value, B.event_function, B.event_limit, B.event_option, C.task_id, C.status, C.start_mode, C.task_time, C.record_time FROM
-                                (SELECT id AS job_id, title, owner, warning_overtime FROM qross_jobs WHERE warning_overtime>0) A
+                                (SELECT id AS job_id, title, owner, executing_overtime FROM qross_jobs WHERE executing_overtime>0) A
                            INNER JOIN (SELECT job_id, event_name, event_function, event_limit, event_value, event_option FROM qross_jobs_events WHERE event_name='onTaskSlow' AND enabled='yes') B ON A.job_id=B.job_id
                            INNER JOIN (
                              SELECT S.id AS task_id, S.job_id, S.task_time, S.record_time, S.status, S.start_mode, S.create_time, T.event_name FROM qross_tasks S LEFT JOIN qross_tasks_events T
-                              ON S.id=T.task_id AND S.record_time=T.record_time AND T.event_name='onTaskSlow' WHERE S.node_address='$address' AND S.status IN ('new', 'initialized', 'ready', 'executing') AND T.id IS NULL
-                           ) C ON A.job_id=C.job_id AND TIMESTAMPDIFF(MINUTE, C.record_time, NOW())>A.warning_overtime;
+                              ON S.id=T.task_id AND S.record_time=T.record_time AND T.event_name='onTaskSlow' WHERE S.node_address='$address' AND S.status IN ('${TaskStatus.NEW}', '${TaskStatus.INITIALIZED}', '${TaskStatus.READY}', '${TaskStatus.EXECUTING}') AND T.id IS NULL
+                           ) C ON A.job_id=C.job_id AND TIMESTAMPDIFF(MINUTE, C.record_time, NOW())>A.executing_overtime;
                             """)
             .cache("slow_tasks_events")
         if (dh.nonEmpty) {
@@ -294,10 +297,10 @@ object Qross {
                     s"""SELECT B.job_id, A.keep_x_task_records FROM qross_jobs A
                 INNER JOIN (SELECT job_id, COUNT(0) AS task_amount FROM qross_tasks GROUP BY job_id) B ON A.id=B.job_id
             WHERE A.keep_x_task_records>0 AND B.task_amount>A.keep_x_task_records""".stripMargin)
-                    .pass(s"SELECT id AS task_id, job_id FROM qross_tasks WHERE job_id=#job_id AND status NOT IN ('new', 'initialized', 'ready', 'executing') ORDER BY id DESC LIMIT #keep_x_task_records, 1")
-                    .put("UPDATE qross_tasks SET status='to_be_deleted' WHERE job_id=#job_id AND id<#task_id")
-                    .put("UPDATE qross_tasks_records SET status='to_be_deleted' WHERE job_id=#job_id AND task_id<#task_id")
-                    .clear()
+                    .pass(s"SELECT id AS task_id, job_id FROM qross_tasks WHERE job_id=#job_id AND status NOT IN ('${TaskStatus.NEW}', '${TaskStatus.INITIALIZED}', '${TaskStatus.READY}', '${TaskStatus.EXECUTING}', '${TaskStatus.FINISHED}') ORDER BY id DESC LIMIT #keep_x_task_records, 1")
+                        .put("UPDATE qross_tasks SET status='to_be_deleted' WHERE job_id=#job_id AND id<#task_id")
+                        .put("UPDATE qross_tasks_records SET status='to_be_deleted' WHERE job_id=#job_id AND task_id<#task_id")
+                        .clear()
             }
 
             dh.executeDataTable(s"""SELECT id AS task_id, job_id, record_time FROM qross_tasks WHERE status='to_be_deleted' AND node_address='$address' UNION SELECT task_id, job_id, record_time FROM qross_tasks_records WHERE status='to_be_deleted' AND node_address='$address'""")
@@ -361,7 +364,7 @@ object Qross {
         while(dh.get(s"SELECT actor_name FROM qross_keeper_beats WHERE node_address='$address' AND status='running' LIMIT 1").nonEmpty) {
             writeLineWithSeal("SYSTEM", dh.firstRow.getString("actor_name") + " is still working.")
             dh.clear()
-            dh.get(s"SELECT COUNT(0) AS amount FROM qross_tasks WHERE node_address='$address' AND status='executing'")
+            dh.get(s"SELECT COUNT(0) AS amount FROM qross_tasks WHERE status='${TaskStatus.EXECUTING}' AND node_address='$address'")
             writeLineWithSeal("SYSTEM", "There is " + dh.firstRow.getString("amount") + " tasks still to be done.")
             dh.clear()
             Timer.sleep(5000)
@@ -383,7 +386,7 @@ object Qross {
                 writeDebugging(s"Keeper Event: Mail '$title' was sent.")
             }
             catch {
-                case e: Exception => e.printStackTrace()
+                case e: Exception => e.printReferMessage()
             }
         }
     }
@@ -400,7 +403,7 @@ object Qross {
                 writeDebugging(s"Keeper Event: request url '$api' and result is $result.")
             }
             catch {
-                case e: Exception => e.printStackTrace()
+                case e: Exception => e.printReferMessage()
             }
         }
     }
@@ -425,7 +428,7 @@ object Qross {
             writeDebugging(s"Keeper Event: run script and the result is $result.")
         }
         catch {
-            case e: Exception => e.printStackTrace()
+            case e: Exception => e.printReferMessage()
         }
     }
 }

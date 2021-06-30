@@ -116,9 +116,9 @@ object Router {
             } ~
             path("task" / "kill" / LongNumber) { taskId =>
                 put {
-                    parameter("killer".?[Int](0)) {
-                        killer => {
-                            complete(QrossTask.killTask(taskId, killer))
+                    parameter("killer".?[Int](0), "recordTime".as[String]) {
+                        (killer, recordTime) => {
+                            complete(QrossTask.killTask(taskId, recordTime, killer))
                         }
                     }
                 }
