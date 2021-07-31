@@ -2,15 +2,15 @@ package io.qross.keeper
 
 import akka.actor.{ActorRef, ActorSelection, Props}
 import akka.routing.BalancingPool
-import io.qross.ext.Output
+import io.qross.ext.TypeExt._
+import io.qross.keeper.TaskProducer._
 import io.qross.model._
 import io.qross.net.Http
-import io.qross.setting.Environment
-import io.qross.ext.TypeExt._
+import io.qross.setting.{Environment, Global}
+import io.qross.model.Qross.HashMap$Nodes
 
 import scala.collection.mutable
 import scala.util.control.Breaks._
-import io.qross.keeper.TaskProducer._
 
 class TaskProducer extends WorkActor {
     
@@ -51,7 +51,7 @@ object TaskProducer {
         def distributeTo(checker: ActorRef, starter: ActorSelection): Unit = {
             if (tasks.nonEmpty) {
 
-                val nodes = Qross.nodes
+                val nodes = Qross.availableNodes
                 val address = Keeper.NODE_ADDRESS
 
                 if (nodes.size == 1) {
@@ -86,7 +86,7 @@ object TaskProducer {
                             breakable {
                                 while (node != address) {
                                     try {
-                                        val result = Http.PUT(s"""http://$node}/task/$action/${task.id}?jobId=${task.jobId}&taskTime=${task.taskTime}&recordTime=${task.recordTime}""").request()
+                                        val result = Http.PUT(s"""http://$node/task/$action/${task.id}?token=${Global.KEEPER_HTTP_TOKEN}&jobId=${task.jobId}&taskTime=${task.taskTime.encodeURL()}&recordTime=${task.recordTime.encodeURL()}""").request()
                                         if (result == "accept") {
                                             break
                                         }
@@ -99,7 +99,7 @@ object TaskProducer {
                                             Qross.disconnect(node, e)
                                             nodes -= node //remove disconnected node
                                             node = nodes.freest()
-                                        case e: Exception => e.printReferMessage()
+                                        case e: Exception => e.printStackTrace()//e.printReferMessage()
                                     }
                                 }
                             }
@@ -115,14 +115,6 @@ object TaskProducer {
                     })
                 }
             }
-        }
-    }
-
-    implicit class HashMap$Nodes(nodes: mutable.HashMap[String, Int]) {
-        def freest(): String = {
-            val node =  nodes.reduce((n1, n2) => if (n2._2 > n1._2) n2 else n1)._1
-            nodes += node -> (nodes(node) - 1)
-            node
         }
     }
 }

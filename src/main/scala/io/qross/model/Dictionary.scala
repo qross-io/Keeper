@@ -1,6 +1,7 @@
 package io.qross.model
 
 import io.qross.core.DataRow
+import io.qross.time.DateTime
 
 //case class Message(value: Any)
 

@@ -20,7 +20,7 @@ class Repeater extends WorkActor {
                         starter ! QrossTask.createEndlessTask(jobId)
                     })
             }
-            while (Timer.rest() < nextMinute)
+            while (Timer.rest() < nextMinute && !Setting.QUIT_ON_NEXT_BEAT)
         }
         //sleep to next second and return epoch second
     }

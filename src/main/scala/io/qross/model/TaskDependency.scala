@@ -1,15 +1,9 @@
 package io.qross.model
 
-import java.io.File
-import java.util.regex.Pattern
-
-import io.qross.core.{DataCell, DataHub, DataRow, DataTable, DataType}
+import io.qross.core.{DataHub, DataRow, DataTable}
 import io.qross.ext.TypeExt._
 import io.qross.jdbc.DataSource
-import io.qross.net.Json
-import io.qross.pql.{PQL, Sharp}
-
-import scala.util.{Success, Try}
+import io.qross.pql.PQL
 
 object TaskDependency {
 
@@ -55,7 +49,7 @@ object TaskDependency {
                     }
                     catch {
                         case e: Exception =>
-                            e.printReferMessage()
+                            e.printStackTrace() //e.printReferMessage()
                             TaskRecorder.of(depend.getInt("job_id"), depend.getLong("task_id"), depend.getString("record_time"))
                                 .warn(s"Wrong or no default dataSource name: " + connection)
                                 .err(e.getReferMessage)
@@ -70,7 +64,7 @@ object TaskDependency {
                         }
                         catch {
                             case e: Exception =>
-                                e.printReferMessage()
+                                e.printStackTrace() //e.printReferMessage()
                                 TaskRecorder.of(depend.getInt("job_id"), depend.getLong("task_id"), depend.getString("record_time"))
                                     .warn(s"Wrong SELECT sentence: " + depend.getString("dependency_content"))
                                     .err(e.getReferMessage)
@@ -88,7 +82,7 @@ object TaskDependency {
                             }
                             catch {
                                 case e: Exception =>
-                                    e.printReferMessage()
+                                    e.printStackTrace() //e.printReferMessage()
                                     TaskRecorder.of(depend.getInt("job_id"), depend.getLong("task_id"), depend.getString("record_time"))
                                         .warn(s"Wrong non Query sentence: " + updateSQL)
                                         .err(e.getReferMessage)
@@ -138,7 +132,7 @@ object TaskDependency {
                     }
                     catch {
                         case e: Exception =>
-                            e.printReferMessage()
+                            e.printStackTrace() //e.printReferMessage()
                             TaskRecorder.of(depend.getInt("job_id"), depend.getLong("task_id"), depend.getString("record_time"))
                               .warn(s"Wrong PQL statement: " + depend.getString("dependency_content"))
                               .err(e.getReferMessage)
@@ -156,7 +150,7 @@ object TaskDependency {
                         }
                         catch {
                             case e: Exception =>
-                                e.printReferMessage()
+                                e.printStackTrace() //e.printReferMessage()
                                 TaskRecorder.of(depend.getInt("job_id"), depend.getLong("task_id"), depend.getString("record_time"))
                                     .warn(s"Wrong PQL statement: " + depend.getString("dependency_option"))
                                     .err(e.getReferMessage)

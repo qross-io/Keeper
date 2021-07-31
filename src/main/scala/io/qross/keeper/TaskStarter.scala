@@ -5,6 +5,7 @@ import io.qross.ext.Output
 import io.qross.model._
 import io.qross.net.Http
 import io.qross.ext.TypeExt._
+import io.qross.setting.Global
 
 class TaskStarter extends WorkActor {
     
@@ -29,7 +30,7 @@ class TaskStarter extends WorkActor {
                         }
                         else {
                             try {
-                                Http.PUT(s"""http://${task.address}/task/start/${task.id}?jobId=${task.jobId}&taskTime=${task.taskTime}&recordTime=${task.recordTime}&terminus=yes""").request()
+                                Http.PUT(s"""http://${task.address}/task/start/${task.id}?token=${Global.KEEPER_HTTP_TOKEN}&jobId=${task.jobId}&taskTime=${task.taskTime.encodeURL()}&recordTime=${task.recordTime.encodeURL()}&terminus=yes""").request()
                             }
                             catch {
                                 case e: java.net.ConnectException =>
@@ -37,7 +38,7 @@ class TaskStarter extends WorkActor {
                                     Qross.disconnect(task.address, e)
                                     //还在当前机器运行
                                     runTask(task)
-                                case e: Exception => e.printReferMessage()
+                                case e: Exception => e.printStackTrace() //e.printReferMessage()
                             }
                         }
                     case _ =>

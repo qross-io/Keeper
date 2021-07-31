@@ -19,14 +19,13 @@ object QrossJob {
             }).clear()
     }
 
-
     def killJob(jobId: Int, killer: Int = 0): String = {
 
         Output.writeDebugging(s"All tasks of job $jobId will be killed.")
 
         val address = Keeper.NODE_ADDRESS
 
-        val actions = DataSource.QROSS.queryDataTable("SELECT A.id, A.task_id, B.node_address FROM qross_tasks_dags A INNER JOIN qross_tasks B ON A.task_id=B.id WHERE A.job_id=? AND A.status='running'", jobId)
+        val actions = DataSource.QROSS.queryDataTable("SELECT A.id, A.task_id, B.node_address FROM qross_tasks_dags A INNER JOIN qross_tasks_living B ON A.task_id=B.task_id WHERE A.job_id=? AND A.status='running'", jobId)
         val killing = new mutable.HashMap[Long, String]()
         actions.foreach(row => {
             val actionId = row.getLong("id")
@@ -42,11 +41,11 @@ object QrossJob {
 
         killing.foreach(task => {
             try {
-                Http.PUT(s"""http://${task._2}/task/kill/${task._1}?killer=$killer""").request()
+                Http.PUT(s"""http://${task._2}/task/kill/${task._1}?token=${Global.KEEPER_HTTP_TOKEN}&killer=$killer""").request()
             }
             catch {
                 case e: java.net.ConnectException => Qross.disconnect(task._2, e)
-                case e: Exception => e.printReferMessage()
+                case e: Exception => e.printStackTrace() //e.printReferMessage()
             }
         })
 

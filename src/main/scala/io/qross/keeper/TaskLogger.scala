@@ -13,7 +13,7 @@ class TaskLogger extends WorkActor {
         do {
             TaskRecorder.save()
         }
-        while(Timer.rest() < nextMinute)
+        while(Timer.rest() < nextMinute && !Setting.QUIT_ON_NEXT_BEAT)
     }
     
     override def cleanup(): Unit = {

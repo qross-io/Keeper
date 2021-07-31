@@ -1,5 +1,5 @@
 
-SAVE TO 'mysql.datax';
+SAVE TO 'mysql.qross';
 SET $prefix := '';
 
 OPEN DATABASE $connection_string DRIVER $jdbc_driver USERNAME $username PASSWORD $password AS $connection_name;

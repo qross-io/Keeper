@@ -6,8 +6,10 @@ import io.qross.setting.Configurations
 object Setting {
 
     Configurations.set("QUIT_ON_NEXT_BEAT", false)
+    Configurations.set("FORCE_TO_SHUTDOWN", false)
 
     def QUIT_ON_NEXT_BEAT: Boolean = Configurations.get("QUIT_ON_NEXT_BEAT").toBoolean(false)  //for keeper only
+    def FORCE_TO_SHUTDOWN: Boolean = Configurations.get("FORCE_TO_SHUTDOWN").toBoolean(false)  //for keeper only
 
     def COMPANY_NAME: String = Configurations.getOrProperty("COMPANY_NAME", "company.name", "")
 

@@ -27,9 +27,9 @@ object Workshop {
     def busy: Int = running
     def idle: Int = MAX - running
 
-    def busyScore: Double = ((Environment.cpuUsage * 64 + running * 0.32 + Environment.systemMemoryUsage * 4) / (64 + MAX * 0.32 + 4) * 10000d).round / 100d
+    def busyScore: Double = ((Environment.cpuUsage.abs * 64 + running.abs * 0.32 + Environment.systemMemoryUsage.abs * 4) / (64 + MAX * 0.32 + 4) * 10000d).round / 100d
 
     def delay(): Unit = {
-         Timer.sleep((busyScore * (Random.nextInt(9) + 1)).round.abs)
+         Timer.sleep((busyScore * (Random.nextInt(3) + 1)).round.abs)
     }
 }

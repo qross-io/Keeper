@@ -75,7 +75,7 @@ object EndlessJob {
                 }).put("UPDATE qross_endless_jobs_queue SET status='#status', apart=#aprt WHERE job_id=#job_id")
         }
 
-        writeLineWithSeal("SYSTEM", "Repeater beat!")
+        writeLineWithSeal("SYSTEM", s"<$address> Repeater beat!")
         dh.executeNonQuery(s"UPDATE qross_keeper_beats SET last_beat_time=NOW() WHERE node_address='$address' AND actor_name='Repeater'")
 
         dh.close()

@@ -1,5 +1,5 @@
 
-SET $metadata := 'mysql.datax';
+SET $metadata := 'mysql.qross';
 SET $prefix := '';
 
 OPEN $metadata;

@@ -44,7 +44,7 @@ class KeeperLogger {
                 .writeLines(logs)
                 .close()
     
-            Output.writeMessage(s"Record ${logs.size} lines into log file.")
+            Output.writeMessage(s"${DateTime.now} [INFO] Record ${logs.size} line(s) into log file.")
             logs.clear()
         }
     

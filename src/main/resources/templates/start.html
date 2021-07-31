@@ -14,7 +14,7 @@
 <div id="details">
     <%
     OPEN QROSS;
-    OUTPUT # SELECT node_name AS NodeName, node_address AS NodeAddress, status AS Status, CAST(online_time AS CHAR) AS OnlineTime FROM qross_keeper_nodes' -> TO HTML TABLE;
+    OUTPUT # SELECT node_name AS NodeName, node_address AS NodeAddress, status AS Status, CAST(online_time AS CHAR) AS OnlineTime FROM qross_keeper_nodes WHERE status<>'hide' -> TO HTML TABLE;
     %>
 </div>
 </body>
