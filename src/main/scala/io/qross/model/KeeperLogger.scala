@@ -61,8 +61,20 @@ class KeeperLogger {
             })
             ds.executeBatchUpdate()
 
-            ds.executeDataTable(s"SELECT event_function, event_value, event_option, '${Keeper.NODE_ADDRESS}' AS node_address FROM qross_keeper_events WHERE event_name='onNodeErrorOccur'")
+            ds.executeDataTable(s"SELECT event_function, event_value, event_option, '${Keeper.NODE_ADDRESS}' AS node_address FROM qross_keeper_events WHERE event_name='onNodeErrorOccur' AND enabled='yes' AND event_value IS NOT NULL AND event_value<>''")
                 .foreach(row => {
+                    val recipients = {
+                        val to = row.getString("event_value")
+                        if (to.contains("_KEEPER") && to.contains("_MASTER")) {
+                            "(role='master' OR role='keeper')"
+                        }
+                        else if (to.contains("_KEEPER")) {
+                            "role='keeper'"
+                        }
+                        else {
+                            "role='master'"
+                        }
+                    }
                     row.getString("event_function") match {
                         case "SEND_MAIL" =>
                             if (Global.EMAIL_NOTIFICATION) {
@@ -70,7 +82,7 @@ class KeeperLogger {
                                     .replace("#{companyName}", Setting.COMPANY_NAME)
                                     .replace("#{exceptions}", KeeperException.toHTML(exceptions))
                                     .writeEmail(s"KEEPER EXCEPTION: ${Setting.COMPANY_NAME} ${DateTime.now.toString}")
-                                    .to(ds.executeSingleValue("SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS master FROM qross_users WHERE (role='master' OR role='keeper') AND enabled='yes'").asText(""))
+                                    .to(ds.executeSingleValue(s"SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS recipients FROM qross_users WHERE $recipients AND enabled='yes'").asText(""))
                                     .send()
                             }
                         case "REQUEST_API" =>

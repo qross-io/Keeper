@@ -54,10 +54,10 @@ object Qross {
         ds.executeNonQuery(s"INSERT INTO qross_keeper_running_records (node_address, method) VALUES ('$address', '$method')")
         ds.executeNonQuery(s"UPDATE qross_keeper_beats SET status='running', start_time=NOW() WHERE node_address='$address' AND actor_name='Keeper'")
 
-         ds.executeDataTable(s"SELECT event_function, event_value, event_option, '$address' AS node_address, '$method' AS method FROM qross_keeper_events WHERE event_name='onNodeStart'")
+         ds.executeDataTable(s"SELECT event_function, event_value, event_option, '$address' AS node_address, '$method' AS method FROM qross_keeper_events WHERE event_name='onNodeStart' AND enabled='yes' AND event_value IS NOT NULL AND event_value<>''")
             .foreach(row => {
                 row.getString("event_function") match {
-                    case "SEND_MAIL" => sendMail("beats", s"Keeper Start by $method", row)
+                    case "SEND_MAIL" => sendMail("start", s"Keeper Start by $method", row)
                     case "REQUEST_API" => requestApi(row)
                     case "EXECUTE_SCRIPT" => executeScript(row)
                     case _ =>
@@ -102,7 +102,7 @@ object Qross {
 
         if (count > 0) {
             //events
-            ds.executeDataTable(s"SELECT event_function, event_value, event_option, '${Keeper.NODE_ADDRESS}' AS node_address, '$node' AS disconnected FROM qross_keeper_events WHERE event_name='onNodeDisconnect'")
+            ds.executeDataTable(s"SELECT event_function, event_value, event_option, '${Keeper.NODE_ADDRESS}' AS node_address, '$node' AS disconnected FROM qross_keeper_events WHERE event_name='onNodeDisconnect' AND enabled='yes' AND event_value IS NOT NULL AND event_value<>''")
                 .foreach(row => {
                     row.getString("event_function") match {
                         case "SEND_MAIL" => sendMail("disconnection", s"Keeper Node is disconnected: $node", row)
@@ -126,7 +126,7 @@ object Qross {
     def shutdown(): Unit = {
         val ds = DataSource.QROSS
         ds.executeNonQuery(s"UPDATE qross_keeper_nodes SET status='offline', offline_time=NOW() WHERE node_address='${Keeper.NODE_ADDRESS}'")
-        ds.executeDataTable(s"SELECT event_function, event_value, event_option, '${Keeper.NODE_ADDRESS}' AS node_address FROM qross_keeper_events WHERE event_name='onNodeShutdown'")
+        ds.executeDataTable(s"SELECT event_function, event_value, event_option, '${Keeper.NODE_ADDRESS}' AS node_address FROM qross_keeper_events WHERE event_name='onNodeShutdown' AND enabled='yes' AND event_value IS NOT NULL AND event_value<>''")
             .foreach(row => {
                 row.getString("event_function") match {
                     case "SEND_MAIL" => sendMail("shutdown", s"Keeper Node Shutdown: ${Keeper.NODE_ADDRESS}", row)
@@ -187,6 +187,7 @@ object Qross {
                            ) C ON A.job_id=C.job_id AND TIMESTAMPDIFF(MINUTE, C.record_time, NOW())>A.executing_overtime;
                             """)
             .cache("slow_tasks_events")
+
         if (dh.nonEmpty) {
             writeLineWithSeal("SYSTEM", s"${dh.COUNT_OF_LAST_GET} event(s) have been fired by slow Tasks.")
             dh.openCache()
@@ -202,12 +203,12 @@ object Qross {
 
         dh.clear()
             .openQross()
-            .get("SELECT GROUP_CONCAT(actor_name) AS actor_names FROM qross_keeper_beats WHERE actor_name IN ('Keeper', 'TaskProducer', 'TaskStarter', 'TaskChecker', 'TaskExecutor', 'TaskLogger', 'NoteProcessor', 'NoteQuerier', 'Repeater') AND status='rest'")
+            .get(s"SELECT GROUP_CONCAT(actor_name) AS actor_names FROM qross_keeper_beats WHERE node_address='$address' AND actor_name<>'Inspector' AND status='rest'")
 
         if (dh.nonEmpty) {
             val restActors = dh.firstCellStringValue
             dh.clear()
-                .get(s"SELECT event_function, event_value, event_option, '$tick' AS tick, '$address' AS node_address, '$restActors' as actors FROM qross_keeper_events WHERE event_name='onNodeBeatException'")
+                .get(s"SELECT event_function, event_value, event_option, '$tick' AS tick, '$address' AS node_address, '$restActors' as actors FROM qross_keeper_events WHERE event_name='onNodeBeatException' AND enabled='yes' AND event_value IS NOT NULL AND event_value<>''")
                 .takeOut()
                 .foreach(row => {
                     row.getString("event_function") match {
@@ -221,7 +222,7 @@ object Qross {
         }
         else if (new DateTime(tick).matches(Setting.BEAT_EVENTS_FIRE_FREQUENCY)) {
             dh.clear()
-                .get(s"SELECT event_function, event_value, event_option, '$tick' AS tick, '$address' AS node_address FROM qross_keeper_events WHERE event_name='onNodeBeat'")
+                .get(s"SELECT event_function, event_value, event_option, '$tick' AS tick, '$address' AS node_address FROM qross_keeper_events WHERE event_name='onNodeBeat' AND enabled='yes' AND event_value IS NOT NULL AND event_value<>''")
                 .takeOut()
                 .foreach(row => {
                     row.getString("event_function") match {
@@ -384,6 +385,18 @@ object Qross {
     }
 
     def sendMail(template: String, title: String, args: DataRow): Unit = {
+        val recipients = {
+            val to = args.getString("event_value")
+            if (to.contains("_KEEPER") && to.contains("_MASTER")) {
+                "(role='master' OR role='keeper')"
+            }
+            else if (to.contains("_KEEPER")) {
+                "role='keeper'"
+            }
+            else {
+                "role='master'"
+            }
+        }
         args.remove("event_value")
         args.remove("event_option")
         if (Global.EMAIL_NOTIFICATION) {
@@ -391,7 +404,7 @@ object Qross {
                 ResourceFile.open(s"/templates/$template.html")
                     .replaceWith(args)
                     .writeEmail(title)
-                    .to(DataSource.QROSS.executeSingleValue("SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS keeper FROM qross_users WHERE role IN ('master', 'keeper') AND enabled='yes'").asText(""))
+                    .to(DataSource.QROSS.executeSingleValue(s"SELECT GROUP_CONCAT(CONCAT(fullname, '<', email, '>')) AS keeper FROM qross_users WHERE $recipients AND enabled='yes'").asText(""))
                     .send()
 
                 writeDebugging(s"Keeper Event: Mail '$title' was sent.")
